@@ -1,0 +1,12 @@
+[
+  {
+    "facts": [["preferred editor", "VS Code"], ["response style", "concise answers"]],
+    "query": "What do you remember about my working preferences?",
+    "expected_terms": ["preferred editor", "response style"]
+  },
+  {
+    "facts": [["preferred workspace", "local-first desktop"], ["timezone", "Europe/Berlin"]],
+    "query": "what do you remember about me",
+    "expected_terms": ["preferred workspace"]
+  }
+]

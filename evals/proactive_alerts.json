@@ -1,0 +1,60 @@
+[
+  {
+    "assistant_mode": "manual",
+    "now": "2026-03-21T09:00:00",
+    "alerts": [
+      {
+        "type": "file_watch",
+        "title": "New file indexed",
+        "message": "New file indexed: notes",
+        "path": "C:/docs/notes.txt",
+        "document_id": "doc-1",
+        "document_title": "notes",
+        "category": "internal",
+        "evidence": ["notes (internal)"]
+      },
+      {
+        "type": "inbox",
+        "title": "New email",
+        "message": "You have 2 new unread messages.",
+        "count": 2,
+        "samples": [
+          {
+            "id": "m1",
+            "sender": "client@example.com",
+            "subject": "Urgent invoice update",
+            "received_at": "2026-03-21T08:55:00"
+          }
+        ],
+        "evidence": ["client@example.com: Urgent invoice update"]
+      }
+    ],
+    "expected_top_type": "inbox",
+    "expected_top_priority": "high"
+  },
+  {
+    "assistant_mode": "manual",
+    "now": "2026-03-21T09:00:00",
+    "alerts": [
+      {
+        "type": "document",
+        "title": "Documents due soon",
+        "message": "1 document requires attention within 7 days.",
+        "documents": [
+          {
+            "id": "doc-1",
+            "title": "Invoice A",
+            "category": "invoice",
+            "due_date": "2026-03-22T12:00:00"
+          }
+        ],
+        "evidence": ["Invoice A (2026-03-22T12:00:00)"]
+      }
+    ],
+    "feedback": {
+      "outcome": "dismissed"
+    },
+    "expected_top_type": "document",
+    "expected_top_priority": "normal"
+  }
+]

@@ -1,0 +1,35 @@
+[Unit]
+Description=KERN AI Workspace
+Documentation=https://github.com/kern-ai/kern
+After=network.target
+Wants=network-online.target
+ConditionPathExists=/etc/kern/kern.env
+
+[Service]
+Type=simple
+User=kern
+Group=kern
+WorkingDirectory=/opt/kern
+Environment=KERN_PRODUCT_POSTURE=production
+Environment=KERN_POLICY_MODE=corporate
+Environment=KERN_DB_PATH=/var/lib/kern/kern.db
+Environment=KERN_SYSTEM_DB_PATH=/var/lib/kern/kern-system.db
+Environment=KERN_PROFILE_ROOT=/var/lib/kern/profiles
+Environment=KERN_BACKUP_ROOT=/var/lib/kern/backups
+Environment=KERN_DOCUMENT_ROOT=/var/lib/kern/documents
+EnvironmentFile=/etc/kern/kern.env
+ExecStart=/opt/kern/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kern /var/log/kern
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[
+  {
+    "prompt": "Look through files for retention policy",
+    "available_capabilities": ["search_files"],
+    "expected_tool": "search_files",
+    "min_confidence": 0.6
+  },
+  {
+    "prompt": "Refresh my email inbox and check if anything urgent arrived today",
+    "available_capabilities": ["sync_mailbox"],
+    "expected_tool": "sync_mailbox",
+    "min_confidence": 0.6
+  },
+  {
+    "prompt": "Handle the thing from earlier",
+    "available_capabilities": ["search_documents", "read_mailbox_summary"],
+    "expect_abstain": true
+  }
+]

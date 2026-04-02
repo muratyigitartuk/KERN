@@ -1,0 +1,18 @@
+[
+  {
+    "query": "compare invoice due dates and amounts",
+    "documents": [
+      {
+        "source_id": "doc-a",
+        "title": "Invoice A",
+        "text": "Acme GmbH invoice total is 4200 EUR due on 2026-04-02."
+      },
+      {
+        "source_id": "doc-b",
+        "title": "Invoice B",
+        "text": "Beta GmbH invoice total is 5100 EUR due on 2026-04-10."
+      }
+    ],
+    "expected_terms": ["key due dates", "key amounts", "different due dates", "different amounts", "different counterparties"]
+  }
+]

@@ -1,0 +1,4 @@
+customer,document_type,amount_eur,status,due_date,owner
+ACME GmbH,invoice,2750,due soon,2026-04-02,Lea Fischer
+ACME GmbH,offer,4850,open,2026-04-30,Lea Fischer
+Northwind AG,invoice,1320,paid,2026-03-10,Murat

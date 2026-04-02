@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KERN Access</title>
+    <meta name="description" content="Authenticate to the KERN corporate workspace." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Doto:wght@400..900&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --black: #f5f5f5;
+        --surface: #ffffff;
+        --surface-raised: #f0f0f0;
+        --border: #e8e8e8;
+        --border-visible: #cccccc;
+        --text-disabled: #999999;
+        --text-secondary: #666666;
+        --text-primary: #1a1a1a;
+        --text-display: #000000;
+        --accent: #d71921;
+        --accent-subtle: rgba(215, 25, 33, 0.12);
+        --success: #4a9e5c;
+        --warning: #d4a843;
+        --interactive: #007aff;
+        --space-xs: 4px;
+        --space-sm: 8px;
+        --space-md: 16px;
+        --space-lg: 24px;
+        --space-xl: 32px;
+        --space-2xl: 48px;
+        --space-3xl: 64px;
+        --space-4xl: 96px;
+      }
+
+      * { box-sizing: border-box; }
+
+      ::selection {
+        background: var(--text-display);
+        color: var(--black);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Space Grotesk", "DM Sans", system-ui, sans-serif;
+        color: var(--text-primary);
+        background: var(--black);
+        padding: var(--space-xl);
+      }
+
+      .shell {
+        width: min(1120px, 100%);
+        min-height: calc(100vh - (var(--space-xl) * 2));
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(360px, 0.78fr);
+        gap: var(--space-lg);
+        align-items: stretch;
+      }
+
+      .hero,
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--surface);
+      }
+
+      .hero {
+        position: relative;
+        padding: var(--space-2xl);
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: var(--space-2xl);
+        overflow: hidden;
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(circle, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+        background-size: 16px 16px;
+        opacity: 0.32;
+        pointer-events: none;
+      }
+
+      .hero > * {
+        position: relative;
+        z-index: 1;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border-visible);
+        background: var(--surface);
+        color: var(--text-secondary);
+        font-family: "Space Mono", "JetBrains Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(5rem, 12vw, 8.5rem);
+        line-height: 0.84;
+        letter-spacing: -0.06em;
+        color: var(--text-display);
+      }
+
+      .hero-copy {
+        display: grid;
+        gap: var(--space-lg);
+        align-content: start;
+      }
+
+      .hero-kicker {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 12px;
+        font-family: "Space Mono", "JetBrains Mono", monospace;
+        text-transform: uppercase;
+      }
+
+      .hero-kicker__code {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        color: var(--text-secondary);
+      }
+
+      .hero-kicker__state {
+        font-size: 64px;
+        line-height: 0.9;
+        letter-spacing: -0.06em;
+        color: var(--text-display);
+        font-family: "Doto", "Space Mono", monospace;
+        font-variation-settings: "ROND" 100;
+      }
+
+      .lede {
+        max-width: 30rem;
+        margin: 0;
+        color: var(--text-primary);
+        font-size: 1.05rem;
+        line-height: 1.6;
+      }
+
+      .hero-specs {
+        display: grid;
+        gap: 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .spec-row {
+        display: grid;
+        grid-template-columns: 180px minmax(0, 1fr);
+        gap: var(--space-lg);
+        padding: 18px 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .spec-row__label {
+        font-family: "Space Mono", "JetBrains Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      .spec-row__body {
+        display: grid;
+        gap: 4px;
+      }
+
+      .spec-row__body strong {
+        font-size: 1.15rem;
+        line-height: 1.2;
+        color: var(--text-display);
+      }
+
+      .spec-row__body span {
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+        line-height: 1.55;
+      }
+
+      .panel {
+        padding: var(--space-xl);
+        display: grid;
+        align-content: start;
+        gap: var(--space-xl);
+      }
+
+      .panel-head {
+        display: grid;
+        gap: var(--space-sm);
+      }
+
+      .panel h2 {
+        margin: 0;
+        font-size: 2rem;
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+        color: var(--text-display);
+      }
+
+      .panel p {
+        margin: 0;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+
+      .stack {
+        display: grid;
+        gap: var(--space-md);
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        font-family: "Space Mono", "JetBrains Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      input {
+        width: 100%;
+        height: 52px;
+        border: 1px solid var(--border-visible);
+        border-radius: 10px;
+        padding: 0 16px;
+        font: 400 15px/1 "Space Mono", "JetBrains Mono", monospace;
+        letter-spacing: 0.01em;
+        color: var(--text-display);
+        background: var(--surface);
+        outline: none;
+        transition: border-color 180ms ease, background-color 180ms ease;
+      }
+
+      input:focus {
+        border-color: var(--text-display);
+      }
+
+      button {
+        min-height: 48px;
+        padding: 12px 20px;
+        border-radius: 999px;
+        font: 400 13px/1 "Space Mono", "JetBrains Mono", monospace;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+      }
+
+      .primary {
+        border: none;
+        background: var(--text-display);
+        color: var(--black);
+      }
+
+      .secondary {
+        border: 1px solid var(--border-visible);
+        background: transparent;
+        color: var(--text-primary);
+      }
+
+      .actions {
+        display: grid;
+        gap: var(--space-sm);
+      }
+
+      .recovery-block {
+        display: grid;
+        gap: var(--space-md);
+        padding-top: var(--space-lg);
+        border-top: 1px solid var(--border);
+      }
+
+      .recovery-note {
+        display: grid;
+        gap: 6px;
+      }
+
+      .recovery-note span {
+        font-family: "Space Mono", "JetBrains Mono", monospace;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+      }
+
+      .recovery-note strong {
+        font-size: 1rem;
+        line-height: 1.35;
+        color: var(--text-display);
+      }
+
+      .status {
+        min-height: 20px;
+        padding-top: 4px;
+        color: var(--text-secondary);
+        font: 400 12px/1.4 "Space Mono", "JetBrains Mono", monospace;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .status.is-error {
+        color: var(--accent);
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--border);
+      }
+
+      @media (max-width: 840px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+        .hero {
+          min-height: auto;
+          padding: var(--space-xl);
+          gap: var(--space-xl);
+        }
+        .spec-row {
+          grid-template-columns: 1fr;
+          gap: var(--space-sm);
+        }
+        h1 {
+          font-size: clamp(4rem, 22vw, 6rem);
+        }
+        .hero-kicker__state {
+          font-size: 48px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="hero">
+        <span class="eyebrow">Corporate Workspace Access</span>
+        <div class="hero-copy">
+          <div class="hero-kicker">
+            <span class="hero-kicker__code">AUTH.01</span>
+            <span class="hero-kicker__state">00</span>
+          </div>
+          <h1>KERN</h1>
+          <p class="lede">
+            Authenticate with your organization account or use the local break-glass operator account from the host machine.
+          </p>
+        </div>
+        <div class="hero-specs">
+          <div class="spec-row">
+            <span class="spec-row__label">Session mode</span>
+            <div class="spec-row__body">
+              <strong>Workspace-bound access</strong>
+              <span>Sessions bind to explicit workspaces instead of a single global profile.</span>
+            </div>
+          </div>
+          <div class="spec-row">
+            <span class="spec-row__label">Audit trail</span>
+            <div class="spec-row__body">
+              <strong>Audited actions</strong>
+              <span>Operator sessions, exports, approvals, and legal holds are logged centrally.</span>
+            </div>
+          </div>
+          <div class="spec-row">
+            <span class="spec-row__label">Identity path</span>
+            <div class="spec-row__body">
+              <strong>OIDC first</strong>
+              <span>Enterprise identity is the default path for normal users and approvers.</span>
+            </div>
+          </div>
+          <div class="spec-row">
+            <span class="spec-row__label">Recovery mode</span>
+            <div class="spec-row__body">
+              <strong>Recovery safe path</strong>
+              <span>Break-glass access stays local to the machine and never becomes the normal operating mode.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <span class="eyebrow">Sign in</span>
+          <h2>Sign in</h2>
+          <p>Use organization SSO when available. Break-glass login is for recovery and maintenance only.</p>
+        </div>
+
+        <div class="actions">
+          <button id="oidcLogin" class="primary" type="button">Continue with organization login</button>
+        </div>
+
+        <div class="recovery-block">
+          <div class="recovery-note">
+            <span>Fallback path</span>
+            <strong>Use break-glass only for local recovery, maintenance, or OIDC outage testing.</strong>
+          </div>
+          <div class="stack">
+            <label>
+              Break-glass username
+              <input id="breakGlassUsername" type="text" autocomplete="username" value="breakglass" />
+            </label>
+            <label>
+              Break-glass password
+              <input id="breakGlassPassword" type="password" autocomplete="current-password" />
+            </label>
+            <button id="breakGlassLogin" class="secondary" type="button">Use break-glass access</button>
+          </div>
+        </div>
+
+        <div id="status" class="status" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const CSRF_COOKIE = "kern_csrf_token";
+      const CSRF_HEADER = "x-csrf-token";
+
+      function setStatus(message, isError = false) {
+        statusEl.textContent = message || "";
+        statusEl.classList.toggle("is-error", Boolean(isError));
+      }
+
+      function readCookie(name) {
+        const prefix = `${name}=`;
+        return document.cookie
+          .split(";")
+          .map((part) => part.trim())
+          .find((part) => part.startsWith(prefix))
+          ?.slice(prefix.length) || "";
+      }
+
+      document.getElementById("oidcLogin").addEventListener("click", () => {
+        window.location.href = "/auth/oidc/login?return_to=/dashboard";
+      });
+
+      document.getElementById("breakGlassLogin").addEventListener("click", async () => {
+        const username = document.getElementById("breakGlassUsername").value.trim().toLowerCase();
+        const password = document.getElementById("breakGlassPassword").value;
+        const csrfToken = readCookie(CSRF_COOKIE);
+        setStatus("Signing in...");
+        try {
+          const response = await fetch("/auth/break-glass/login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(csrfToken ? { [CSRF_HEADER]: csrfToken } : {}),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({ username, password }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload.detail || "Sign-in failed.");
+          }
+          window.location.href = "/dashboard";
+        } catch (error) {
+          setStatus(error.message || "Sign-in failed.", true);
+        }
+      });
+    </script>
+  </body>
+</html>

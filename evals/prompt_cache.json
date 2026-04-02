@@ -1,0 +1,32 @@
+[
+  {
+    "text": "Summarize my current workspace state.",
+    "context_revision": "ctx-1",
+    "knowledge_revision": "kb-1",
+    "memory_revision": "mem-1",
+    "other_context_revision": "ctx-2",
+    "other_knowledge_revision": "kb-1",
+    "other_memory_revision": "mem-1",
+    "expect_different_key": true
+  },
+  {
+    "text": "Summarize my current workspace state.",
+    "context_revision": "ctx-1",
+    "knowledge_revision": "kb-1",
+    "memory_revision": "mem-1",
+    "other_context_revision": "ctx-1",
+    "other_knowledge_revision": "kb-2",
+    "other_memory_revision": "mem-1",
+    "expect_different_key": true
+  },
+  {
+    "text": "Summarize my current workspace state.",
+    "context_revision": "ctx-1",
+    "knowledge_revision": "kb-1",
+    "memory_revision": "mem-1",
+    "other_context_revision": "ctx-1",
+    "other_knowledge_revision": "kb-1",
+    "other_memory_revision": "mem-2",
+    "expect_different_key": true
+  }
+]

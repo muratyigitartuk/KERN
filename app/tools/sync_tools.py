@@ -1,0 +1,54 @@
+from __future__ import annotations
+
+from app.syncing import SyncService
+from app.tools.base import Tool
+from app.types import ToolRequest, ToolResult
+
+
+class SyncToTargetTool(Tool):
+    name = "sync_profile_data"
+
+    def __init__(self, service: SyncService) -> None:
+        self.service = service
+
+    def availability(self) -> tuple[bool, str | None]:
+        return self.service.availability()
+
+    async def run(self, request: ToolRequest) -> ToolResult:
+        kind = str(request.arguments.get("kind", "nas") or "nas").strip()
+        path_or_url = str(request.arguments.get("path_or_url", "")).strip()
+        if not path_or_url:
+            return ToolResult(status="failed", display_text="I need a sync path or URL.", spoken_text="I need a sync path or URL.")
+        label = str(request.arguments.get("label", "Sync target") or "Sync target")
+        target = self.service.upsert_target(
+            kind if kind in {"nextcloud", "nas"} else "nas",
+            label,
+            path_or_url,
+            username=str(request.arguments.get("username", "")).strip() or None,
+            password=str(request.arguments.get("password", "")).strip() or None,
+        )
+        data_classes = list(request.arguments.get("data_classes", [])) or ["documents", "archives", "attachments", "meetings"]
+        if kind == "nextcloud":
+            source_file = str(request.arguments.get("source_file", "")).strip()
+            if not source_file:
+                return ToolResult(
+                    status="failed",
+                    display_text="Remote WebDAV is upload-only right now. Provide source_file for an explicit upload.",
+                    spoken_text="Remote WebDAV is upload-only right now.",
+                )
+            destination = self.service.upload_webdav(source_file, path_or_url, target_id=target.id)
+            return ToolResult(
+                status="observed",
+                display_text="Uploaded file to Nextcloud/WebDAV target.",
+                spoken_text="WebDAV upload completed.",
+                side_effects=["sync_completed"],
+                data={"destination": destination},
+            )
+        destination = self.service.sync_to_target(target, data_classes=data_classes)
+        return ToolResult(
+            status="observed",
+            display_text=destination,
+            spoken_text="Profile sync completed.",
+            side_effects=["sync_completed"],
+            data={"destination": destination, "data_classes": data_classes},
+        )

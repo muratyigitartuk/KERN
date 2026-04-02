@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>KERN Local Drafting Workspace</title>
+    <meta name="description" content="KERN drafts German business replies from local company documents." />
+    <meta name="theme-color" id="themeColorMeta" content="#111111" />
+    <script>
+      (() => {
+        const storageKey = "kern.theme.mode";
+        const stored = localStorage.getItem(storageKey);
+        const preference = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const resolved = preference === "system" ? (prefersDark ? "dark" : "light") : preference;
+        document.documentElement.dataset.theme = resolved;
+        const meta = document.getElementById("themeColorMeta");
+        if (meta) {
+          meta.setAttribute("content", resolved === "dark" ? "#111111" : "#f5f5f5");
+        }
+      })();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Doto:wght@400..900&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+    <link rel="manifest" href="/static/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/static/icons/kern-192.svg" />
+    <link rel="apple-touch-icon" href="/static/icons/kern-192.svg" />
+    <link rel="stylesheet" href="/static/dashboard.css" />
+  </head>
+  <body data-product-posture="production">
+    <div class="workspace-shell">
+      <aside class="sidebar">
+        <div class="sidebar__top">
+          <button type="button" id="sidebarHome" class="sidebar__title sidebar__title-button" title="New conversation" data-i18n-title="nav.new_conversation">
+            KERN
+          </button>
+          <button
+            type="button"
+            id="sidebarToggle"
+            class="icon-button sidebar-toggle"
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            data-i18n-aria-label="nav.collapse_sidebar"
+            data-i18n-title="nav.collapse_sidebar"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+              <path d="M13.5 16.5 9 12l4.5-4.5M18.75 16.5 14.25 12l4.5-4.5" />
+            </svg>
+          </button>
+        </div>
+
+        <button type="button" id="newConversation" class="sidebar-primary" title="New conversation" data-i18n-title="nav.new_conversation">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+            <path d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          <span class="sidebar-primary__label" data-i18n="nav.new_conversation">New conversation</span>
+        </button>
+
+        <button type="button" id="openConversationSearch" class="sidebar-search sidebar-search-button" title="Search conversation" data-i18n-title="nav.search_conversation">
+          <div class="sidebar-search__head">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+              <path d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+            </svg>
+            <span class="eyebrow" data-i18n="nav.search">Search</span>
+          </div>
+          <span class="sidebar-search__hint" data-i18n="nav.search_conversation">Search conversation</span>
+        </button>
+
+        <section class="sidebar-section" id="sessionSection">
+          <div class="sidebar-section__head">
+            <span class="eyebrow" data-i18n="nav.session">Session</span>
+            <span id="topTimestamp" class="meta-text">00:00:00</span>
+          </div>
+          <ul id="sessionList" class="sidebar-list"></ul>
+        </section>
+
+        <div class="sidebar-settings">
+          <button type="button" id="utilityToggle" class="sidebar-secondary utility-toggle" title="Utility" data-i18n-title="nav.utility">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="utility-toggle__icon">
+              <path d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0m3 0H3.75m16.5 12h-9.75m9.75 0a1.5 1.5 0 1 0-3 0m3 0a1.5 1.5 0 1 1-3 0m0 0H3.75m9.75-6h6.75m-6.75 0a1.5 1.5 0 1 0-3 0m3 0a1.5 1.5 0 1 1-3 0m0 0H3.75" />
+            </svg>
+            <span class="sidebar-secondary__label" data-i18n="nav.utility">Utility</span>
+          </button>
+
+          <button type="button" id="openSettings" class="sidebar-secondary" title="Settings" data-i18n-title="nav.settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon sidebar-nav__icon--settings">
+              <path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            </svg>
+            <span class="sidebar-secondary__label" data-i18n="nav.settings">Settings</span>
+          </button>
+          <section class="sidebar-account" id="sidebarAccount">
+            <div class="workspace-switcher" id="workspaceAccessShell">
+              <span class="eyebrow" data-i18n="workspace.current_label">Workspace</span>
+              <button
+                type="button"
+                id="workspaceSwitcherButton"
+                class="workspace-switcher__button"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                data-i18n-aria-label="workspace.select"
+              >
+                <span id="workspaceSwitcherValue">Primary profile</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true" class="workspace-switcher__icon">
+                  <path d="m7.5 9 4.5 4.5L16.5 9" />
+                </svg>
+              </button>
+              <div id="workspaceSwitcherMenu" class="workspace-switcher__menu hidden" role="menu" data-i18n-aria-label="workspace.select"></div>
+            </div>
+            <div class="sidebar-account__summary">
+              <div id="workspaceUserInitials" class="sidebar-account__avatar" aria-hidden="true">K</div>
+              <div class="sidebar-account__copy">
+                <strong id="workspaceUserName">KERN User</strong>
+                <span id="workspaceUserMeta">Local account</span>
+              </div>
+            </div>
+          </section>
+          <button type="button" id="workspaceLogout" class="sidebar-secondary sidebar-secondary--danger" data-i18n="nav.sign_out">Sign out</button>
+        </div>
+      </aside>
+
+      <main class="workspace-main">
+        <header class="workspace-topbar">
+          <div class="workspace-topbar__meta">
+            <button type="button" id="trustBadge" class="trust-badge trust-badge--checking" title="Network isolation status" aria-live="polite" data-i18n-title="trust.network_isolation">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="trust-badge__icon">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span id="trustBadgeLabel" data-i18n="trust.checking">Checking</span>
+            </button>
+            <span id="connectionState" class="connection-pill" aria-live="polite" data-i18n="status.connecting">Connecting</span>
+          </div>
+        </header>
+
+        <section class="conversation-shell" id="workspaceView">
+          <div id="threadShell" class="thread-shell">
+            <div id="workspaceDropOverlay" class="workspace-drop-overlay hidden" aria-hidden="true">
+              <div id="workspaceDropPanel" class="workspace-drop-panel" data-state="ready">
+                <div class="workspace-drop-panel__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" class="workspace-drop-panel__icon-svg">
+                      <path d="M12 3.75v10.5m0 0 3.75-3.75M12 14.25 8.25 10.5M4.5 15.75v1.5A2.25 2.25 0 0 0 6.75 19.5h10.5a2.25 2.25 0 0 0 2.25-2.25v-1.5" />
+                  </svg>
+                </div>
+                <h3 id="workspaceDropTitle" class="workspace-drop-panel__title" data-i18n="dropzone.ready_title">Drop files to add them locally</h3>
+                <p id="workspaceDropBody" class="workspace-drop-panel__body" data-i18n="dropzone.ready_body">
+                  PDFs, Office files, email exports, and text documents stay inside this local profile for grounded drafting.
+                </p>
+                <div id="workspaceDropProgress" class="workspace-drop-progress hidden" aria-live="polite">
+                  <span id="workspaceDropProgressLabel" class="workspace-drop-progress__label">Uploading 1 file...</span>
+                  <div class="workspace-drop-progress__bar">
+                    <div id="workspaceDropProgressFill" class="workspace-drop-progress__fill"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div id="emptyState" class="empty-state">
+              <div class="empty-state__copy">
+                <h2 data-i18n="empty.heading">Ready to Help.</h2>
+              </div>
+
+            </div>
+
+            <div id="threadList" class="thread-list" aria-live="polite"></div>
+          </div>
+
+          <div id="confirmationBox" class="confirmation-card hidden">
+            <div class="confirmation-card__copy">
+              <span class="eyebrow" data-i18n="confirm.required">Confirmation required</span>
+              <p id="confirmationText"></p>
+            </div>
+            <div class="confirmation-card__actions">
+              <button id="confirmButton" type="button" class="solid-button" data-i18n="confirm.approve">Approve</button>
+              <button id="cancelButton" type="button" class="ghost-button" data-i18n="confirm.cancel">Cancel</button>
+            </div>
+          </div>
+
+          <section id="failurePanel" class="failure-panel hidden" aria-live="polite">
+            <ul id="failureList" class="failure-panel__list"></ul>
+          </section>
+
+          <div id="composerAssist" class="composer-status hidden" aria-live="polite">
+            <div class="composer-status__signal">
+              <span id="composerAssistBadge" class="composer-status__badge"></span>
+              <span id="composerAssistSummary" class="composer-status__summary"></span>
+            </div>
+            <button
+              type="button"
+              id="composerAssistDismiss"
+              class="composer-status__dismiss"
+              aria-label="Dismiss status"
+              title="Dismiss status"
+              data-i18n-aria-label="composer.dismiss_status"
+              data-i18n-title="composer.dismiss_status"
+            >&times;</button>
+          </div>
+
+            <form id="commandForm" class="composer">
+              <div id="composerUploads" class="composer-uploads hidden" aria-live="polite">
+                <div id="composerUploadsList" class="composer-uploads__list"></div>
+              </div>
+              <div class="composer__top">
+                <textarea id="commandInput" placeholder="Ask from local documents or draft a grounded German business reply" aria-label="Message KERN" data-i18n-placeholder="composer.placeholder" data-i18n-aria-label="composer.aria_label"></textarea>
+              </div>
+              <div class="composer__bottom">
+              <div class="composer__right">
+                <div class="composer-plus-wrap">
+                  <button type="button" id="composerPlusButton" class="icon-button composer-action-button" aria-label="Attach or reference" title="Attach or reference" data-i18n-aria-label="composer.attach" data-i18n-title="composer.attach" aria-expanded="false" aria-haspopup="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="composer-action-button__icon">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                  </button>
+                  <div id="composerPlusMenu" class="composer-plus-menu hidden" role="menu">
+                    <button type="button" class="composer-plus-menu__item" id="composerAttachFile" role="menuitem">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="composer-plus-menu__icon">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                      </svg>
+                      <div class="composer-plus-menu__body">
+                        <span class="composer-plus-menu__label" data-i18n="composer.upload_file">Upload file</span>
+                        <span class="composer-plus-menu__desc" data-i18n="composer.upload_file_desc">Add a local document for grounded drafting</span>
+                      </div>
+                    </button>
+                    <button type="button" class="composer-plus-menu__item" id="composerKbAction" role="menuitem" aria-expanded="false">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="composer-plus-menu__icon">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                      </svg>
+                      <div class="composer-plus-menu__body">
+                        <span class="composer-plus-menu__label" data-i18n="composer.from_kb">From knowledge base</span>
+                        <span class="composer-plus-menu__desc" data-i18n="composer.from_kb_desc">Reference an indexed local document</span>
+                      </div>
+                    </button>
+                    <div id="composerKbPicker" class="composer-kb-picker hidden">
+                      <input type="search" id="composerKbSearch" class="settings-text-input" placeholder="Search documents…" />
+                      <ul id="composerKbList" class="composer-kb-list"></ul>
+                    </div>
+                  </div>
+                </div>
+                <input id="composerFileInput" type="file" accept=".pdf,.txt,.md,.csv,.xlsx,.xls,.doc,.docx,.eml,.json,.html,.htm,.rtf" multiple hidden />
+                <button type="submit" id="sendButton" class="send-button" data-i18n="composer.send">Send</button>
+              </div>
+            </div>
+          </form>
+        </section>
+
+      </main>
+
+      </div>
+
+      <div id="onboardingModal" class="settings-modal onboarding-modal hidden" aria-hidden="true">
+        <div id="onboardingBackdrop" class="settings-modal__backdrop"></div>
+        <section class="settings-modal__dialog onboarding-modal__dialog" role="dialog" aria-modal="true" aria-label="First run">
+          <div class="onboarding-modal__content">
+            <section id="onboardingCard" class="onboarding-card hidden" aria-live="polite">
+              <div class="onboarding-card__head">
+                <div class="onboarding-card__heading">
+                  <span id="onboardingEyebrow" class="eyebrow" data-i18n="onboarding.eyebrow">First run</span>
+                  <strong id="onboardingStepLabel">Step 1 of 3</strong>
+                </div>
+                <button type="button" id="onboardingDismiss" class="ghost-button onboarding-card__dismiss hidden">Skip</button>
+              </div>
+              <div class="onboarding-card__body">
+                <div class="onboarding-card__copy">
+                  <h3 id="onboardingTitle">Confirm where KERN keeps your work</h3>
+                  <p id="onboardingBody">KERN stores profile data, indexed documents, and backups on this machine before you start the first drafting workflow.</p>
+                </div>
+                <div class="onboarding-card__facts">
+                  <div class="onboarding-fact">
+                    <span class="eyebrow" data-i18n="onboarding.fact_local_label">Local posture</span>
+                    <strong id="onboardingLocalPosture">Checking local runtime posture.</strong>
+                  </div>
+                  <div class="onboarding-fact">
+                    <span class="eyebrow" data-i18n="onboarding.fact_storage_label">Document storage</span>
+                    <strong id="onboardingStoragePath">Not configured</strong>
+                  </div>
+                  <div class="onboarding-fact">
+                    <span class="eyebrow" data-i18n="onboarding.fact_model_label">Recommended model</span>
+                    <strong id="onboardingModelPath">Not configured</strong>
+                  </div>
+                  <div class="onboarding-fact">
+                    <span class="eyebrow" data-i18n="onboarding.fact_recovery_label">Recovery</span>
+                    <strong id="onboardingRecoveryPath">Not configured</strong>
+                  </div>
+                </div>
+              </div>
+              <div class="onboarding-card__actions">
+                <button type="button" id="onboardingPrimaryAction" class="solid-button">Use this local profile</button>
+                <button type="button" id="onboardingSecondaryAction" class="ghost-button hidden">Not now</button>
+              </div>
+              <p id="onboardingReadiness" class="onboarding-card__readiness">Ready for the first grounded draft.</p>
+              <p id="onboardingActivationNote" class="onboarding-card__readiness">Sample evaluation is available before activation.</p>
+            </section>
+          </div>
+        </section>
+      </div>
+
+      <div id="conversationSearchModal" class="settings-modal hidden search-modal" aria-hidden="true">
+      <div id="conversationSearchBackdrop" class="settings-modal__backdrop"></div>
+      <section class="settings-modal__dialog search-modal__dialog" role="dialog" aria-modal="true" aria-label="Search conversation">
+        <div class="search-modal__content">
+          <div class="search-modal__bar">
+            <label class="search-modal__field">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                <path d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+              </svg>
+              <input id="conversationSearchInput" type="search" placeholder="Search chats and messages" autocomplete="off" />
+            </label>
+            <button type="button" id="closeConversationSearch" class="settings-modal__close" aria-label="Close search">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                <path d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div class="search-modal__results-wrap">
+            <ul id="conversationSearchResults" class="search-results-list"></ul>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="utilityModal" class="settings-modal hidden utility-modal" aria-hidden="true">
+      <div id="utilityBackdrop" class="settings-modal__backdrop"></div>
+      <section class="settings-modal__dialog utility-modal__dialog" role="dialog" aria-modal="true" aria-label="Utility controls">
+        <aside class="settings-modal__sidebar">
+          <button type="button" id="closeUtilityModal" class="settings-modal__close" aria-label="Close utility">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+              <path d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <div class="workbench-brand">
+            <span class="eyebrow">Workbench</span>
+            <strong>Operate, govern, and review the live workspace.</strong>
+            <p>The control plane now separates workspace activity, governance, and evidence inside one authenticated shell.</p>
+          </div>
+
+          <nav class="settings-modal__nav" role="tablist" aria-label="Workbench sections">
+            <button type="button" role="tab" aria-selected="true" class="settings-modal__nav-item utility-tab is-active" data-tab="workspace" title="Workspace" aria-label="Workspace">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+              </svg>
+              <span class="utility-tab__label">Workspace</span>
+            </button>
+            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab" data-tab="admin" data-role-allow="org_admin,org_owner,break_glass_admin" title="Admin" aria-label="Admin">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15m-15 5.25h15m-15 5.25h9M8.25 3.75v16.5m7.5-16.5v16.5" />
+              </svg>
+              <span class="utility-tab__label">Admin</span>
+            </button>
+            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab" data-tab="compliance" data-role-allow="member,org_admin,org_owner,auditor,break_glass_admin" title="Compliance" aria-label="Compliance">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3.75 4.5 7.5v4.125c0 4.664 3.182 8.844 7.5 10.125 4.318-1.281 7.5-5.461 7.5-10.125V7.5L12 3.75Zm0 5.25v5.25m0 3h.008" />
+              </svg>
+              <span class="utility-tab__label">Compliance</span>
+            </button>
+            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab" data-tab="intelligence" data-role-allow="member,org_admin,org_owner,auditor,break_glass_admin" title="Intelligence" aria-label="Intelligence">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
+              </svg>
+              <span class="utility-tab__label">Intelligence</span>
+            </button>
+            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab hidden" data-tab="comms" title="Data &amp; Comms" aria-label="Data and Communications">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M7.875 14.25l1.214 1.942a2.25 2.25 0 0 0 1.908 1.058h1.006c.776 0 1.497-.4 1.908-1.058l1.214-1.942M2.41 9h4.636a2.25 2.25 0 0 1 1.872 1.002l.164.246a2.25 2.25 0 0 0 1.872 1.002h2.092a2.25 2.25 0 0 0 1.872-1.002l.164-.246A2.25 2.25 0 0 1 16.954 9h4.636M2.41 9a2.25 2.25 0 0 0-.16.832V12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 12V9.832c0-.287-.055-.57-.16-.832M2.41 9a2.25 2.25 0 0 1 .382-.632l3.285-3.832a2.25 2.25 0 0 1 1.708-.786h8.43c.657 0 1.281.287 1.709.786l3.284 3.832c.163.19.291.404.382.632M4.5 20.25h15A2.25 2.25 0 0 0 21.75 18v-2.625c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125V18a2.25 2.25 0 0 0 2.25 2.25z" />
+              </svg>
+              <span class="utility-tab__label">Data &amp; Comms</span>
+            </button>
+            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab" data-tab="evidence" data-role-allow="org_admin,org_owner,auditor,break_glass_admin" title="Evidence" aria-label="Evidence" style="position:relative">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              <span class="utility-tab__label">Evidence</span>
+              <span id="alertBadge" class="alert-badge hidden" aria-label="Pending alerts"></span>
+            </button>
+          </nav>
+        </aside>
+
+        <div class="settings-modal__content">
+        <section role="tabpanel" class="utility-panel is-active" data-panel="workspace">
+          <div class="workbench-hero">
+            <div class="workbench-hero__copy">
+              <span class="eyebrow">Workspace cockpit</span>
+              <strong>Daily context, documents, and communication stay anchored to the selected workspace.</strong>
+              <p>Use this surface for live context, uploads, and the exact workspace state the assistant is allowed to use.</p>
+            </div>
+            <div id="workspaceSummaryState" class="panel-state panel-state--success">
+              <div class="panel-state__head">
+                <span class="panel-state__pill">Active workspace</span>
+                <strong id="workspaceSummaryTitle" class="panel-state__title">Loading workspace context…</strong>
+              </div>
+              <p id="workspaceSummaryBody" class="panel-state__body">Fetching memberships, scope, and assignment details.</p>
+            </div>
+          </div>
+
+          <div class="workbench-metric-grid" id="workspaceMetricGrid"></div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Accessible workspaces</span>
+              <button type="button" id="workspaceRefreshButton" class="ghost-button">Refresh</button>
+            </div>
+            <ul id="workspaceAccessList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Knowledge</span>
+              <strong id="knowledgeBackend">Lexical</strong>
+            </div>
+            <p id="knowledgeState">Knowledge search is ready.</p>
+            <div class="settings-inline-actions">
+              <input id="knowledgeQuery" class="settings-text-input" type="search" placeholder="Search memory, documents, and archives" />
+              <button type="button" id="knowledgeSearchButton" class="ghost-button">Search</button>
+            </div>
+            <ul id="knowledgeResults" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Brief</span>
+              <strong id="briefDate">Not generated yet</strong>
+            </div>
+            <p id="focusText">Ask for a workspace summary to populate this panel.</p>
+            <p id="musicText">No follow-up suggestion yet.</p>
+          </div>
+
+          <div class="inspector-block">
+            <span class="eyebrow">Events</span>
+            <ul id="eventsList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <span class="eyebrow">Tasks</span>
+            <ul id="tasksList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <span class="eyebrow">Reminders</span>
+            <ul id="remindersList" class="detail-list reminder-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <span class="eyebrow">What KERN knows</span>
+            <ul id="contextList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <span class="eyebrow">Suggestions</span>
+            <p id="proactiveReason">No proactive prompt is active.</p>
+            <p id="proactiveText">KERN stays quiet until a local signal matters.</p>
+          </div>
+        </section>
+
+        <section role="tabpanel" class="utility-panel" data-panel="admin">
+          <div class="workbench-hero">
+            <div class="workbench-hero__copy">
+              <span class="eyebrow">Identity &amp; ownership</span>
+              <strong>Provision the organization, assign access, and keep sessions contained.</strong>
+              <p>Every workflow here is HTTP-backed, user-attributed, and scoped to the selected organization and workspace context.</p>
+            </div>
+            <div id="adminAccessState" class="panel-state panel-state--warning">
+              <div class="panel-state__head">
+                <span class="panel-state__pill">Admin posture</span>
+                <strong class="panel-state__title">Manual approval is active.</strong>
+              </div>
+              <p class="panel-state__body">Workspace creation, user approval, and session revocation are role-gated and auditable.</p>
+            </div>
+          </div>
+
+          <div class="workbench-metric-grid" id="adminMetricGrid"></div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Create workspace</span>
+                <button type="button" id="adminRefreshButton" class="ghost-button">Refresh</button>
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-label">Workspace slug</label>
+                <input id="adminWorkspaceSlug" type="text" class="settings-text-input" placeholder="finance-desk" />
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-label">Workspace title</label>
+                <input id="adminWorkspaceTitle" type="text" class="settings-text-input" placeholder="Finance Desk" />
+              </div>
+              <div class="settings-inline-actions">
+                <button type="button" id="adminCreateWorkspaceButton" class="solid-button">Create workspace</button>
+              </div>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Invite user</span>
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-label">Email</label>
+                <input id="adminUserEmail" type="email" class="settings-text-input" placeholder="name@company.de" />
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-label">Display name</label>
+                <input id="adminUserDisplayName" type="text" class="settings-text-input" placeholder="Ayla Demir" />
+              </div>
+              <div class="settings-inline-actions">
+                <select id="adminUserRole" class="settings-select">
+                  <option value="member">Member</option>
+                  <option value="org_admin">Org admin</option>
+                  <option value="auditor">Auditor</option>
+                </select>
+                <select id="adminUserWorkspace" class="settings-select"></select>
+                <button type="button" id="adminCreateUserButton" class="solid-button">Invite user</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Pending approvals</span>
+              </div>
+              <ul id="adminPendingUsersList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Workspaces</span>
+              </div>
+              <ul id="adminWorkspaceList" class="detail-list"></ul>
+            </div>
+          </div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Users</span>
+              </div>
+              <ul id="adminUsersList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Active sessions</span>
+              </div>
+              <ul id="adminSessionsList" class="detail-list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section role="tabpanel" class="utility-panel" data-panel="compliance">
+          <div class="workbench-hero">
+            <div class="workbench-hero__copy">
+              <span class="eyebrow">Compliance queue</span>
+              <strong>Retention, legal holds, export evidence, and erasure all flow through explicit review states.</strong>
+              <p>Every action is shown with current status, blocking reason, and the resulting evidence artifacts.</p>
+            </div>
+            <div id="complianceStateCard" class="panel-state panel-state--warning">
+              <div class="panel-state__head">
+                <span class="panel-state__pill">Governance defaults</span>
+                <strong class="panel-state__title">Retention locks outrank deletion.</strong>
+              </div>
+              <p class="panel-state__body">Legal holds override erasure, retention locks override standard deletion, and immutable audit records are pseudonymized rather than removed.</p>
+            </div>
+          </div>
+
+          <div class="workbench-metric-grid" id="complianceMetricGrid"></div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">My data export</span>
+              </div>
+              <p>Generate an evidence-backed export for the signed-in account in the selected workspace context.</p>
+              <div class="settings-inline-actions">
+                <button type="button" id="generateMyExportButton" class="solid-button">Generate my export</button>
+              </div>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">My erasure request</span>
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-label">Reason</label>
+                <textarea id="selfErasureReason" rows="3" class="settings-text-input" placeholder="Describe the request context for audit review."></textarea>
+              </div>
+              <div class="settings-inline-actions">
+                <button type="button" id="createSelfErasureButton" class="ghost-button">Create erasure request</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Retention presets</span>
+              </div>
+              <div class="settings-inline-actions">
+                <select id="retentionDataClass" class="settings-select">
+                  <option value="personal">Personal</option>
+                  <option value="regulated_business">Regulated business</option>
+                  <option value="operational">Operational</option>
+                  <option value="security_audit">Security audit</option>
+                </select>
+                <input id="retentionDays" type="number" min="1" step="1" class="settings-text-input" placeholder="365" />
+                <label class="ghost-button">
+                  <input id="retentionLegalHoldEnabled" type="checkbox" />
+                  Legal hold enabled
+                </label>
+                <button type="button" id="saveRetentionPolicyButton" class="solid-button">Save preset</button>
+              </div>
+              <ul id="complianceRetentionList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Legal holds</span>
+              </div>
+              <div class="settings-form-group">
+                <label class="settings-label">Reason</label>
+                <textarea id="legalHoldReason" rows="3" class="settings-text-input" placeholder="Regulatory investigation or litigation trigger."></textarea>
+              </div>
+              <div class="settings-inline-actions">
+                <select id="legalHoldWorkspace" class="settings-select"></select>
+                <button type="button" id="createLegalHoldButton" class="solid-button">Create hold</button>
+              </div>
+              <ul id="complianceHoldList" class="detail-list"></ul>
+            </div>
+          </div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Erasure queue</span>
+              </div>
+              <ul id="complianceErasureList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Export jobs</span>
+              </div>
+              <div class="settings-inline-actions">
+                <button type="button" id="generateWorkspaceExportButton" class="ghost-button">Generate workspace export</button>
+              </div>
+              <ul id="complianceExportList" class="detail-list"></ul>
+            </div>
+          </div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Regulated document candidates</span>
+              </div>
+              <ul id="regulatedCandidateList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Finalized regulated documents</span>
+              </div>
+              <ul id="regulatedDocumentWorkbenchList" class="detail-list"></ul>
+            </div>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Data inventory</span>
+            </div>
+            <ul id="complianceInventoryList" class="detail-list"></ul>
+          </div>
+        </section>
+
+        <section role="tabpanel" class="utility-panel" data-panel="intelligence">
+          <div class="workbench-hero">
+            <div class="workbench-hero__copy">
+              <span class="eyebrow">Worker amplifier</span>
+              <strong>KERN prepares work before it drafts language.</strong>
+              <p>Use this surface to see what is ready, what is blocked, which evidence was gathered, and what still needs your judgment.</p>
+            </div>
+            <div id="intelligenceStateCard" class="panel-state panel-state--success">
+              <div class="panel-state__head">
+                <span class="panel-state__pill">Preparation first</span>
+                <strong class="panel-state__title">The local engine prepares context and drafts before the LLM rewrites.</strong>
+              </div>
+              <p class="panel-state__body">Work readiness, missing inputs, evidence packs, and private patterns drive what shows up here.</p>
+            </div>
+          </div>
+
+          <div hidden aria-hidden="true">
+            <div class="utility-group-label">Plan</div>
+            <ul id="planList" class="detail-list"></ul>
+            <ul id="receiptList" class="detail-list"></ul>
+            <ul id="capabilityList" class="detail-list"></ul>
+          </div>
+
+          <div class="workbench-metric-grid" id="intelligenceMetricGrid"></div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Prepared work</span>
+              </div>
+              <ul id="recommendationList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Missing pieces</span>
+              </div>
+              <ul id="obligationList" class="detail-list"></ul>
+            </div>
+          </div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Focus hints</span>
+              </div>
+              <ul id="workflowList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Decision history</span>
+              </div>
+              <ul id="decisionHistoryList" class="detail-list"></ul>
+            </div>
+          </div>
+
+          <div class="utility-group-label">Knowledge Graph</div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Knowledge Graph</span>
+              <div class="settings-inline-actions">
+                <input id="kgSearchInput" class="settings-text-input" type="search" placeholder="Search entities…" />
+                <button type="button" id="kgSearchButton" class="ghost-button">Search</button>
+                <button type="button" id="kgBuildButton" class="ghost-button">Build</button>
+              </div>
+            </div>
+            <p id="kgStatus" class="inspector-hint">No graph data loaded. Click Build to extract entities from documents.</p>
+          </div>
+          <div class="inspector-block" id="kgCanvasBlock" style="display:none">
+            <canvas id="kgCanvas" class="kg-canvas" width="540" height="380"></canvas>
+          </div>
+          <div class="inspector-block" id="kgResultsBlock" style="display:none">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Entities</span>
+            </div>
+            <ul id="kgResultsList" class="detail-list"></ul>
+          </div>
+
+          <div class="utility-group-label">Memory</div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Conversation Memory</span>
+            </div>
+            <div class="settings-inline-actions">
+              <input id="memorySearchInput" class="settings-text-input" type="search" placeholder="Search past conversations…" />
+              <input id="memoryDateFrom" class="settings-text-input" type="date" style="max-width:140px" title="From date" />
+              <input id="memoryDateTo" class="settings-text-input" type="date" style="max-width:140px" title="To date" />
+              <button type="button" id="memorySearchButton" class="ghost-button">Search</button>
+            </div>
+          </div>
+          <div class="inspector-block" id="memoryTimelineBlock" style="display:none">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Timeline</span>
+              <span id="memoryTimelineCount" class="text-soft"></span>
+            </div>
+            <div id="memoryTimeline" class="memory-timeline"></div>
+          </div>
+          <div class="inspector-block" id="memoryResultsBlock" style="display:none">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Matching turns</span>
+            </div>
+            <ul id="memoryResultsList" class="detail-list"></ul>
+          </div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Promotion candidates</span>
+              </div>
+              <ul id="promotionCandidatesList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Training candidates</span>
+              </div>
+              <ul id="trainingExamplesList" class="detail-list"></ul>
+            </div>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Training exports</span>
+              <button type="button" id="createTrainingExportButton" class="solid-button">Create training export</button>
+            </div>
+            <ul id="trainingExportsList" class="detail-list"></ul>
+          </div>
+        </section>
+
+        <section role="tabpanel" class="utility-panel" data-panel="workspace">
+          <div class="utility-group-label">Documents &amp; Knowledge</div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Documents</span>
+              <label class="ghost-button" style="cursor:pointer">
+                Upload files
+                <input id="bulkFileInput" type="file" multiple accept=".pdf,.txt,.md,.csv,.xlsx,.xls,.doc,.docx,.eml,.json,.html,.htm,.rtf" style="display:none" />
+              </label>
+            </div>
+            <div id="dropZone" class="drop-zone" aria-label="Drop files here to ingest">
+              <span class="drop-zone__hint">Drop files or folders here</span>
+              <div id="uploadProgress" class="upload-progress hidden">
+                <span id="uploadProgressLabel" class="upload-progress__label">Uploading…</span>
+                <div class="upload-progress__bar"><div id="uploadProgressFill" class="upload-progress__fill"></div></div>
+              </div>
+            </div>
+            <div id="uploadOutcomeCard" class="upload-outcome-card hidden" aria-live="polite">
+              <div class="upload-outcome-card__head">
+                <span id="uploadOutcomeEyebrow" class="eyebrow" data-i18n="upload.card_eyebrow">Latest upload</span>
+                <span id="uploadOutcomePill" class="upload-outcome-card__pill">Ready</span>
+              </div>
+              <strong id="uploadOutcomeTitle" class="upload-outcome-card__title"></strong>
+              <p id="uploadOutcomeMeta" class="upload-outcome-card__meta"></p>
+              <div id="uploadOutcomeStats" class="upload-outcome-card__stats"></div>
+              <p id="uploadOutcomeBody" class="upload-outcome-card__body"></p>
+              <div class="upload-outcome-card__actions">
+                <button type="button" id="uploadOutcomePrimary" class="solid-button"></button>
+                <button type="button" id="uploadOutcomeSecondary" class="ghost-button"></button>
+                <button type="button" id="uploadOutcomeCompare" class="ghost-button hidden"></button>
+              </div>
+            </div>
+            <ul id="documentsList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Business documents</span>
+            </div>
+            <ul id="businessDocsList" class="detail-list"></ul>
+          </div>
+
+          <div class="utility-group-label">Email</div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Mailbox</span>
+              <button type="button" id="syncMailboxButton" class="ghost-button">Sync mailbox</button>
+            </div>
+            <ul id="mailboxList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Email accounts</span>
+            </div>
+            <ul id="emailAccountsList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Drafts</span>
+            </div>
+            <ul id="draftsList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Email suggestions</span>
+            </div>
+            <ul id="emailSuggestionsList" class="detail-list"></ul>
+          </div>
+
+          <div class="utility-group-label">Meetings</div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Meetings</span>
+            </div>
+            <ul id="meetingsList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Meeting summaries</span>
+            </div>
+            <ul id="meetingReviewsList" class="detail-list"></ul>
+          </div>
+        </section>
+
+        <section role="tabpanel" class="utility-panel" data-panel="evidence">
+          <div class="workbench-hero">
+            <div class="workbench-hero__copy">
+              <span class="eyebrow">Evidence &amp; operations</span>
+              <strong>Watch runtime health, export manifests, backup state, and compliance lineage in one place.</strong>
+              <p>This view is optimized for operators and auditors: it separates support material from formal evidence and surfaces blocked states instead of hiding them.</p>
+            </div>
+            <div id="evidenceStateCard" class="panel-state panel-state--success">
+              <div class="panel-state__head">
+                <span class="panel-state__pill">Traceability</span>
+                <strong class="panel-state__title">Artifacts stay attributable.</strong>
+              </div>
+              <p class="panel-state__body">Support bundles, governance exports, subject exports, and training exports are rendered as distinct evidence classes with manifest visibility.</p>
+            </div>
+          </div>
+
+          <div class="workbench-metric-grid" id="evidenceMetricGrid"></div>
+
+          <div class="inspector-block inspector-block--toggles">
+            <label class="toggle-row">
+              <span>Local mode</span>
+              <input id="localModeToggle" type="checkbox" checked />
+            </label>
+          </div>
+
+          <div class="utility-group-label">System Health</div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">System status</span>
+              <span id="deviceProfileName" class="meta-text">default</span>
+            </div>
+            <p id="deviceProfileMeta">No verified actions yet.</p>
+          </div>
+
+          <div class="mini-grid">
+            <div class="mini-stat">
+              <span>Voice</span>
+              <strong id="voiceBackendName">Local TTS</strong>
+              <small id="voiceBackendStatus">Waiting.</small>
+            </div>
+          </div>
+
+          <div class="mini-grid">
+            <div class="mini-stat">
+              <span>Profile</span>
+              <strong id="systemProfileName">default</strong>
+              <small id="systemProfileState">Unlocked</small>
+            </div>
+            <div class="mini-stat">
+              <span>Memory scope</span>
+              <strong id="systemMemoryScope">profile</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Memory</span>
+              <strong id="checkMemory">unknown</strong>
+            </div>
+            <div class="mini-stat">
+              <span>Cognition</span>
+              <strong id="checkCognition">unknown</strong>
+            </div>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Running tasks</span>
+            </div>
+            <ul id="jobsList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Security log</span>
+            </div>
+            <ul id="auditList" class="detail-list"></ul>
+          </div>
+
+          <div class="utility-group-label">Backup &amp; Sync</div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Backup locations</span>
+            </div>
+            <ul id="backupTargetsList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Saved backups</span>
+            </div>
+            <ul id="backupFilesList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Sync destinations</span>
+            </div>
+            <ul id="syncTargetsList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Recovery</span>
+            </div>
+            <ul id="recoveryList" class="detail-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Recent activity</span>
+              <a id="exportLogsLink" href="/logs/export" class="ghost-link" target="_blank" rel="noreferrer">Export logs</a>
+            </div>
+            <ul id="activityLog" class="detail-list"></ul>
+          </div>
+
+          <div class="utility-group-label">Formal Evidence</div>
+
+          <div class="workbench-two-column">
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Export manifests</span>
+              </div>
+              <ul id="evidenceManifestList" class="detail-list"></ul>
+            </div>
+
+            <div class="inspector-block">
+              <div class="inspector-block__head">
+                <span class="eyebrow">Training datasets</span>
+              </div>
+              <ul id="evidenceTrainingManifestList" class="detail-list"></ul>
+            </div>
+          </div>
+
+          <div class="utility-group-label">Audit Log</div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Network isolation</span>
+              <span id="auditNetworkStatus" class="meta-text">Checking...</span>
+            </div>
+            <p id="auditNetworkDetail">Monitoring KERN process for unexpected outbound connections.</p>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Activity log</span>
+              <div class="settings-inline-actions">
+                <select id="auditCategoryFilter" class="settings-select">
+                  <option value="">All categories</option>
+                  <option value="security">Security</option>
+                  <option value="backup">Backup</option>
+                  <option value="runtime">Runtime</option>
+                  <option value="documents">Documents</option>
+                  <option value="audit">Audit</option>
+                  <option value="network">Network</option>
+                  <option value="scheduler">Scheduler</option>
+                </select>
+                <button type="button" id="exportAuditButton" class="ghost-button">Export JSON</button>
+              </div>
+            </div>
+            <ul id="auditLogList" class="detail-list audit-log-list"></ul>
+          </div>
+
+          <div class="inspector-block hidden">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Domain notes</span>
+            </div>
+            <ul id="domainNotesList" class="detail-list"></ul>
+          </div>
+
+          <div class="utility-group-label">Schedules &amp; Alerts</div>
+
+          <div class="inspector-block" id="proactiveAlertsBlock" style="display:none">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Alerts</span>
+              <button type="button" id="dismissAllAlertsButton" class="ghost-button">Dismiss all</button>
+            </div>
+            <ul id="proactiveAlertsList" class="detail-list proactive-alerts-list"></ul>
+          </div>
+
+          <div class="inspector-block">
+            <div class="inspector-block__head">
+              <span class="eyebrow">Scheduled tasks</span>
+              <button type="button" id="addScheduleButton" class="ghost-button">Add schedule</button>
+            </div>
+            <ul id="scheduleList" class="detail-list"></ul>
+          </div>
+
+          <div id="addScheduleForm" class="inspector-block hidden">
+            <span class="eyebrow">New schedule</span>
+            <div class="settings-form-group">
+              <label class="settings-label">Title</label>
+              <input id="scheduleTitle" type="text" class="settings-text-input" placeholder="Daily summary" />
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-label">Frequency</label>
+              <select id="scheduleFrequency" class="settings-select">
+                <option value="0 9 * * *">Daily at 9am</option>
+                <option value="0 9 * * 1">Weekly (Monday 9am)</option>
+                <option value="0 9 1 * *">Monthly (1st at 9am)</option>
+                <option value="custom">Custom cron</option>
+              </select>
+              <input id="scheduleCron" type="text" class="settings-text-input hidden" placeholder="0 9 * * *" />
+            </div>
+            <div class="settings-form-group">
+              <label class="settings-label">Action</label>
+              <select id="scheduleActionType" class="settings-select">
+                <option value="custom_prompt">Custom prompt</option>
+                <option value="summarize_emails">Summarize emails</option>
+                <option value="generate_report">Generate report</option>
+              </select>
+              <textarea id="scheduleActionPayload" class="settings-text-input" rows="2" placeholder="What should KERN do?"></textarea>
+            </div>
+            <div class="settings-inline-actions">
+              <button type="button" id="saveScheduleButton" class="solid-button">Save schedule</button>
+              <button type="button" id="cancelScheduleButton" class="ghost-button">Cancel</button>
+            </div>
+          </div>
+        </section>
+        </div>
+      </section>
+    </div>
+
+    <div id="settingsModal" class="settings-modal hidden" aria-hidden="true">
+      <div id="settingsBackdrop" class="settings-modal__backdrop"></div>
+      <section class="settings-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+        <aside class="settings-modal__sidebar">
+          <button type="button" id="closeSettings" class="settings-modal__close" aria-label="Close settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+              <path d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          <nav class="settings-modal__nav" aria-label="Settings sections">
+            <button type="button" class="settings-modal__nav-item is-active" data-settings-section-nav="appearance">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                <path d="M12 3.75a8.25 8.25 0 1 0 0 16.5 8.25 8.25 0 0 0 0-16.5Zm0 0v16.5" />
+              </svg>
+              <span>Appearance</span>
+            </button>
+            <button type="button" class="settings-modal__nav-item" data-settings-section-nav="profile">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                <path d="M12 3.75a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Zm-6.75 15a6.75 6.75 0 1 1 13.5 0" />
+              </svg>
+              <span>Profile</span>
+            </button>
+            <button type="button" class="settings-modal__nav-item" data-settings-section-nav="model">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                <path d="M9 3.75V6m6-2.25V6m-6 12v2.25m6-2.25v2.25M3.75 9H6m-2.25 6H6m12-6h2.25M18 15h2.25M7.5 6.75h9A2.25 2.25 0 0 1 18.75 9v6a2.25 2.25 0 0 1-2.25 2.25h-9A2.25 2.25 0 0 1 5.25 15V9A2.25 2.25 0 0 1 7.5 6.75Zm3 3h3v4.5h-3v-4.5Z" />
+              </svg>
+              <span>AI &amp; Models</span>
+            </button>
+            <button type="button" class="settings-modal__nav-item" data-settings-section-nav="domains">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                <path d="M4.5 4.5h6.75v6.75H4.5V4.5Zm8.25 0h6.75v6.75h-6.75V4.5Zm-8.25 8.25h6.75v6.75H4.5v-6.75Zm8.25 0h6.75v6.75h-6.75v-6.75Z" />
+              </svg>
+              <span>Domains</span>
+            </button>
+          </nav>
+        </aside>
+
+        <div class="settings-modal__content" id="settingsContent">
+          <header class="settings-modal__content-head">
+            <h2 id="settingsModalTitle">General</h2>
+          </header>
+
+          <section class="settings-section" data-settings-section="appearance" data-settings-title="Appearance">
+            <div class="settings-row settings-row--stack">
+              <span>Theme mode</span>
+              <div class="theme-segmented" id="themeModeGroup" role="radiogroup" aria-label="Theme mode">
+                <button type="button" class="theme-option" data-theme-mode="system" role="radio" aria-checked="true">System</button>
+                <button type="button" class="theme-option" data-theme-mode="light" role="radio" aria-checked="false">Light</button>
+                <button type="button" class="theme-option" data-theme-mode="dark" role="radio" aria-checked="false">Dark</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span>Theme preference</span>
+              <strong id="settingsAppearancePreference">System</strong>
+            </div>
+            <div class="settings-row">
+              <span>Active theme</span>
+              <strong id="settingsAppearanceActiveTheme">Dark</strong>
+            </div>
+            <div class="settings-row settings-row--stack">
+              <span>Theme note</span>
+              <strong id="settingsThemeNote">Following device appearance.</strong>
+            </div>
+            <div class="settings-row">
+              <span>Language</span>
+              <div class="settings-language-picker">
+                <button
+                  type="button"
+                  id="settingsLanguageButton"
+                  class="settings-language-picker__trigger"
+                  aria-haspopup="listbox"
+                  aria-expanded="false"
+                  aria-controls="settingsLanguageMenu"
+                >
+                  <span id="settingsLanguageLabel">English</span>
+                  <span class="settings-language-picker__icon" aria-hidden="true">
+                    <svg viewBox="0 0 20 20" fill="none">
+                      <path d="M5 7.5 10 12.5 15 7.5" />
+                    </svg>
+                  </span>
+                </button>
+                <div id="settingsLanguageMenu" class="settings-language-picker__menu hidden" role="listbox" aria-label="Language">
+                  <button type="button" class="settings-language-picker__option" data-language-option="en" role="option" aria-selected="true">
+                    English
+                  </button>
+                  <button type="button" class="settings-language-picker__option" data-language-option="de" role="option" aria-selected="false">
+                    Deutsch
+                  </button>
+                </div>
+                <select id="settingsLanguage" class="settings-select settings-select--sr-only" tabindex="-1" aria-hidden="true">
+                  <option value="en">English</option>
+                  <option value="de">Deutsch</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="settings-section" data-settings-section="profile" data-settings-title="Profile">
+            <div class="settings-row">
+              <span>Active profile</span>
+              <strong id="settingsProfileName">default</strong>
+            </div>
+            <div class="settings-row">
+              <span>Session state</span>
+              <strong id="settingsProfileState">Unlocked</strong>
+            </div>
+            <div class="settings-row">
+              <span>Data scope</span>
+              <strong id="settingsMemoryScope">profile</strong>
+            </div>
+            <div class="settings-row">
+              <span>Documents root</span>
+              <strong id="settingsDocumentsRoot">Not configured</strong>
+            </div>
+            <div class="settings-row">
+              <span>Archive root</span>
+              <strong id="settingsArchiveRoot">Not configured</strong>
+            </div>
+            <div class="settings-row">
+              <span>Backup root</span>
+              <strong id="settingsBackupRoot">Not configured</strong>
+            </div>
+            <div class="settings-row">
+              <span>Readiness</span>
+              <strong id="settingsReadinessStatus">Checking</strong>
+            </div>
+            <div class="settings-story-card" id="settingsLicenseCard">
+              <div class="settings-story-card__head">
+                <span class="eyebrow">License</span>
+                <span id="settingsLicensePill" class="settings-story-card__pill">Unlicensed</span>
+              </div>
+              <strong id="settingsLicenseTitle" class="settings-story-card__title">Offline licensing is optional for this local install.</strong>
+              <p id="settingsLicenseBody" class="settings-story-card__body">KERN runs locally on this machine whether or not an offline license file is installed. Import one only if this pilot package uses commercial tracking.</p>
+              <ul id="settingsLicenseFacts" class="settings-story-card__facts"></ul>
+              <div class="settings-inline-actions">
+                <input id="settingsLicenseFileInput" type="file" accept=".json,.license" hidden />
+                <button type="button" id="settingsImportLicense" class="ghost-button">Import offline license</button>
+                <button type="button" id="settingsRefreshLicense" class="ghost-button">Recheck license</button>
+              </div>
+            </div>
+            <div class="settings-row settings-row--stack">
+              <span>Readiness action</span>
+              <div class="settings-inline-actions">
+                <button type="button" id="settingsRerunReadiness" class="ghost-button">Rerun readiness</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span>Audit</span>
+              <strong id="settingsAuditState">Enabled</strong>
+            </div>
+            <div class="settings-row">
+              <span>Security log</span>
+              <strong id="settingsAuditChain">Unverified</strong>
+            </div>
+            <div class="settings-row">
+              <span>Local encryption</span>
+              <strong id="settingsDbEncryption">Off</strong>
+            </div>
+            <div class="settings-row hidden">
+              <span>Key version</span>
+              <strong id="settingsKeyVersion">0</strong>
+            </div>
+            <div class="settings-row">
+              <span>File encryption</span>
+              <strong id="settingsArtifactEncryption">Not enabled</strong>
+            </div>
+            <div class="settings-row settings-row--stack">
+              <span>Session PIN</span>
+              <input id="settingsSessionPin" class="settings-text-input" type="password" placeholder="PIN for unlock" />
+              <div class="settings-inline-actions">
+                <button type="button" id="settingsSavePin" class="ghost-button">Save PIN</button>
+                <button type="button" id="settingsLockProfile" class="ghost-button">Lock profile</button>
+                <button type="button" id="settingsUnlockProfile" class="ghost-button">Unlock profile</button>
+              </div>
+            </div>
+            <div class="settings-row settings-row--stack">
+              <span>Encrypted backup</span>
+              <input id="settingsBackupPassword" class="settings-text-input" type="password" placeholder="Password for backup" />
+              <div class="settings-inline-actions">
+                <button type="button" id="settingsCreateBackup" class="ghost-button">Create encrypted backup</button>
+              </div>
+            </div>
+            <div class="settings-row settings-row--stack">
+              <span>Support bundle</span>
+              <strong id="settingsSupportBundlePath">No support bundle exported yet</strong>
+              <div class="settings-inline-actions">
+                <button type="button" id="settingsExportSupportBundle" class="ghost-button">Export support bundle</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span>Last support export</span>
+              <strong id="settingsSupportBundleLastExport">Not exported</strong>
+            </div>
+            <div class="settings-row">
+              <span>Update channel</span>
+              <strong id="settingsUpdateChannel">stable</strong>
+            </div>
+            <div class="settings-story-card" id="settingsUpdateCard">
+              <div class="settings-story-card__head">
+                <span class="eyebrow">Update policy</span>
+                <span id="settingsUpdatePill" class="settings-story-card__pill">Stable</span>
+              </div>
+              <strong id="settingsUpdateTitle" class="settings-story-card__title">Manual stable-channel updates only.</strong>
+              <p id="settingsUpdateBody" class="settings-story-card__body">KERN records the last backup and restore attempt so the pilot operator can validate rollback state before changing installs.</p>
+              <ul id="settingsUpdateFacts" class="settings-story-card__facts"></ul>
+            </div>
+            <div class="settings-story-card">
+              <div class="settings-story-card__head">
+                <span class="eyebrow">Data lifecycle</span>
+                <span class="settings-story-card__pill">Local</span>
+              </div>
+              <strong class="settings-story-card__title">Pilot data stays on this machine by default.</strong>
+              <p id="settingsDataLifecycleNote" class="settings-story-card__body">KERN keeps profile data and backups locally. Uninstall removes runtime artifacts by default and preserves profile data unless you explicitly remove it.</p>
+            </div>
+          </section>
+
+          <section class="settings-section" data-settings-section="model" data-settings-title="AI &amp; Models">
+            <span class="meta-text" id="settingsVersion">v0.0.0</span>
+            <div class="settings-row">
+              <span>AI engine</span>
+              <strong id="settingsModelName">Heuristic local planner</strong>
+            </div>
+            <div class="settings-row hidden">
+              <span>Type</span>
+              <strong id="settingsModelType">hybrid local stack</strong>
+            </div>
+            <div class="settings-row hidden">
+              <span>Backend</span>
+              <strong id="settingsModelBackend">hybrid</strong>
+            </div>
+            <div class="settings-row hidden">
+              <span>Mode</span>
+              <strong id="settingsModelMode">off</strong>
+            </div>
+            <div class="settings-row">
+              <span>Model path</span>
+              <strong id="settingsModelPath">Not configured</strong>
+            </div>
+            <div class="settings-row">
+              <span>Fast model</span>
+              <strong id="settingsFastModelPath">Not configured</strong>
+            </div>
+            <div class="settings-row">
+              <span>Deep model</span>
+              <strong id="settingsDeepModelPath">Not configured</strong>
+            </div>
+            <div class="settings-row">
+              <span>Embedding model</span>
+              <strong id="settingsEmbedModel">Not configured</strong>
+            </div>
+            <div class="settings-row">
+              <span>Search method</span>
+              <strong id="settingsRetrievalBackend">lexical</strong>
+            </div>
+            <div class="settings-row">
+              <span>Search index</span>
+              <strong id="settingsRetrievalHealth">disabled</strong>
+            </div>
+            <div class="settings-row">
+              <span>Voice output (optional)</span>
+              <strong id="settingsVoiceBackend">none</strong>
+            </div>
+            <div class="settings-row">
+              <span>Data mode</span>
+              <strong id="settingsCloudMode">Local only</strong>
+            </div>
+            <div id="settingsModelStory" class="settings-story-card">
+              <div class="settings-story-card__head">
+                <span class="eyebrow" data-i18n="settings.model_story_eyebrow">Local model posture</span>
+                <span id="settingsModelStoryPill" class="settings-story-card__pill">Checking</span>
+              </div>
+              <strong id="settingsModelStoryTitle" class="settings-story-card__title"></strong>
+              <p id="settingsModelStoryText" class="settings-story-card__body"></p>
+              <ul id="settingsModelStoryFacts" class="settings-story-card__facts"></ul>
+            </div>
+          </section>
+
+          <section class="settings-section" data-settings-section="domains" data-settings-title="Domains">
+            <div class="settings-row">
+              <span>Indexed documents</span>
+              <strong id="settingsDocumentCount">0</strong>
+            </div>
+            <div class="settings-row">
+              <span>Email accounts</span>
+              <strong id="settingsEmailAccounts">0</strong>
+            </div>
+            <div class="settings-row">
+              <span>Email drafts</span>
+              <strong id="settingsDraftCount">0</strong>
+            </div>
+            <div class="settings-row">
+              <span>Meetings</span>
+              <strong id="settingsMeetingCount">0</strong>
+            </div>
+            <div class="settings-row">
+              <span>Business documents</span>
+              <strong id="settingsBusinessCount">0</strong>
+            </div>
+            <div class="settings-row">
+              <span>Sync targets</span>
+              <strong id="settingsSyncCount">0</strong>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div id="passageModal" class="settings-modal passage-modal hidden" aria-hidden="true">
+      <div id="passageBackdrop" class="settings-modal__backdrop"></div>
+      <section class="settings-modal__dialog passage-modal__dialog" role="dialog" aria-modal="true" aria-label="Source passage">
+        <div class="passage-modal__content">
+          <div class="passage-modal__bar">
+            <div class="passage-modal__bar-copy">
+              <span class="eyebrow" id="passageDocType">Document</span>
+              <strong id="passageTitle" class="passage-modal__title"></strong>
+            </div>
+            <div class="passage-modal__bar-end">
+              <span id="passageScore" class="passage-modal__score-badge"></span>
+              <button type="button" id="closePassageModal" class="settings-modal__close" aria-label="Close passage viewer">
+                <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                  <path d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="passage-modal__body" id="passageBody"></div>
+        </div>
+      </section>
+    </div>
+
+    <div id="uploadNoticeModal" class="settings-modal upload-notice-modal hidden" aria-hidden="true">
+      <div id="uploadNoticeBackdrop" class="settings-modal__backdrop"></div>
+      <section class="settings-modal__dialog upload-notice-modal__dialog" role="dialog" aria-modal="true" aria-label="Upload notice">
+        <div class="upload-notice-modal__content">
+          <div class="upload-notice-modal__header">
+            <div class="upload-notice-modal__copy">
+              <span class="eyebrow" id="uploadNoticeEyebrow">Before you upload</span>
+              <strong id="uploadNoticeTitle" class="upload-notice-modal__title">KERN will index this document locally.</strong>
+            </div>
+            <button type="button" id="closeUploadNotice" class="settings-modal__close" aria-label="Close upload notice">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                <path d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <p id="uploadNoticeLead" class="upload-notice-modal__lead">
+            KERN stores the file in the active profile, extracts text, and uses the local model to answer or summarize from that text.
+          </p>
+          <div class="upload-notice-grid">
+            <article class="upload-notice-card">
+              <span class="upload-notice-card__label" id="uploadNoticeExtractionLabel">Possible extraction issues</span>
+              <p id="uploadNoticeExtractionText">Scanned or image-only PDFs may produce weak summaries because KERN currently relies on text extraction, not OCR.</p>
+            </article>
+            <article class="upload-notice-card">
+              <span class="upload-notice-card__label" id="uploadNoticePrivacyLabel">Privacy posture</span>
+              <p id="uploadNoticePrivacyText">The upload and summarization path stays local inside your KERN profile. No cloud inference is required.</p>
+            </article>
+          </div>
+          <label class="upload-notice-dismiss">
+            <input id="uploadNoticeDismiss" type="checkbox" />
+            <span id="uploadNoticeDismissText">Don't show this again for this profile</span>
+          </label>
+          <div class="upload-notice-modal__actions">
+            <button type="button" id="uploadNoticeCancel" class="ghost-button">Cancel</button>
+            <button type="button" id="uploadNoticeContinue" class="solid-button">Continue upload</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/static/js/auth-shell.js"></script>
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>

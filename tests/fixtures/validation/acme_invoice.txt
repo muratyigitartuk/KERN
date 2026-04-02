@@ -1,0 +1,10 @@
+ACME GmbH Invoice
+
+Customer: ACME GmbH
+Document type: invoice
+Invoice number: RE-2026-044
+Issue date: 2026-03-18
+Due date: 2026-04-02
+Amount: 2,750 EUR
+Status: due soon
+Counterparty: ACME GmbH

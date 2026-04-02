@@ -1,0 +1,9 @@
+{
+  "name": "KERN Pilot Sample Workspace",
+  "workflow": "private German business drafting grounded in local company documents",
+  "documents": [
+    "Sample_Customer_Request.md",
+    "Sample_Service_Policy.md",
+    "Sample_Pricing_Addendum.md"
+  ]
+}

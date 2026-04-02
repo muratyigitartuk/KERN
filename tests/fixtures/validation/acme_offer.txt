@@ -1,0 +1,14 @@
+ACME GmbH UI Modernization Offer
+
+Customer: ACME GmbH
+Document type: offer
+Offer number: ANG-2026-031
+Valid until: 2026-04-30
+Project: UI modernization and validation reporting
+Services:
+- Frontend polish
+- Validation reporting
+- Documentation cleanup
+
+Target amount: 4,850 EUR
+Contact: Lea Fischer

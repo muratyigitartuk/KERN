@@ -1,0 +1,16 @@
+[
+  {
+    "title": "Invoice",
+    "path": "invoice.txt",
+    "content": "Rechnung 2026-04 payment due 2026-04-10 for consulting services and Umsatzsteuer notes.",
+    "query": "payment due consulting invoice",
+    "expected_title": "invoice"
+  },
+  {
+    "title": "Contract",
+    "path": "contract.txt",
+    "content": "Service agreement valid until 2026-12-31 with confidentiality obligations and project milestones.",
+    "query": "confidentiality obligations agreement",
+    "expected_title": "contract"
+  }
+]

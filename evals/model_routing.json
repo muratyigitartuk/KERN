@@ -1,0 +1,25 @@
+[
+  {
+    "prompt": "Hi KERN",
+    "expected_mode": "fast",
+    "expected_rag": false
+  },
+  {
+    "prompt": "Compare these documents and explain the most important differences in the contract terms.",
+    "expected_mode": "deep",
+    "rag_candidate": true,
+    "expected_rag": true
+  },
+  {
+    "prompt": "Summarize what changed in my knowledge base and give me the next best actions.",
+    "expected_mode": "deep",
+    "rag_candidate": true,
+    "expected_rag": true,
+    "task_pressure": 2
+  },
+  {
+    "prompt": "Pause the music",
+    "expected_mode": "fast",
+    "expected_rag": false
+  }
+]

@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  kern:
+    build: .
+    container_name: kern-workspace
+    restart: unless-stopped
+    ports:
+      - "${KERN_PORT:-8000}:8000"
+    volumes:
+      - kern-data:/data
+      - ./.env:/app/.env:ro
+    environment:
+      - KERN_LLAMA_SERVER_URL=http://llama-server:8080
+    depends_on:
+      llama-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-m", "5", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  llama-server:
+    image: ghcr.io/ggerganov/llama.cpp:server
+    container_name: kern-llama
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - kern-models:/models
+    command: >
+      --host 0.0.0.0
+      --port 8080
+      --model /models/model.gguf
+      --ctx-size 8192
+      --threads 4
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-m", "5", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+
+volumes:
+  kern-data:
+    driver: local
+  kern-models:
+    driver: local
