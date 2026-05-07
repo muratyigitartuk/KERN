@@ -14,12 +14,9 @@ DOC_PATHS = [
     ROOT / "docs" / "windows-deployment.md",
     ROOT / "docs" / "corporate-demo-script.md",
 ]
-HEALTH_SEMANTIC_PATHS = DOC_PATHS + [ROOT / "tests" / "test_e2e_scaffold.py"]
+HEALTH_SEMANTIC_PATHS = DOC_PATHS
 _KERN_ENV_RE = re.compile(r"KERN_[A-Z0-9_]+")
-_ALLOWED_NON_SETTINGS_VARS = {
-    "KERN_E2E_BASE_URL",
-    "KERN_E2E_ENABLED",
-}
+_ALLOWED_NON_SETTINGS_VARS: set[str] = set()
 
 
 def _known_kern_env_vars() -> set[str]:
