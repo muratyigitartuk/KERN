@@ -100,7 +100,7 @@ if ($Managed -and $RegisterTask) {
 }
 
 Write-Host "KERN installed."
-Write-Host "Start KERN: start-kern"
+Write-Host "Start KERN: kern"
 Write-Host "Open the local KERN address shown after startup."
 Write-Host "First run: open the local workspace, upload one document, and ask KERN for a cited draft from that document."
 if ($Managed) {

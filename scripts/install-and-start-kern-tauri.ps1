@@ -41,13 +41,38 @@ function Invoke-Checked {
     )
     Push-Location $WorkingDirectory
     try {
-        & $FilePath @Arguments
+        & $FilePath @Arguments 2>&1 | ForEach-Object { Write-Host $_ }
         if ($LASTEXITCODE -ne 0) {
             throw "$FilePath exited with code $LASTEXITCODE"
         }
     }
     finally {
         Pop-Location
+    }
+}
+
+function Add-KernCommandPath {
+    param([string]$RepoRoot)
+
+    $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $entries = @()
+    if ($currentUserPath) {
+        $entries = $currentUserPath -split ";" | Where-Object { $_.Trim() }
+    }
+    $alreadyPresent = $entries | Where-Object {
+        $entry = $_
+        try {
+            (Resolve-Path $entry -ErrorAction Stop).Path -ieq $RepoRoot
+        }
+        catch {
+            $entry.TrimEnd("\") -ieq $RepoRoot.TrimEnd("\")
+        }
+    }
+    if (-not $alreadyPresent) {
+        $updated = if ($currentUserPath) { "$currentUserPath;$RepoRoot" } else { $RepoRoot }
+        [Environment]::SetEnvironmentVariable("Path", $updated, "User")
+        $env:Path = "$RepoRoot;$env:Path"
+        Write-Host "KERN command path installed. New terminals can run: kern" -ForegroundColor Green
     }
 }
 
@@ -433,6 +458,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = (Resolve-Path (Join-Path $scriptDir "..")).Path
 
 Write-Step "Preparing KERN from $repoRoot"
+Add-KernCommandPath $repoRoot
 
 if (-not $SkipToolInstall) {
     Ensure-RustAndTauri
@@ -464,7 +490,7 @@ if ($IncludeVenvForBundle) {
 Invoke-Checked "powershell.exe" $packageArgs $repoRoot
 
 if ($NoStart) {
-    Write-Host "KERN is installed and ready. Start it with: start-kern" -ForegroundColor Green
+    Write-Host "KERN is installed and ready. Start it with: kern" -ForegroundColor Green
     exit 0
 }
 

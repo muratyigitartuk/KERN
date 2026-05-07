@@ -31,8 +31,10 @@ The installer prepares the local environment, creates the local settings file, s
 After the first install, start KERN with:
 
 ```powershell
-.\start-kern
+kern
 ```
+
+Open a new terminal after installation if Windows does not recognize `kern` immediately.
 
 For first use, keep `KERN_LLM_ENABLED=false`. KERN will still open and let you test the workspace, governance, backup, and dashboard flows. For grounded language generation, install a local `llama-server` runtime and set these values in `.env`:
 
