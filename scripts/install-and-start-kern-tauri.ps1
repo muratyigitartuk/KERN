@@ -381,6 +381,23 @@ function Ensure-PythonEnvironment {
     return $venvPython
 }
 
+function Build-KernDesktopExecutable {
+    param([string]$RepoRoot)
+
+    Add-CargoToPath
+    if (-not (Test-Command "cargo")) {
+        throw "Rust/Cargo is required to build the KERN desktop shell. Rerun install-kern without -SkipToolInstall."
+    }
+
+    Write-Step "Building KERN desktop shell"
+    Invoke-Checked "cargo" @("build", "--release") (Join-Path $RepoRoot "src-tauri")
+
+    $desktopExe = Join-Path $RepoRoot "src-tauri\target\release\kern-desktop.exe"
+    if (-not (Test-Path $desktopExe)) {
+        throw "KERN desktop build finished but the launcher was not found: $desktopExe"
+    }
+}
+
 function Start-LlamaServerIfRequested {
     param(
         [string]$RepoRoot,
@@ -501,8 +518,10 @@ if ($IncludeVenvForBundle) {
 }
 Invoke-Checked "powershell.exe" $packageArgs $repoRoot
 
+Build-KernDesktopExecutable $repoRoot
+
 if ($NoStart) {
-    Write-Host "KERN is installed and ready. Start it with: kern" -ForegroundColor Green
+    Write-Host "KERN installed. Start it with: kern" -ForegroundColor Green
     exit 0
 }
 

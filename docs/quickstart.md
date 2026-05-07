@@ -1,35 +1,33 @@
 # KERN Quickstart
 
-KERN desktop starts from one PowerShell command. The launcher prepares the Python environment, Tauri/Rust tooling, desktop runtime payload, and optionally a local llama.cpp LLM server.
+KERN installs once, then starts directly into the local document workspace. Normal launch does not rebuild the desktop shell or reinstall Python dependencies.
 
-## Start Without LLM
+## Install
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1
+.\install-kern
 ```
 
-## Start With Local LLM
+This prepares the Python environment, command shims, desktop runtime payload, and desktop shell.
 
-Put a `.gguf` model in `models\`, then run:
+## Start
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1 -EnableLlm
+kern
 ```
 
-The launcher searches `.\models`, `%USERPROFILE%\Models`, and `%USERPROFILE%\.cache\kern\models`.
+Open a new terminal if Windows does not recognize `kern` immediately after installation.
 
-You can also pass the model explicitly:
+## Local LLM
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1 -EnableLlm -LlmModelPath "C:\path\to\model.gguf"
-```
+KERN opens without an LLM. For grounded language generation, run a local OpenAI-compatible `llama-server` on `127.0.0.1` and set `KERN_LLM_ENABLED=true`, `KERN_LLAMA_SERVER_URL`, and `KERN_LLAMA_SERVER_MODEL_PATH` in `.env`.
 
-## Fast Restart
+## Repair Install
 
-After first setup:
+If startup says KERN is not installed yet, rerun:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1 -EnableLlm -SkipToolInstall -SkipPythonInstall
+.\install-kern
 ```
 
 ## Validate Before Release

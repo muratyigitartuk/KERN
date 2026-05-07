@@ -20,6 +20,7 @@ Rollout defaults:
 ## Managed local install
 
 ```powershell
+.\install-kern
 .\scripts\install-kern.ps1 -Managed -Corporate -RegisterTask
 ```
 
@@ -80,8 +81,10 @@ Use `--validate-only` to verify a backup without restoring it. `.kernbak` is the
 Start KERN with:
 
 ```powershell
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+kern
 ```
+
+Normal launch must use the installed desktop shell. It must not compile Rust, rebuild the desktop runtime payload, or reinstall Python packages. If the desktop launcher is missing, rerun `install-kern`.
 
 Monitor:
 

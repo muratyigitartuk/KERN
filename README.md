@@ -1,6 +1,6 @@
 # KERN
 
-KERN is a controlled local work-preparation system for document-grounded enterprise workflows. It helps operators turn local files into cited answers, policy-aware drafts, governance evidence, and recoverable audit/support bundles without treating a cloud chat model as the product core.
+KERN is a controlled local/on-prem pilot for document-grounded enterprise workflows. It helps operators turn local files into cited answers, policy-aware drafts, governance evidence, and recoverable audit/support bundles without treating a cloud chat model as the product core.
 
 ## What It Does
 
@@ -9,8 +9,18 @@ KERN is a controlled local work-preparation system for document-grounded enterpr
 - Refuses or blocks unsafe requests when evidence is missing, conflicting, or instruction-like content appears inside retrieved documents.
 - Applies policy gates for sensitive reads, exports, backups, and high-risk actions.
 - Maintains local audit, retention, backup, update, and support-bundle evidence.
-- Runs as a Windows-first local pilot with a browser dashboard and optional Tauri desktop shell.
+- Runs as a Windows-first controlled local/on-prem pilot with a browser dashboard and optional Tauri desktop shell.
 - Includes a restricted server path for one-organization thread/auth workflows backed by PostgreSQL, Redis, and OIDC. Server mode is not yet the full document/evidence/compliance product path.
+
+## Product Truth
+
+Current KERN can be described as a controlled local/on-prem pilot for governed document AI work.
+
+Do not describe this release as fully enterprise-scale. The reserved final enterprise name is:
+
+> KERN Enterprise Workspace: a single-tenant, company-controlled document AI workspace for governed internal knowledge work.
+
+Use that name only when the server deployment path supports shared company document workflows, authorized evidence storage, group-based access control, durable audit, migrations, backups, rollback, and operator observability end to end.
 
 ## Get Started
 
@@ -24,9 +34,7 @@ If you prefer a terminal:
 .\install-kern
 ```
 
-When KERN starts, open the local KERN address shown in the terminal.
-
-The installer prepares the local environment, creates the local settings file, starts KERN on your machine, and prints the local address.
+The installer prepares the local environment, command shims, desktop runtime payload, and desktop shell. It does not start KERN.
 
 After the first install, start KERN with:
 

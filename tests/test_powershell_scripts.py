@@ -93,3 +93,26 @@ def test_update_script_exists():
     content = script.read_text(encoding="utf-8")
     assert "git" in content.lower() or "pull" in content.lower() or "pip" in content.lower(), \
         "Update script should reference git or pip operations"
+
+
+def test_normal_start_does_not_build_or_install():
+    """The normal launch path must stay fast after the first install."""
+    start_script = (SCRIPTS_DIR / "start-kern.ps1").read_text(encoding="utf-8").lower()
+    desktop_script = (SCRIPTS_DIR / "start-kern-desktop.ps1").read_text(encoding="utf-8").lower()
+    combined = f"{start_script}\n{desktop_script}"
+    forbidden = [
+        "install-and-start-kern-tauri.ps1",
+        "cargo build",
+        "pip install",
+        "package-tauri-runtime.ps1",
+    ]
+    for needle in forbidden:
+        assert needle not in combined, f"Normal start path must not run {needle}"
+    assert "[switch]$checkonly" in desktop_script
+
+
+def test_install_builds_desktop_before_fast_start():
+    installer = (SCRIPTS_DIR / "install-and-start-kern-tauri.ps1").read_text(encoding="utf-8").lower()
+    assert "function buildkerndesktopexecutable" in installer.replace("-", "")
+    assert 'cargo" @("build", "--release")' in installer
+    assert "kern installed. start it with: kern" in installer

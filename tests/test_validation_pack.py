@@ -54,7 +54,7 @@ def test_rollout_dashboard_defaults_to_production_posture() -> None:
     source = Path("app/static/dashboard.html").read_text(encoding="utf-8")
     assert 'data-product-posture="production"' in source
     assert "Play some morning jazz" not in source
-    assert "Ask from local documents or draft a grounded German business reply" in source
+    assert "Upload documents, ask grounded questions, and inspect evidence before drafting." in source
     # Tab structure was reorganized to workspace/admin/compliance/intelligence/evidence
     assert 'data-tab="workspace"' in source
     assert 'data-tab="admin"' in source

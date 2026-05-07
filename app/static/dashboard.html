@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>KERN Local Drafting Workspace</title>
-    <meta name="description" content="KERN drafts German business replies from local company documents." />
+    <title>KERN Document Workspace</title>
+    <meta name="description" content="KERN is a controlled local document AI workspace for grounded internal knowledge work." />
     <meta name="theme-color" id="themeColorMeta" content="#111111" />
   <script defer src="/static/js/theme-bootstrap.js?v=20260422i"></script>
     <link rel="manifest" href="/static/manifest.webmanifest" />
@@ -16,7 +16,7 @@
     <div class="workspace-shell">
       <aside class="sidebar">
         <div class="sidebar__top">
-          <button type="button" id="sidebarHome" class="sidebar__title sidebar__title-button" title="KERN home" data-i18n-title="nav.new_conversation" aria-hidden="true" tabindex="-1">
+          <button type="button" id="sidebarHome" class="sidebar__title sidebar__title-button" title="KERN home" data-i18n-title="workspace.current" aria-hidden="true" tabindex="-1">
             <span class="sidebar__brand-mark" aria-hidden="true">K</span>
           </button>
           <button
@@ -35,15 +35,15 @@
           </button>
         </div>
 
-        <button type="button" id="newConversation" class="sidebar-primary sidebar-nav-link" title="New conversation" data-tooltip="New conversation" data-i18n-title="nav.new_conversation">
+        <button type="button" id="newConversation" class="sidebar-primary sidebar-nav-link" title="New document task" data-tooltip="New document task" data-i18n-title="nav.new_conversation">
           <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
             <path d="M2.5 12.0001C2.5 7.52171 2.5 5.28254 3.89124 3.8913C5.28249 2.50005 7.52166 2.50005 12 2.50005C16.4783 2.50005 18.7175 2.50005 20.1088 3.8913C21.5 5.28254 21.5 7.52171 21.5 12.0001C21.5 16.4784 21.5 18.7176 20.1088 20.1088C18.7175 21.5001 16.4783 21.5001 12 21.5001C7.52166 21.5001 5.28249 21.5001 3.89124 20.1088C2.5 18.7176 2.5 16.4784 2.5 12.0001Z" />
             <path d="M12 8.00005V16.0001M16 12.0001L8 12.0001" />
           </svg>
-          <span class="sidebar-primary__label" data-i18n="nav.new_conversation">New Conversation</span>
+          <span class="sidebar-primary__label" data-i18n="nav.new_conversation">New document task</span>
         </button>
 
-        <button type="button" id="openConversationSearch" class="sidebar-search sidebar-search-button sidebar-nav-link" title="Search conversation" data-tooltip="Search" data-i18n-title="nav.search_conversation">
+        <button type="button" id="openConversationSearch" class="sidebar-search sidebar-search-button sidebar-nav-link" title="Search workspace" data-tooltip="Search" data-i18n-title="nav.search_conversation">
           <div class="sidebar-search__head">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
               <path d="M17 17L21 21" />
@@ -109,14 +109,14 @@
         </section>
 
         <div class="sidebar-settings">
-          <button type="button" id="utilityToggle" class="sidebar-secondary utility-toggle sidebar-nav-link" title="Utility" data-tooltip="Utility" data-i18n-title="nav.utility">
+          <button type="button" id="utilityToggle" class="sidebar-secondary utility-toggle sidebar-nav-link" title="Governance" data-tooltip="Governance" data-i18n-title="nav.utility">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="utility-toggle__icon">
               <path d="M17.25 3V4.33957M17.25 4.33957C17.9156 4.33957 18.5182 4.60934 18.9545 5.04551M17.25 4.33957C16.5844 4.33957 15.9818 4.60934 15.5455 5.04551M17.25 9.161V10.5M17.25 9.161C17.9158 9.161 18.5185 8.89111 18.9548 8.45477M17.25 9.161C16.5842 9.161 15.9815 8.89111 15.5452 8.45477M21 6.75L19.6607 6.75028M19.6607 6.75028C19.6607 7.41591 19.3909 8.01853 18.9548 8.45477M19.6607 6.75028C19.6607 6.08451 19.3908 5.48177 18.9545 5.04551M14.8393 6.75028L13.5 6.75M14.8393 6.75028C14.8393 6.08451 15.1092 5.48177 15.5455 5.04551M14.8393 6.75028C14.8393 7.41591 15.1091 8.01853 15.5452 8.45477M19.9017 4.09835L18.9545 5.04551M14.5984 9.40165L15.5452 8.45477M19.9017 9.40165L18.9548 8.45477M14.5984 4.09835L15.5455 5.04551" />
               <path d="M13.6903 19.4567C13.5 18.9973 13.5 18.4149 13.5 17.25C13.5 16.0851 13.5 15.5027 13.6903 15.0433C13.944 14.4307 14.4307 13.944 15.0433 13.6903C15.5027 13.5 16.0851 13.5 17.25 13.5C18.4149 13.5 18.9973 13.5 19.4567 13.6903C20.0693 13.944 20.556 14.4307 20.8097 15.0433C21 15.5027 21 16.0851 21 17.25C21 18.4149 21 18.9973 20.8097 19.4567C20.556 20.0693 20.0693 20.556 19.4567 20.8097C18.9973 21 18.4149 21 17.25 21C16.0851 21 15.5027 21 15.0433 20.8097C14.4307 20.556 13.944 20.0693 13.6903 19.4567Z" />
               <path d="M3.1903 19.4567C3 18.9973 3 18.4149 3 17.25C3 16.0851 3 15.5027 3.1903 15.0433C3.44404 14.4307 3.93072 13.944 4.54329 13.6903C5.00272 13.5 5.58515 13.5 6.75 13.5C7.91485 13.5 8.49728 13.5 8.95671 13.6903C9.56928 13.944 10.056 14.4307 10.3097 15.0433C10.5 15.5027 10.5 16.0851 10.5 17.25C10.5 18.4149 10.5 18.9973 10.3097 19.4567C10.056 20.0693 9.56928 20.556 8.95671 20.8097C8.49728 21 7.91485 21 6.75 21C5.58515 21 5.00272 21 4.54329 20.8097C3.93072 20.556 3.44404 20.0693 3.1903 19.4567Z" />
               <path d="M3.1903 8.95671C3 8.49728 3 7.91485 3 6.75C3 5.58515 3 5.00272 3.1903 4.54329C3.44404 3.93072 3.93072 3.44404 4.54329 3.1903C5.00272 3 5.58515 3 6.75 3C7.91485 3 8.49728 3 8.95671 3.1903C9.56928 3.44404 10.056 3.93072 10.3097 4.54329C10.5 5.00272 10.5 5.58515 10.5 6.75C10.5 7.91485 10.5 8.49728 10.3097 8.95671C10.056 9.56928 9.56928 10.056 8.95671 10.3097C8.49728 10.5 7.91485 10.5 6.75 10.5C5.58515 10.5 5.00272 10.5 4.54329 10.3097C3.93072 10.056 3.44404 9.56928 3.1903 8.95671Z" />
             </svg>
-            <span class="sidebar-secondary__label" data-i18n="nav.utility">Knowledge &amp; tools</span>
+            <span class="sidebar-secondary__label" data-i18n="nav.utility">Governance</span>
           </button>
           <button type="button" id="openSettings" class="sidebar-secondary sidebar-bottom-link" title="Settings" data-tooltip="Settings" data-i18n-title="nav.settings">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon sidebar-nav__icon--settings">
@@ -162,7 +162,7 @@
                   </svg>
                 </div>
                 <span id="workspaceDropEyebrow" class="hidden" aria-hidden="true">Local drop zone</span>
-                <h3 id="workspaceDropTitle" class="workspace-drop-panel__title" data-i18n="dropzone.ready_title">Drop files to add them locally</h3>
+                <h3 id="workspaceDropTitle" class="workspace-drop-panel__title" data-i18n="dropzone.ready_title">Drop company documents here</h3>
                 <p id="workspaceDropBody" class="workspace-drop-panel__body" data-i18n="dropzone.ready_body">
                   PDFs, Office files, spreadsheets, and text documents stay inside this local profile for grounded drafting.
                 </p>
@@ -178,8 +178,8 @@
             </div>
             <div id="emptyState" class="empty-state">
               <div class="empty-state__copy">
-                <h2 id="emptyHeading" data-i18n="empty.heading">Ready to Help.</h2>
-                <p id="emptyLead" class="empty-state__lead" hidden aria-hidden="true">Ask from local documents or draft a grounded German business reply.</p>
+                <h2 id="emptyHeading" data-i18n="empty.heading">Document workspace ready.</h2>
+                <p id="emptyLead" class="empty-state__lead" hidden aria-hidden="true">Upload documents, ask grounded questions, and inspect evidence before drafting.</p>
               </div>
             </div>
 
@@ -240,7 +240,7 @@
                 <div id="composerUploadsList" class="composer-uploads__list"></div>
               </div>
               <div class="composer__top">
-                <textarea id="commandInput" placeholder="Describe a task, workflow, or document..." aria-label="Write a message" data-i18n-placeholder="composer.placeholder" data-i18n-aria-label="composer.aria_label"></textarea>
+                <textarea id="commandInput" placeholder="Ask from documents or draft from cited evidence..." aria-label="Ask from documents or draft from cited evidence" data-i18n-placeholder="composer.placeholder" data-i18n-aria-label="composer.aria_label"></textarea>
               </div>
               <div class="composer__bottom">
               <div class="composer__left">
