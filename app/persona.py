@@ -70,7 +70,6 @@ class PersonaEngine:
         return PersonaReply(display_text=text)
 
     def tool_preamble(self, request: ToolRequest, preferred_title: str) -> str:
-        suffix = self._address_suffix(preferred_title)
         if request.tool_name in {"open_app", "open_website"}:
             return "Right away."
         if request.tool_name in {"create_reminder", "set_timer"}:

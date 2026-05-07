@@ -165,7 +165,6 @@ class ActionPlanner:
         document = next(iter(alert.get("documents") or []), {})
         title = str(document.get("title", "") or "document")
         due_date = self._parse_datetime(str(document.get("due_date", "") or "").strip())
-        due_hint = f" before {due_date.strftime('%Y-%m-%d')}" if due_date else ""
         due_at = (
             max(datetime.now(timezone.utc) + timedelta(hours=1), due_date - timedelta(days=2))
             if due_date is not None
@@ -325,7 +324,6 @@ class ActionPlanner:
         actions: list[dict] = []
         for action in list(alert.get("suggested_actions") or []):
             payload = self._with_source_context(alert, dict(action.get("payload") or {}))
-            action_type = str(action.get("action_type", "") or "")
             enriched = dict(action)
             enriched["payload"] = payload
             enriched["confidence"] = round(min(0.97, max(0.4, float(alert.get("confidence", 0.6)) - 0.06)), 3)

@@ -12,20 +12,6 @@ export function bootstrapAdminAuthToken() {
 }
 
 /**
- * @deprecated Always returns empty string. Auth is cookie-based now.
- */
-export function getAdminAuthToken() {
-  return "";
-}
-
-/**
- * @deprecated Identity function. Token is no longer appended to URLs.
- */
-export function withAdminToken(url) {
-  return url;
-}
-
-/**
  * Escape HTML special characters to prevent XSS when inserting into innerHTML.
  * @param {string} str
  * @returns {string}
@@ -65,14 +51,4 @@ export function secureFetch(url, options = {}) {
   options.headers = headers;
   options.credentials = "same-origin";
   return fetch(url, options);
-}
-
-/**
- * Central error reporter.  Logs to the browser console with a [KERN]
- * prefix so errors are easy to filter.
- * @param {string} context - Short label describing where the error occurred
- * @param {*} error - The error object or message
- */
-export function reportError(context, error) {
-  console.error(`[KERN] ${context}:`, error);
 }

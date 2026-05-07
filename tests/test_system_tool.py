@@ -10,7 +10,8 @@ def test_open_app_reports_attempt_not_confirmation(monkeypatch):
     class DummyProcess:
         pass
 
-    def fake_popen(args, shell):
+    def fake_popen(args, *, shell):
+        assert shell is False
         launched.append(args)
         return DummyProcess()
 
@@ -25,6 +26,7 @@ def test_open_app_reports_attempt_not_confirmation(monkeypatch):
         return await tool.run(request)
 
     monkeypatch.setattr("app.tools.system.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("app.tools.system.shutil.which", lambda _name: "C:\\Windows\\System32\\notepad.exe")
     result = asyncio.run(run_tool())
 
     assert launched

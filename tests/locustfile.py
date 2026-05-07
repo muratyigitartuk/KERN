@@ -14,14 +14,14 @@ try:
 except ImportError:
     # Stub classes so the file is importable for scaffold validation
     class between:  # type: ignore[no-redef]
-        def __init__(self, *a, **kw): pass
-    def task(fn=None, *a, **kw):  # type: ignore[no-redef]
+        def __init__(self, *_args, **_kwargs): pass
+    def task(fn=None, *_args, **_kwargs):  # type: ignore[no-redef]
         if fn is None:
             return lambda f: f
         return fn
     class HttpUser:  # type: ignore[no-redef]
         wait_time = None
-        def __init_subclass__(cls, **kw): pass
+        def __init_subclass__(_cls, **_kwargs): pass
 
 
 class KERNUser(HttpUser):

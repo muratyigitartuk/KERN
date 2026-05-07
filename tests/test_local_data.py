@@ -26,7 +26,7 @@ def test_next_upcoming_event_skips_past_events(tmp_path: Path, monkeypatch):
 
     class FixedDateTime(datetime):
         @classmethod
-        def now(cls, tz=None):
+        def now(_cls, tz=None):
             return current if tz is None else current.astimezone(tz)
 
     monkeypatch.setattr("app.local_data.datetime", FixedDateTime)

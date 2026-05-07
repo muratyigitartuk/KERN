@@ -310,7 +310,7 @@ class EnterpriseAcceptance:
 
     def client(self) -> httpx.Client:
         client = httpx.Client(base_url=self.base_url, timeout=180.0, headers={"Authorization": f"Bearer {ADMIN_TOKEN}"})
-        response = client.get("/health")
+        client.get("/health")
         csrf = client.cookies.get(CSRF_COOKIE)
         if csrf:
             client.headers.update({CSRF_HEADER: csrf})

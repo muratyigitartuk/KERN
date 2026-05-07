@@ -712,7 +712,6 @@ class DocumentIntelligenceService:
         selected_documents: dict[str, dict[str, object]],
     ) -> EvidenceBundle:
         citations: list[DocumentCitationRecord] = retrieval_context["citations"]
-        fused_hits: list[RetrievalHit] = retrieval_context["fused_hits"]
         conflicts: list[str] = retrieval_context["conflicts"]
         hit_stats: dict[str, object] = retrieval_context["hit_stats"]
         selected_count = len(selected_documents)

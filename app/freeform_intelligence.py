@@ -339,8 +339,6 @@ class FreeformIntelligenceService:
             workspace_slug=workspace_slug,
             actor_user_id=actor_user_id,
         )
-        lowered = transcript.lower()
-        query_terms = self._query_terms(transcript)
         matched_contacts: list[dict[str, Any]] = []
         thread_candidates: list[dict[str, Any]] = []
         recommendations = self.recommendation_lister(
@@ -540,8 +538,6 @@ class FreeformIntelligenceService:
             workspace_slug=workspace_slug,
             actor_user_id=actor_user_id,
         )
-        lowered = transcript.lower()
-        query_terms = self._query_terms(transcript)
         matched_contacts: list[dict[str, Any]] = []
         recommendations = self.recommendation_lister(
             organization_id=organization_id,

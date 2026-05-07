@@ -116,7 +116,6 @@ class LicenseService:
         plan = str(verified_payload.get("plan") or "Pilot")
         activation_mode = str(verified_payload.get("activation_mode") or "offline_license_file")
         expires = _parse_datetime(str(verified_payload.get("expires_at") or ""))
-        issued = _parse_datetime(str(verified_payload.get("issued_at") or ""))
         grace_days = int(verified_payload.get("grace_days") or 0)
         bound_install = str(verified_payload.get("bound_install") or "").strip()
         features = [str(item) for item in list(verified_payload.get("features") or []) if str(item).strip()]

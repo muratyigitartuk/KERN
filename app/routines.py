@@ -44,8 +44,6 @@ class RoutineService:
 
     def _focus(self) -> ToolResult:
         steps = self.data.get_routine("focus")
-        tasks = self.data.list_pending_tasks()
-        top_task = tasks[0].title if tasks else "your highest-priority work"
         due_at = datetime.now() + timedelta(minutes=50)
         reminder_id = self.data.create_reminder("End focus block", due_at, kind="timer")
         self.data.set_assistant_mode("focus")

@@ -348,7 +348,6 @@ class GermanBusinessService:
         if self.platform and job:
             self.platform.update_job(job.id, status="running", progress=0.1, checkpoint_stage="planned")
         document_artifacts = getattr(self.documents, "artifacts", None)
-        now = datetime.now(timezone.utc).isoformat()
         try:
             if self.artifacts.enabled and getattr(document_artifacts, "enabled", False):
                 target_path = self.artifacts.write_text(target_path, content)
@@ -608,7 +607,6 @@ class GermanBusinessService:
         """
         from app.config import settings
         dpo_name = getattr(settings, "dpo_contact_name", "") or "[Name des Datenschutzbeauftragten]"
-        dpo_email = getattr(settings, "dpo_contact_email", "") or "[E-Mail-Adresse]"
         date_str = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
         templates = {

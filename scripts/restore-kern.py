@@ -166,7 +166,6 @@ def _restore_update_bundle(
     staged_root.mkdir(parents=True, exist_ok=True)
     try:
         with zipfile.ZipFile(io.BytesIO(artifact.archive_bytes or b""), "r") as archive:
-            names = archive.namelist()
             errors = _validate_update_members(archive.infolist())
             if errors:
                 raise RuntimeError("; ".join(errors))

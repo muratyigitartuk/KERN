@@ -2342,7 +2342,6 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
             file_paths: list[Path] = []
             for upload, _file_size in accepted_uploads:
                 source_name = Path(upload.filename or "upload")
-                safe_name = source_name.name
                 dest = tmp_dir / f"{source_name.stem}-{os.urandom(6).hex()}{source_name.suffix}"
                 with dest.open("wb") as f:
                     shutil.copyfileobj(upload.file, f)

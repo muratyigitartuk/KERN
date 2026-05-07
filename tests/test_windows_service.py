@@ -1,39 +1,27 @@
-"""Windows service integration tests (kern-service.py).
-
-These tests exercise the KERNService class logic without requiring pywin32
-to be installed.  On systems where pywin32 is absent every test is skipped.
-"""
+"""Windows service integration tests for scripts/kern-service.py."""
 from __future__ import annotations
 
 import os
 import subprocess
 import sys
-
-os.environ.setdefault("KERN_PRODUCT_POSTURE", "personal")
-
+from importlib import import_module
+from importlib.util import find_spec
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Skip entire module if pywin32 is unavailable
-try:
-    import win32event
-    import win32service
-    import win32serviceutil
-    import servicemanager
-except ImportError:
-    pytest.skip("pywin32 not installed — skipping Windows service tests", allow_module_level=True)
+os.environ.setdefault("KERN_PRODUCT_POSTURE", "personal")
 
-# Import after guard
+if any(find_spec(name) is None for name in ("win32event", "win32service", "win32serviceutil", "servicemanager")):
+    pytest.skip("pywin32 not installed - skipping Windows service tests", allow_module_level=True)
+
+import servicemanager
+import win32event
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from importlib import import_module
-
 kern_service = import_module("kern-service")
 KERNService = kern_service.KERNService
-
-
-# ── Service metadata ────────────────────────────────────────────────
 
 
 def test_service_name():
@@ -46,9 +34,6 @@ def test_display_name():
 
 def test_description_present():
     assert len(KERNService._svc_description_) > 10
-
-
-# ── SvcStop terminates process ──────────────────────────────────────
 
 
 def test_svc_stop_terminates_process():
@@ -77,17 +62,11 @@ def test_svc_stop_kills_on_timeout():
     proc.kill.assert_called_once()
 
 
-# ── Backoff computation ─────────────────────────────────────────────
-
-
 def test_backoff_delay_cap():
     """Exponential backoff should cap at 30 seconds."""
     for restart_count in range(1, 20):
         delay = min(30, 2 ** restart_count)
         assert delay <= 30
-
-
-# ── Environment defaults ────────────────────────────────────────────
 
 
 def test_run_server_sets_production_posture():

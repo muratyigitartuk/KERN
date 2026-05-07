@@ -596,23 +596,6 @@ class MemoryRepository:
             )
         return events
 
-    def create_local_event(
-        self,
-        title: str,
-        starts_at: datetime,
-        ends_at: datetime | None = None,
-        importance: int = 0,
-    ) -> int:
-        cursor = self.connection.execute(
-            """
-            INSERT INTO local_calendar_events (title, starts_at, ends_at, importance)
-            VALUES (?, ?, ?, ?)
-            """,
-            (title, starts_at.isoformat(), ends_at.isoformat() if ends_at else None, importance),
-        )
-        self.connection.commit()
-        return int(cursor.lastrowid)
-
     def delete_local_event(self, event_id: int) -> bool:
         cursor = self.connection.execute(
             "DELETE FROM local_calendar_events WHERE id = ?",
@@ -620,28 +603,6 @@ class MemoryRepository:
         )
         self.connection.commit()
         return cursor.rowcount > 0
-
-    def create_local_event(
-        self,
-        title: str,
-        starts_at: datetime,
-        ends_at: datetime | None = None,
-        importance: int = 0,
-    ) -> int:
-        cursor = self.connection.execute(
-            """
-            INSERT INTO local_calendar_events (title, starts_at, ends_at, importance)
-            VALUES (?, ?, ?, ?)
-            """,
-            (
-                title,
-                starts_at.isoformat(),
-                ends_at.isoformat() if ends_at else None,
-                importance,
-            ),
-        )
-        self.connection.commit()
-        return int(cursor.lastrowid)
 
     def create_local_task(self, title: str, priority: int = 1) -> int:
         cursor = self.connection.execute(

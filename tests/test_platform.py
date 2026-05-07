@@ -161,7 +161,7 @@ def test_platform_counts_jobs_by_status(tmp_path: Path):
         backup_root=tmp_path / "backups",
         legacy_db_path=tmp_path / "legacy.db",
     )
-    queued = platform.create_job("queued_job", "Queued job", profile_slug=profile.slug)
+    platform.create_job("queued_job", "Queued job", profile_slug=profile.slug)
     completed = platform.create_job("completed_job", "Completed job", profile_slug=profile.slug)
     platform.update_job(completed.id, status="completed")
 

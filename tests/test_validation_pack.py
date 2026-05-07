@@ -86,7 +86,7 @@ def test_http_post_upload_bootstraps_csrf_header(monkeypatch, tmp_path: Path) ->
         def __enter__(self):
             return self
 
-        def __exit__(self, exc_type, exc, tb) -> None:
+        def __exit__(self, _exc_type, _exc, _tb) -> None:
             return None
 
         def get(self, url: str, headers: dict[str, str] | None = None) -> _FakeResponse:
@@ -133,7 +133,7 @@ def test_http_post_upload_raises_when_csrf_cookie_missing(monkeypatch, tmp_path:
         def __enter__(self):
             return self
 
-        def __exit__(self, exc_type, exc, tb) -> None:
+        def __exit__(self, _exc_type, _exc, _tb) -> None:
             return None
 
         def get(self, url: str, headers: dict[str, str] | None = None) -> _FakeResponse:
