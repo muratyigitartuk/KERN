@@ -384,32 +384,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
             elif command.type == "update_settings":
                 if "local_mode_enabled" in command.settings:
                     runtime.brain.set_local_mode(bool(command.settings["local_mode_enabled"]))
-                onboarding_updates = {}
-                if "onboarding_storage_confirmed" in command.settings:
-                    onboarding_updates["storage_confirmed"] = bool(command.settings["onboarding_storage_confirmed"])
-                if "onboarding_model_choice" in command.settings:
-                    onboarding_updates["model_choice"] = str(command.settings["onboarding_model_choice"] or "")
-                if "onboarding_starter_workflow" in command.settings:
-                    onboarding_updates["starter_workflow"] = str(command.settings["onboarding_starter_workflow"] or "")
-                if "onboarding_completed" in command.settings:
-                    onboarding_updates["completed"] = bool(command.settings["onboarding_completed"])
-                if "onboarding_selected_path" in command.settings:
-                    onboarding_updates["selected_path"] = str(command.settings["onboarding_selected_path"] or "")
-                if "onboarding_sample_workspace_active" in command.settings:
-                    onboarding_updates["sample_workspace_active"] = bool(command.settings["onboarding_sample_workspace_active"])
-                if "onboarding_sample_workspace_seeded" in command.settings:
-                    onboarding_updates["sample_workspace_seeded"] = bool(command.settings["onboarding_sample_workspace_seeded"])
-                if command.settings.get("reset_onboarding"):
-                    runtime.local_data.reset_onboarding_state()
-                    runtime.orchestrator.snapshot.last_action = "First-run guidance reset."
-                elif onboarding_updates:
-                    runtime.local_data.update_onboarding_state(**onboarding_updates)
-                    if onboarding_updates.get("completed"):
-                        runtime.orchestrator.snapshot.last_action = "First drafting workflow is ready."
-                    elif "model_choice" in onboarding_updates:
-                        runtime.orchestrator.snapshot.last_action = "Recommended local model path confirmed."
-                    elif "storage_confirmed" in onboarding_updates:
-                        runtime.orchestrator.snapshot.last_action = "Local profile storage confirmed."
                 runtime.refresh_interaction_snapshot()
                 await runtime._refresh_platform_snapshot()
                 await runtime.broadcast_if_changed(force=True, reason="settings_update")

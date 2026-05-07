@@ -123,8 +123,7 @@ export function bindDashboardEvents({
       return false;
     }
     const documents = snapshot.recent_documents || [];
-    const onboardingStep = snapshot.onboarding?.current_step || "";
-    return documents.length === 0 || onboardingStep === "workflow";
+    return documents.length === 0;
   }
 
   function applyUploadNoticeCopy() {
@@ -200,23 +199,6 @@ export function bindDashboardEvents({
     });
   }
 
-  function saveOnboarding(settings) {
-    return send({ type: "update_settings", settings });
-  }
-
-  function buildGroundedDraftPrompt(snapshot = currentSnapshot()) {
-    const docs = snapshot?.recent_documents || [];
-    if (docs.length) {
-      const title = docs[0].title || docs[0].source_id || t("docs.untitled");
-      return t("onboarding.workflow_prompt_one", { title });
-    }
-    return t("onboarding.workflow_prompt_none");
-  }
-
-  function buildSampleDraftPrompt() {
-    return t("onboarding.sample_prompt");
-  }
-
   function clearComposerAssist() {
     if (elements.composerAssist) {
       elements.composerAssist.classList.add("hidden");
@@ -276,67 +258,6 @@ export function bindDashboardEvents({
       return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 3.5H14.5L19 8V17.5C19 19.1569 17.6569 20.5 16 20.5H8C6.34315 20.5 5 19.1569 5 17.5V6.5C5 4.84315 6.34315 3.5 8 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 9H15M9 12.5H15M9 16H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
     }
     return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 3H8C6.11438 3 5.17157 3 4.58579 3.58579C4 4.17157 4 5.11438 4 7V17C4 18.8856 4 19.8284 4.58579 20.4142C5.17157 21 6.11438 21 8 21H16C17.8856 21 18.8284 21 19.4142 20.4142C20 19.8284 20 18.8856 20 17V9M14 3L20 9M14 3V7C14 8.10457 14.8954 9 16 9H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  }
-
-  function optimisticOnboardingState(step, snapshot = currentSnapshot()) {
-    const hasDocs = Boolean(snapshot?.recent_documents?.length);
-    if (step === "model") {
-      return {
-        active: true,
-        current_step: "model",
-        title: t("onboarding.optimistic_model_title"),
-        body: t("onboarding.optimistic_model_body"),
-        primary_action: t("onboarding.optimistic_model_primary"),
-        secondary_action: "",
-      };
-    }
-    if (step === "workflow") {
-      return {
-        active: true,
-        current_step: "workflow",
-        title: t("onboarding.optimistic_workflow_title"),
-        body: hasDocs ? t("onboarding.optimistic_workflow_body_ready") : t("onboarding.optimistic_workflow_body_upload"),
-        primary_action: hasDocs
-          ? t("onboarding.optimistic_workflow_primary_ready")
-          : t("onboarding.optimistic_workflow_primary_upload"),
-        secondary_action: t("onboarding.optimistic_workflow_secondary"),
-      };
-    }
-    if (step === "sample") {
-      return {
-        active: true,
-        current_step: "sample",
-        title: t("onboarding.optimistic_sample_title"),
-        body: t("onboarding.optimistic_sample_body"),
-        primary_action: t("onboarding.optimistic_sample_primary"),
-        secondary_action: t("onboarding.optimistic_sample_secondary"),
-      };
-    }
-    return null;
-  }
-
-  function setOnboardingPending(options) {
-    renderer.setOnboardingOptimisticState?.({
-      pending: true,
-      ...options,
-    });
-  }
-
-  function hideOnboardingLocally() {
-    renderer.setOnboardingOptimisticState?.({
-      pending: false,
-      untilInactive: true,
-      override: { active: false },
-    });
-  }
-
-  function dismissOnboardingImmediate() {
-    elements.onboardingModal?.classList.add("hidden");
-    elements.onboardingModal?.classList.remove("is-open");
-    elements.onboardingModal?.setAttribute("aria-hidden", "true");
-    elements.onboardingCard?.classList.add("hidden");
-    elements.onboardingCard?.classList.remove("is-pending");
-    elements.onboardingCard?.setAttribute("aria-busy", "false");
   }
 
   let workspaceDragDepth = 0;
@@ -802,106 +723,6 @@ export function bindDashboardEvents({
 
   elements.composerAssistDismiss?.addEventListener("click", () => {
     clearComposerAssist();
-  });
-
-  elements.onboardingPrimaryAction?.addEventListener("click", () => {
-    clearComposerAssist();
-    const snapshot = currentSnapshot();
-    const step = snapshot?.onboarding?.current_step || "storage";
-    if (step === "storage") {
-      setOnboardingPending({
-        untilStep: "model",
-        override: optimisticOnboardingState("model", snapshot),
-      });
-      saveOnboarding({ onboarding_storage_confirmed: true });
-      return;
-    }
-    if (step === "model") {
-      setOnboardingPending({
-        untilStep: "workflow",
-        override: optimisticOnboardingState("workflow", snapshot),
-      });
-      saveOnboarding({ onboarding_model_choice: "recommended_local" });
-      return;
-    }
-    if (step === "sample") {
-      setOnboardingPending({
-        untilStep: "workflow",
-        untilInactive: true,
-        override: optimisticOnboardingState("workflow", snapshot),
-      });
-      send({ type: "start_real_workspace" });
-      return;
-    }
-    if (step !== "workflow") {
-      return;
-    }
-
-    dismissOnboardingImmediate();
-    hideOnboardingLocally();
-    saveOnboarding({
-      onboarding_selected_path: "real_documents",
-      onboarding_starter_workflow: "document_grounded_draft",
-      onboarding_completed: true,
-    });
-
-    const docs = snapshot?.recent_documents || [];
-    if (!docs.length) {
-      elements.composerFileInput?.click();
-      return;
-    }
-
-    const prompt = buildGroundedDraftPrompt(snapshot);
-    if (!send({ type: "submit_text", text: prompt })) {
-      stagePrompt(prompt);
-      return;
-    }
-    renderer.setConversationPrimed(true);
-  });
-
-  elements.onboardingSecondaryAction?.addEventListener("click", () => {
-    clearComposerAssist();
-    const snapshot = currentSnapshot();
-    const step = snapshot?.onboarding?.current_step;
-    if (step === "sample") {
-      dismissOnboardingImmediate();
-      hideOnboardingLocally();
-      stagePrompt(buildSampleDraftPrompt());
-      return;
-    }
-    if (step !== "workflow") {
-      return;
-    }
-    setOnboardingPending({
-      untilStep: "sample",
-      override: optimisticOnboardingState("sample", snapshot),
-    });
-    send({ type: "start_sample_workspace" });
-  });
-
-  elements.onboardingDismiss?.addEventListener("click", () => {
-    clearComposerAssist();
-    const step = currentSnapshot()?.onboarding?.current_step;
-    if (step === "sample") {
-      dismissOnboardingImmediate();
-      setOnboardingPending({
-        untilStep: "workflow",
-        untilInactive: true,
-        override: optimisticOnboardingState("workflow"),
-      });
-      send({ type: "start_real_workspace" });
-      return;
-    }
-    dismissOnboardingImmediate();
-    hideOnboardingLocally();
-    saveOnboarding({
-      onboarding_starter_workflow: "document_grounded_draft",
-      onboarding_completed: true,
-    });
-  });
-
-  elements.onboardingBackdrop?.addEventListener("click", () => {
-    elements.onboardingDismiss?.click();
   });
 
   function resetConversation() {

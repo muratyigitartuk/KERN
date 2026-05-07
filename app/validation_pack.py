@@ -588,7 +588,7 @@ def _display_path(path: Path) -> str:
 def _manual_review_items() -> list[str]:
     return [
         "Check dark/light screenshots for visual drift, modal composition, and clipping.",
-        "Review onboarding, license, update, and failure-card screenshots for business-readable wording and consistent gating.",
+        "Review license, update, and failure-card screenshots for business-readable wording and consistent gating.",
         "Review trust/governance screenshots for truthful status labels and confirmation behavior.",
         "Inspect busy-day screenshots for search, KG, schedule, and memory surfaces that look syntactically correct but semantically weak.",
         "Inspect console and network logs for repeated or noisy client-side errors that did not break the run.",
@@ -720,38 +720,6 @@ def _run_shell_smoke(base_url: str, lane_dir: Path) -> LaneResult:
     lane.ok("Starter prompt drafting", "Starter prompt chips still draft into the composer in production posture.")
     session.run_code(
         """
-        const onboardingCard = document.querySelector('#onboardingCard');
-        if (onboardingCard && !onboardingCard.classList.contains('hidden')) {
-          for (let i = 0; i < 4; i += 1) {
-            const step = onboardingCard.dataset.step || 'storage';
-            const primary = document.querySelector('#onboardingPrimaryAction');
-            const secondary = document.querySelector('#onboardingSecondaryAction');
-            const primaryText = (primary?.textContent || '').toLowerCase();
-            const secondaryText = (secondary?.textContent || '').toLowerCase();
-            if (step === 'storage' || step === 'model') {
-              await primary.click();
-              await page.waitForTimeout(250);
-              continue;
-            }
-            if (step === 'workflow') {
-              if (secondary && secondaryText.includes('sample')) {
-                await secondary.click();
-              } else if (primary && primaryText.includes('sample')) {
-                await primary.click();
-              }
-              await page.waitForTimeout(400);
-              continue;
-            }
-            if (step === 'sample') {
-              if (!secondary) {
-                throw new Error('Sample workspace step did not expose the sample drafting action.');
-              }
-              await secondary.click();
-              await page.waitForTimeout(250);
-            }
-            break;
-          }
-        }
         if (!(document.querySelector('#commandInput')?.value || '').trim()) {
           await page.fill('#commandInput', 'Validation ping for conversation search');
         }
@@ -923,16 +891,15 @@ def _run_busy_day(base_url: str, lane_dir: Path) -> LaneResult:
         session.resize(1440, 1100)
         session.run_code(
             """
-            await page.waitForFunction(() => document.querySelector('#onboardingCard') && !document.querySelector('#onboardingCard')?.classList.contains('hidden'), { timeout: 20000 });
-            const body = document.querySelector('#onboardingBody')?.textContent || '';
-            if (!body.includes('sample workspace') && !body.includes('Sample')) {
-              throw new Error('Onboarding did not expose the sample workspace path after license gating.');
+            await page.waitForFunction(() => document.querySelector('#connectionState')?.textContent?.includes('Connected'), { timeout: 20000 });
+            if (document.querySelector('#onboardingCard') || document.querySelector('#onboardingModal')) {
+              throw new Error('First-run onboarding should not be present after license gating.');
             }
             """.strip()
         )
         lane.ok(
             "Production license gate",
-            "Busy-day upload is now intentionally gated until an offline license is imported, and onboarding exposes the sample workspace path instead.",
+            "Busy-day upload is intentionally gated until an offline license is imported, without blocking the workspace behind onboarding.",
             "upload.json",
             _display_path(session.screenshot("busy-license-gate")),
         )
@@ -1201,41 +1168,15 @@ def _run_sample_to_real_transition(base_url: str, lane_dir: Path, fixtures: Lice
     session.run_code(
         """
         await page.waitForFunction(() => document.querySelector('#connectionState')?.textContent?.includes('Connected'), { timeout: 20000 });
-        const onboardingCard = document.querySelector('#onboardingCard');
-        if (!onboardingCard || onboardingCard.classList.contains('hidden')) {
-          throw new Error('Onboarding card is not visible for the sample workspace path.');
+        if (document.querySelector('#onboardingCard') || document.querySelector('#onboardingModal')) {
+          throw new Error('Onboarding UI should not be present.');
         }
-        for (let i = 0; i < 4; i += 1) {
-          const step = onboardingCard.dataset.step || 'storage';
-          const primary = document.querySelector('#onboardingPrimaryAction');
-          const secondary = document.querySelector('#onboardingSecondaryAction');
-          const primaryText = (primary?.textContent || '').toLowerCase();
-          const secondaryText = (secondary?.textContent || '').toLowerCase();
-          if (step === 'storage' || step === 'model') {
-            await primary.click();
-            await page.waitForTimeout(250);
-            continue;
-          }
-          if (step === 'workflow') {
-            if (secondary && secondaryText.includes('sample')) {
-              await secondary.click();
-            } else if (primary && primaryText.includes('sample')) {
-              await primary.click();
-            } else {
-              throw new Error('Workflow step did not expose the sample workspace path.');
-            }
-            await page.waitForTimeout(400);
-            continue;
-          }
-          break;
-        }
-        await page.waitForFunction(() => (document.querySelector('#onboardingCard')?.dataset.step || '') === 'sample', { timeout: 10000 });
-        await page.click('#onboardingSecondaryAction');
+        await page.fill('#commandInput', 'Draft a cited German business reply from the local documents.');
         await page.waitForFunction(() => (document.querySelector('#commandInput')?.value || '').length > 0, { timeout: 8000 });
         """.strip()
     )
-    sample_shot = session.screenshot("sample-workspace")
-    lane.ok("Sample workspace path", "The first-run flow can enter the bundled sample workspace and stage a guided drafting prompt.", _display_path(sample_shot))
+    sample_shot = session.screenshot("workspace-without-onboarding")
+    lane.ok("Workspace opens without onboarding", "The dashboard opens directly into the usable workspace without first-run onboarding.", _display_path(sample_shot))
 
     status_code, payload = _http_post_file(base_url, "/api/license/import", "license_file", fixtures.valid_license)
     transition_license_json = lane_dir / "sample-transition-license.json"
@@ -1256,11 +1197,6 @@ def _run_sample_to_real_transition(base_url: str, lane_dir: Path, fixtures: Lice
 
     session.run_code(
         """
-        const onboardingCard = document.querySelector('#onboardingCard');
-        if (onboardingCard && !onboardingCard.classList.contains('hidden') && (onboardingCard.dataset.step || '') === 'sample') {
-          await page.click('#onboardingPrimaryAction');
-          await page.waitForTimeout(500);
-        }
         await page.click('#utilityToggle');
         await page.click('.utility-tab[data-tab="context"]');
         await page.waitForFunction(() => {
@@ -1299,7 +1235,7 @@ def _run_package_smoke_install_lane(lane_dir: Path) -> LaneResult:
     payload = _run_powershell_json(ROOT_DIR / "scripts" / "smoke-kern-runtime-package.ps1", "-PackagePath", str(package_path))
     _save_json(lane_dir / "package-smoke.json", payload)
     if payload.get("install_result") == "ok":
-        lane.ok("Packaged install smoke", "The packaged runtime installs, reaches readiness, and passes the first-run/license/sample validation lanes.", "package-smoke.json")
+        lane.ok("Packaged install smoke", "The packaged runtime installs, reaches readiness, and passes license/sample validation lanes.", "package-smoke.json")
     else:
         lane.fail("Packaged install smoke", f"Packaged smoke install did not complete successfully: {payload!r}", "package-smoke.json")
     return lane

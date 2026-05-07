@@ -238,78 +238,24 @@ class KernRuntime:
         return "Confirm the local model path before starting the first drafting workflow."
 
     def _build_onboarding_snapshot(self) -> OnboardingSnapshot:
-        state = self.local_data.onboarding_state()
-        sample_state = self.local_data.sample_workspace_state()
-        license_eval = self.license_service.evaluate()
-        storage_confirmed = bool(state.get("storage_confirmed"))
-        model_choice = str(state.get("model_choice") or "")
-        starter_workflow = str(state.get("starter_workflow") or "")
-        selected_path = str(state.get("selected_path") or "")
-        sample_active = bool(sample_state.get("active"))
-        sample_seeded = bool(sample_state.get("seeded"))
-        completed = bool(state.get("completed")) or bool(starter_workflow)
-        profile_root = self.active_profile.profile_root
-        docs_count = 0 if not self.profile_session.unlocked else int(self.memory.count_document_records() or 0)
-
-        if sample_active:
-            current_step = "sample"
-        elif completed:
-            current_step = "done"
-        elif not storage_confirmed:
-            current_step = "storage"
-        elif not model_choice:
-            current_step = "model"
-        else:
-            current_step = "workflow"
-
-        if current_step == "storage":
-            title = "Confirm where KERN keeps this workspace"
-            body = "KERN stores profile data, indexed documents, and backups on this machine before you start the first drafting workflow."
-            primary_action = "Use this local profile"
-            secondary_action = ""
-        elif current_step == "model":
-            title = "Confirm the recommended local model path"
-            body = "KERN uses one local model path for drafting, summarization, and grounded answers. Keep that path fixed for pilot users."
-            primary_action = "Use the recommended local model"
-            secondary_action = ""
-        elif current_step == "workflow":
-            title = "Start with a document-grounded German reply"
-            body = (
-                "Upload one local document, then let KERN draft a concise German business response from that material."
-                if docs_count == 0
-                else "Use one local document to draft a concise German business response and review the cited basis before sending."
-            )
-            primary_action = "Draft from my local documents" if docs_count else "Use my own local documents"
-            secondary_action = "Try sample workspace" if license_eval.sample_access else "Not now"
-        elif current_step == "sample":
-            title = "Sample workspace is ready"
-            body = "These bundled documents show the local drafting workflow without using company files. Everything in this workspace is marked as sample content."
-            primary_action = "Switch to my own local documents"
-            secondary_action = "Stage sample drafting prompt"
-        else:
-            title = "Local drafting workflow is ready"
-            body = "KERN is set up to draft from local company documents with the current profile and local model path."
-            primary_action = "Done"
-            secondary_action = ""
-
         return OnboardingSnapshot(
-            active=sample_active or not completed,
-            completed=completed,
-            current_step=current_step,
-            storage_confirmed=storage_confirmed,
-            model_choice=model_choice,
-            starter_workflow=starter_workflow,
-            selected_path=selected_path if selected_path in {"real_documents", "sample_workspace"} else ("sample_workspace" if sample_active else ""),
-            sample_workspace_active=sample_active,
-            sample_workspace_seeded=sample_seeded,
-            title=title,
-            body=body,
-            primary_action=primary_action,
-            secondary_action=secondary_action,
-            local_data_note=f"Profile root: {profile_root}",
+            active=False,
+            completed=True,
+            current_step="done",
+            storage_confirmed=True,
+            model_choice="local",
+            starter_workflow="document_grounded_draft",
+            selected_path="real_documents",
+            sample_workspace_active=False,
+            sample_workspace_seeded=False,
+            title="",
+            body="",
+            primary_action="",
+            secondary_action="",
+            local_data_note=f"Profile root: {self.active_profile.profile_root}",
             model_note=self._preferred_runtime_label(),
             workflow_note="Primary workflow: draft a German business reply from local documents.",
-            activation_note=license_eval.message,
+            activation_note="",
             storage_path=self.active_profile.documents_root,
             model_path=self._preferred_runtime_path(),
         )

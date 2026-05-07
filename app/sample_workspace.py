@@ -70,13 +70,6 @@ class SampleWorkspaceService:
             started_at=_utcnow(),
             exited_at="",
         )
-        self.local_data.update_onboarding_state(
-            selected_path="sample_workspace",
-            sample_workspace_active=True,
-            sample_workspace_seeded=True,
-            starter_workflow="sample_workspace",
-            completed=False,
-        )
         self._refresh_retrieval()
         return records
 
@@ -87,12 +80,6 @@ class SampleWorkspaceService:
         self.local_data.update_sample_workspace_state(
             active=False,
             exited_at=_utcnow(),
-        )
-        self.local_data.update_onboarding_state(
-            selected_path="real_documents",
-            sample_workspace_active=False,
-            starter_workflow="",
-            completed=False,
         )
         self._refresh_retrieval()
         return archived_count

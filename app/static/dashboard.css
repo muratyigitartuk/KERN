@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --font-display: "Consolas", "JetBrains Mono", monospace;
   --font-body: "Segoe UI Variable", "Segoe UI", "DM Sans", system-ui, sans-serif;
   --font-mono: "Consolas", "JetBrains Mono", monospace;
@@ -1647,140 +1647,6 @@ mark.passage-highlight {
   line-height: 1.55;
 }
 
-.onboarding-card {
-  width: min(860px, 100%);
-  display: grid;
-  gap: 14px;
-  padding: 18px;
-  border: 1px solid color-mix(in srgb, var(--line) 84%, var(--text-faint) 16%);
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at top left, color-mix(in srgb, var(--bg-soft) 32%, transparent), transparent 38%),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 98%, transparent), color-mix(in srgb, var(--bg-soft) 95%, transparent));
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 18px 40px rgba(0, 0, 0, 0.18);
-  text-align: left;
-}
-
-.onboarding-modal {
-  z-index: 100;
-  pointer-events: auto;
-}
-
-.onboarding-modal__dialog {
-  position: relative;
-  z-index: 1;
-  width: min(920px, calc(100vw - 40px)) !important;
-  min-width: min(920px, calc(100vw - 40px));
-  max-width: min(920px, calc(100vw - 40px));
-  height: auto !important;
-  max-height: calc(100vh - 48px);
-  display: block !important;
-  overflow: visible;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-}
-
-.onboarding-modal__content {
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  background: transparent;
-}
-
-.onboarding-modal .onboarding-card {
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  box-shadow: var(--modal-shadow);
-}
-
-.onboarding-card.hidden {
-  display: none;
-}
-
-.onboarding-card.is-pending {
-  opacity: 0.74;
-}
-
-.onboarding-card.is-pending .solid-button,
-.onboarding-card.is-pending .ghost-button {
-  pointer-events: none;
-}
-
-.onboarding-card__head,
-.onboarding-card__actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.onboarding-card__heading {
-  display: grid;
-  gap: 4px;
-}
-
-.onboarding-card__heading strong {
-  font-size: 0.86rem;
-  color: var(--text-soft);
-  letter-spacing: 0.02em;
-}
-
-.onboarding-card__body {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 380px);
-}
-
-.onboarding-card__copy {
-  display: grid;
-  gap: 8px;
-}
-
-.onboarding-card__copy h3 {
-  margin: 0;
-  font-size: 1.26rem;
-  letter-spacing: -0.03em;
-}
-
-.onboarding-card__copy p,
-.onboarding-card__readiness {
-  margin: 0;
-  color: var(--text-soft);
-  line-height: 1.55;
-}
-
-.onboarding-card__facts {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.onboarding-fact {
-  display: grid;
-  gap: 5px;
-  min-height: 92px;
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--bg) 52%, transparent);
-}
-
-.onboarding-fact strong {
-  font-size: 0.88rem;
-  line-height: 1.45;
-  min-width: 0;
-  word-break: break-word;
-}
-
-.onboarding-card__dismiss {
-  white-space: nowrap;
-}
-
 .starter-section {
   width: min(860px, 100%);
   display: grid;
@@ -1912,7 +1778,7 @@ mark.passage-highlight {
 }
 
 .failure-card__details[open] .failure-card__details-summary::after {
-  content: "−";
+  content: "âˆ’";
 }
 
 .failure-card__details-body {
@@ -3367,24 +3233,9 @@ input::placeholder {
 }
 
   @media (max-width: 900px) {
-  .onboarding-modal__dialog {
-    width: calc(100vw - 24px);
-    min-width: calc(100vw - 24px);
-    max-width: calc(100vw - 24px);
-    max-height: calc(100vh - 24px);
-  }
-
-  .workspace-topbar,
+.workspace-topbar,
   .conversation-shell {
     padding-inline: 16px;
-  }
-
-  .onboarding-card__body {
-      grid-template-columns: 1fr;
-    }
-
-  .onboarding-card__facts {
-    grid-template-columns: 1fr 1fr;
   }
 
   .starter-grid {
@@ -3474,31 +3325,6 @@ input::placeholder {
 
   .empty-state__lead,
   .starter-section__lead,
-  .onboarding-card__copy p,
-  .onboarding-card__readiness {
-    font-size: 0.92rem;
-  }
-
-  .onboarding-card {
-    padding: 14px;
-    border-radius: 20px;
-  }
-
-  .onboarding-modal__content {
-      padding: 12px;
-    }
-
-  .onboarding-card__head,
-  .onboarding-card__actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .onboarding-card__facts {
-    grid-template-columns: 1fr;
-  }
-
-  .confirmation-card,
   .thread-turn,
   .thread-turn__bubble {
     width: 100%;
@@ -5357,16 +5183,6 @@ body {
 .settings-story-card,
 .panel-state,
 .inspector-block,
-.onboarding-card,
-.search-modal__field,
-.settings-modal__dialog,
-.workspace-drop-panel,
-.composer-plus-menu,
-.composer-kb-picker,
-.workspace-switcher__menu {
-  box-shadow: none;
-}
-
 .composer-status,
 .composer,
 .confirmation-card,
@@ -5375,18 +5191,6 @@ body {
 .settings-story-card,
 .panel-state,
 .inspector-block,
-.onboarding-card,
-.workspace-drop-panel,
-.composer-plus-menu,
-.composer-kb-picker,
-.search-modal__field,
-.settings-modal__dialog,
-.workspace-switcher__button,
-.workspace-switcher__menu {
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
-}
-
 .composer-status {
   width: var(--composer-width);
   margin-bottom: 10px;
@@ -7522,16 +7326,6 @@ html[data-theme="dark"] .audit-entry__icon {
   opacity: 1;
   pointer-events: auto;
 }
-
-.settings-modal.onboarding-modal {
-  z-index: 100;
-}
-
-.settings-modal.onboarding-modal:not(.hidden) {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 .settings-modal.is-open .settings-modal__backdrop {
   opacity: 1;
 }
@@ -7540,16 +7334,6 @@ html[data-theme="dark"] .audit-entry__icon {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
-
-.settings-modal.onboarding-modal:not(.hidden) .settings-modal__backdrop,
-.settings-modal.onboarding-modal:not(.hidden) .settings-modal__dialog {
-  opacity: 1;
-}
-
-.settings-modal.onboarding-modal:not(.hidden) .settings-modal__dialog {
-  transform: translateY(0) scale(1);
-}
-
 .composer-plus-menu,
 .sidebar-collapsed-sessions__flyout {
   opacity: 0;

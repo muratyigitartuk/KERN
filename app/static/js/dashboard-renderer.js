@@ -20,7 +20,6 @@ export function createDashboardRenderer({ elements, send, themeController, passa
   let snapshotFrameScheduled = false;
   let lastConversationKey = "";
   let currentSnapshot = null;
-  let onboardingUiState = null;
   let conversationPrimed = false;
   let auditCategoryFilter = "";
   let llmStreamElement = null;
@@ -1002,21 +1001,6 @@ export function createDashboardRenderer({ elements, send, themeController, passa
       .join("|");
   }
 
-  function getOnboardingRenderState(snapshot) {
-    const serverOnboarding = snapshot?.onboarding || {};
-    if (onboardingUiState) {
-      const stepMatched = onboardingUiState.untilStep && serverOnboarding.current_step === onboardingUiState.untilStep;
-      const inactiveMatched = onboardingUiState.untilInactive && !serverOnboarding.active;
-      if (stepMatched || inactiveMatched) {
-        onboardingUiState = null;
-      }
-    }
-    const state = onboardingUiState;
-    return {
-      onboarding: state?.override ? { ...serverOnboarding, ...state.override } : serverOnboarding,
-      pending: Boolean(state?.pending),
-    };
-  }
 
   function updateConnectionState(state) {
     lastConnectionState = state || "connecting";
@@ -1255,74 +1239,6 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     return parts.join(" / ");
   }
 
-  function renderOnboarding(snapshot) {
-      if (!elements.onboardingCard || !elements.onboardingModal) {
-        return;
-      }
-      if (snapshot?.profile_session?.unlocked === false) {
-        elements.onboardingModal.classList.add("hidden");
-        elements.onboardingModal.classList.remove("is-open");
-        elements.onboardingModal.setAttribute("aria-hidden", "true");
-        elements.onboardingCard.classList.add("hidden");
-        return;
-      }
-      const renderState = getOnboardingRenderState(snapshot);
-      const onboarding = renderState.onboarding || {};
-      const trust = snapshot.trust_summary || {};
-    const stepLabels = {
-      storage: t("onboarding.step_storage"),
-      model: t("onboarding.step_model"),
-      workflow: t("onboarding.step_workflow"),
-      sample: t("onboarding.step_sample"),
-      done: t("onboarding.step_done"),
-    };
-      const isActive = Boolean(onboarding.active);
-      elements.onboardingModal.classList.toggle("hidden", !isActive);
-      elements.onboardingModal.classList.toggle("is-open", isActive);
-      elements.onboardingModal.setAttribute("aria-hidden", isActive ? "false" : "true");
-      elements.onboardingCard.classList.toggle("hidden", !isActive);
-      elements.onboardingCard.classList.toggle("is-pending", Boolean(renderState.pending));
-      elements.onboardingCard.setAttribute("aria-busy", renderState.pending ? "true" : "false");
-      if (elements.onboardingPrimaryAction) {
-        elements.onboardingPrimaryAction.disabled = Boolean(renderState.pending);
-      }
-      if (elements.onboardingSecondaryAction) {
-        elements.onboardingSecondaryAction.disabled = Boolean(renderState.pending);
-      }
-      if (elements.onboardingDismiss) {
-        elements.onboardingDismiss.disabled = Boolean(renderState.pending);
-      }
-      if (!isActive) {
-        return;
-      }
-    elements.onboardingCard.dataset.step = onboarding.current_step || "storage";
-    elements.onboardingEyebrow.textContent = t("onboarding.eyebrow");
-    elements.onboardingStepLabel.textContent = stepLabels[onboarding.current_step] || t("onboarding.step_storage");
-    elements.onboardingTitle.textContent = onboarding.title || t("onboarding.default_title");
-    elements.onboardingBody.textContent = onboarding.body || t("onboarding.default_body");
-    elements.onboardingLocalPosture.textContent = trust.local_posture || t("onboarding.local_default");
-    elements.onboardingStoragePath.textContent = onboarding.storage_path || trust.storage_posture || t("settings.not_configured");
-    elements.onboardingModelPath.textContent = onboarding.model_path
-      ? `${onboarding.model_note || t("settings.ai_default")} / ${onboarding.model_path}`
-      : trust.model_posture || t("settings.not_configured");
-    elements.onboardingRecoveryPath.textContent = trust.recovery_posture || t("onboarding.recovery_default");
-    elements.onboardingReadiness.textContent = trust.readiness_posture || t("onboarding.readiness_default");
-    if (elements.onboardingActivationNote) {
-      elements.onboardingActivationNote.textContent = onboarding.activation_note || t("onboarding.activation_default");
-    }
-    elements.onboardingPrimaryAction.textContent = onboarding.primary_action || t("onboarding.primary_default");
-    elements.onboardingSecondaryAction.textContent = onboarding.secondary_action || t("onboarding.secondary_default");
-    elements.onboardingDismiss.textContent = t("onboarding.skip");
-    elements.onboardingSecondaryAction.classList.toggle("hidden", !onboarding.secondary_action);
-    elements.onboardingDismiss.classList.toggle("hidden", !["workflow", "sample"].includes(onboarding.current_step));
-    if (elements.emptyLead) {
-      elements.emptyLead.textContent = onboarding.current_step === "sample"
-        ? t("empty.lead_sample")
-        : onboarding.current_step === "workflow"
-          ? t("empty.lead_workflow")
-          : t("empty.lead");
-    }
-  }
 
   function renderFailures(snapshot) {
         if (!elements.failurePanel || !elements.failureList) {
@@ -3216,14 +3132,8 @@ export function createDashboardRenderer({ elements, send, themeController, passa
   function renderRuntimeSlice(snapshot) {
     ensureSidebarShellControls();
     const currentState = snapshot.assistant_state || "idle";
-    const showOnboardingStatus = !snapshot.action_in_progress
-      && snapshot.onboarding?.active
-      && (!snapshot.last_action || snapshot.last_action === "Waiting for you." || snapshot.last_action === t("status.waiting"));
     if (elements.statusText) {
-      elements.statusText.textContent =
-        showOnboardingStatus
-          ? t("status.onboarding_ready")
-          : snapshot.last_action || t("status.waiting");
+      elements.statusText.textContent = snapshot.last_action || t("status.waiting");
     }
     if (elements.reactorState) {
       elements.reactorState.textContent = currentState.toUpperCase();
@@ -3245,7 +3155,6 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     renderPlatformInfo(snapshot);
     renderKnowledge(snapshot);
     renderProfileLock(snapshot);
-    renderOnboarding(snapshot);
     renderSidebarWorkspaces(snapshot);
     renderSidebarSystemStatus(snapshot);
     renderFailures(snapshot);
@@ -3580,14 +3489,6 @@ export function createDashboardRenderer({ elements, send, themeController, passa
       }
     },
       showPanelLoading,
-        setOnboardingOptimisticState(value) {
-          onboardingUiState = value || null;
-          renderOnboarding(currentSnapshot || { onboarding: {}, trust_summary: {} });
-        },
-        clearOnboardingOptimisticState() {
-          onboardingUiState = null;
-          renderOnboarding(currentSnapshot || { onboarding: {}, trust_summary: {} });
-        },
         getCurrentSnapshot() {
           return currentSnapshot;
         },
