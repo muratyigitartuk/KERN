@@ -54,6 +54,18 @@ function Invoke-Checked {
 function Add-KernCommandPath {
     param([string]$RepoRoot)
 
+    $shimRoot = Join-Path $env:USERPROFILE "bin"
+    New-Item -ItemType Directory -Force -Path $shimRoot | Out-Null
+    $kernShim = Join-Path $shimRoot "kern.cmd"
+    $startShim = Join-Path $shimRoot "start-kern.cmd"
+    $installShim = Join-Path $shimRoot "install-kern.cmd"
+    $kernCommand = "@echo off`r`ncall `"$RepoRoot\kern.cmd`" %*`r`n"
+    $startCommand = "@echo off`r`ncall `"$RepoRoot\start-kern.cmd`" %*`r`n"
+    $installCommand = "@echo off`r`ncall `"$RepoRoot\install-kern.cmd`" %*`r`n"
+    Set-Content -Path $kernShim -Value $kernCommand -Encoding ASCII
+    Set-Content -Path $startShim -Value $startCommand -Encoding ASCII
+    Set-Content -Path $installShim -Value $installCommand -Encoding ASCII
+
     $currentUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $entries = @()
     if ($currentUserPath) {
@@ -62,18 +74,18 @@ function Add-KernCommandPath {
     $alreadyPresent = $entries | Where-Object {
         $entry = $_
         try {
-            (Resolve-Path $entry -ErrorAction Stop).Path -ieq $RepoRoot
+            (Resolve-Path $entry -ErrorAction Stop).Path -ieq $shimRoot
         }
         catch {
-            $entry.TrimEnd("\") -ieq $RepoRoot.TrimEnd("\")
+            $entry.TrimEnd("\") -ieq $shimRoot.TrimEnd("\")
         }
     }
     if (-not $alreadyPresent) {
-        $updated = if ($currentUserPath) { "$currentUserPath;$RepoRoot" } else { $RepoRoot }
+        $updated = if ($currentUserPath) { "$currentUserPath;$shimRoot" } else { $shimRoot }
         [Environment]::SetEnvironmentVariable("Path", $updated, "User")
-        $env:Path = "$RepoRoot;$env:Path"
-        Write-Host "KERN command path installed. New terminals can run: kern" -ForegroundColor Green
+        $env:Path = "$shimRoot;$env:Path"
     }
+    Write-Host "KERN commands installed. New Windows Terminal windows can run: kern" -ForegroundColor Green
 }
 
 function Install-WithWinget {
@@ -503,7 +515,7 @@ $env:KERN_DISABLE_AUTH_FOR_LOOPBACK = "true"
 
 Invoke-Checked "powershell.exe" @(
     "-ExecutionPolicy", "Bypass",
-    "-File", (Join-Path $repoRoot "scripts\run-kern-desktop-dev.ps1"),
+    "-File", (Join-Path $repoRoot "scripts\start-kern-desktop.ps1"),
     "-RuntimeRoot", $repoRoot,
     "-Python", $python
 ) $repoRoot
