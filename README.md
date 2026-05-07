@@ -12,67 +12,53 @@ KERN is a controlled local work-preparation system for document-grounded enterpr
 - Runs as a Windows-first local pilot with a browser dashboard and optional Tauri desktop shell.
 - Includes a restricted server path for one-organization thread/auth workflows backed by PostgreSQL, Redis, and OIDC. Server mode is not yet the full document/evidence/compliance product path.
 
-## Supported Deployment Truth
-
-- Supported now: controlled local Windows pilot.
-- Restricted: one-organization server thread/auth mode after the server release gate passes.
-- Not claimed: SaaS, broad multi-tenant hosting, or full shared enterprise production parity.
-
 ## Get Started
 
-### 1. Create the Python environment
+### Easiest Windows Run
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1
+```
+
+Open [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard) when the script reports that KERN is running.
+
+The starter script creates the local environment when needed, installs the required Python package, prepares `.env` from `.env.example`, starts the loopback server, and prints the dashboard URL.
+
+For first use, keep `KERN_LLM_ENABLED=false`. KERN will still open and let you test the workspace, governance, backup, and dashboard flows. For grounded language generation, install a local `llama-server` runtime and set these values in `.env`:
+
+```dotenv
+KERN_LLM_ENABLED=true
+KERN_LLAMA_SERVER_URL=http://127.0.0.1:8080
+KERN_LLAMA_SERVER_MODEL_PATH=C:\models\your-model.gguf
+```
+
+## Desktop Shell
+
+KERN includes a Windows-first Tauri shell in `src-tauri/`. Use this when you want the dashboard in a desktop window instead of a browser tab.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-desktop-dev.ps1
+```
+
+## Developer Setup
+
+Use this path only if you are changing code or running tests manually.
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -e .[dev,documents,scheduler,system_control]
-```
-
-### 2. Configure local settings
-
-```powershell
 copy .env.example .env
-```
-
-For a basic local run, keep `KERN_LLM_ENABLED=false`. For grounded language generation, install a local `llama-server` runtime and set:
-
-```powershell
-$env:KERN_LLM_ENABLED = "true"
-$env:KERN_LLAMA_SERVER_URL = "http://127.0.0.1:8080"
-$env:KERN_LLAMA_SERVER_MODEL_PATH = "C:\models\your-model.gguf"
-```
-
-### 3. Validate the install
-
-```powershell
-python .\scripts\preflight-kern.py --json
-python -m compileall app tests -q
-python -m pytest -q
-```
-
-### 4. Run KERN locally
-
-```powershell
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Open [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard).
-
-## Desktop Shell
-
-KERN includes a Windows-first Tauri shell in `src-tauri/`. It launches the FastAPI runtime on loopback, waits for readiness, and opens the dashboard in a desktop WebView.
+Before opening a change:
 
 ```powershell
-.\scripts\run-kern-desktop-dev.ps1
-```
-
-To stage a desktop runtime payload:
-
-```powershell
-.\scripts\package-tauri-runtime.ps1 -IncludeVenv
-cd .\src-tauri
-cargo tauri build
+python -m compileall app tests -q
+node --check app\static\js\workbench.js
+python -m pytest -q
 ```
 
 ## Release And Demo Validation
@@ -91,6 +77,16 @@ Use the enterprise acceptance harness when the local model runtime is installed:
 
 The corporate demo script is in [docs/corporate-demo-script.md](docs/corporate-demo-script.md).
 
+## Desktop Packaging
+
+To stage a desktop runtime payload:
+
+```powershell
+.\scripts\package-tauri-runtime.ps1 -IncludeVenv
+cd .\src-tauri
+cargo tauri build
+```
+
 ## Deployment Docs
 
 - [Quickstart](docs/quickstart.md)
@@ -101,15 +97,3 @@ The corporate demo script is in [docs/corporate-demo-script.md](docs/corporate-d
 - [Security and governance](docs/security-governance.md)
 - [Operator runbook](docs/operator-runbook.md)
 - [Troubleshooting](docs/troubleshooting-guide.md)
-
-## Contributing
-
-Before opening a change:
-
-```powershell
-python -m compileall app tests -q
-node --check app\static\js\workbench.js
-python -m pytest -q
-```
-
-Keep product claims tied to implemented behavior. Removed workplace integrations must not reappear in runtime capabilities, docs, tests, dashboard controls, or environment templates.
