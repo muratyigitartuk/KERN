@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_FOCUS_TERM_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ_-]{3,}")
+_FOCUS_TERM_PATTERN = re.compile(r"[0-9A-Za-zÃƒâ€Ãƒâ€“ÃƒÅ“ÃƒÂ¤ÃƒÂ¶ÃƒÂ¼ÃƒÅ¸_-]{3,}")
 _EXPLICIT_DOCUMENT_SCOPE_MARKERS = (
     "uploaded",
     "hochgeladen",
@@ -58,9 +58,9 @@ _GENERIC_QUERY_TERMS = {
     "vom",
     "mit",
     "fuer",
-    "für",
+    "fÃ¼r",
     "ueber",
-    "über",
+    "Ã¼ber",
     "nach",
     "vor",
     "bei",
@@ -110,7 +110,7 @@ _GENERIC_QUERY_TERMS = {
     "betrag",
     "summe",
     "faellig",
-    "fÃ¤llig",
+    "fÃƒÂ¤llig",
     "quellen",
     "quelle",
     "eckigen",
@@ -122,7 +122,7 @@ _GENERIC_QUERY_TERMS = {
 
 # Precompiled pattern for token estimation: matches word-like sequences.
 # Accounts for German compound words, contractions, and numbers.
-_TOKEN_PATTERN = re.compile(r"[A-Za-zÄÖÜäöüß]{2,}|[0-9]+(?:[.,][0-9]+)*|\S")
+_TOKEN_PATTERN = re.compile(r"[^\W\d_]{2,}|[0-9]+(?:[.,][0-9]+)*|\S", re.UNICODE)
 
 
 class NoRetrievalHitsError(Exception):
@@ -397,7 +397,7 @@ class RAGPipeline:
         return match.group(1) if match else None
 
     def _extract_first_amount(self, text: str) -> str | None:
-        match = re.search(r"\b(\d[\d.,]*\s*(?:EUR|USD|GBP|€|\$|£))\b", text)
+        match = re.search(r"\b(\d[\d.,]*\s*(?:EUR|USD|GBP|â‚¬|\$|Â£))\b", text)
         return match.group(1) if match else None
 
     def _extract_first_company(self, text: str) -> str | None:
@@ -423,11 +423,11 @@ class RAGPipeline:
         if any(token in lowered for token in ("zielbetrag", "betrag", "amount", "summe")) and offer_hit is not None:
             amount = self._extract_labeled_value(offer_hit.text, ("target amount", "zielbetrag", "amount", "total"))
             if amount:
-                lines.append(f"Der Zielbetrag beträgt {amount} [{offer_hit.metadata.get('title', offer_hit.source_id)}].")
-        if any(token in lowered for token in ("rechnung", "invoice")) and any(token in lowered for token in ("faellig", "fällig", "due")) and invoice_hit is not None:
-            due_date = self._extract_labeled_value(invoice_hit.text, ("due date", "fälligkeitsdatum", "faelligkeitsdatum", "fällig", "faellig"))
+                lines.append(f"Der Zielbetrag betrÃ¤gt {amount} [{offer_hit.metadata.get('title', offer_hit.source_id)}].")
+        if any(token in lowered for token in ("rechnung", "invoice")) and any(token in lowered for token in ("faellig", "fÃ¤llig", "due")) and invoice_hit is not None:
+            due_date = self._extract_labeled_value(invoice_hit.text, ("due date", "fÃ¤lligkeitsdatum", "faelligkeitsdatum", "fÃ¤llig", "faellig"))
             if due_date:
-                lines.append(f"Die Rechnung ist am {due_date} fällig [{invoice_hit.metadata.get('title', invoice_hit.source_id)}].")
+                lines.append(f"Die Rechnung ist am {due_date} fÃ¤llig [{invoice_hit.metadata.get('title', invoice_hit.source_id)}].")
 
         return " ".join(lines) if lines else None
 
@@ -446,7 +446,7 @@ class RAGPipeline:
             return ""
         lowered = query.lower()
         if any(marker in lowered for marker in ("hochgeladen", "rechnung", "angebot", "dokument", "quelle")):
-            return "Hinweis: Diese Antwort stützt sich teilweise auf OCR-ausgelesenen Text mit niedriger Zuverlässigkeit."
+            return "Hinweis: Diese Antwort stÃ¼tzt sich teilweise auf OCR-ausgelesenen Text mit niedriger ZuverlÃ¤ssigkeit."
         return "Note: This answer relies partly on OCR-extracted text with low confidence."
 
     def _has_low_confidence_ocr(self, hits: list[RetrievalHit]) -> bool:

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "KERN",
+  "version": "1.0.0-rc1",
+  "identifier": "ai.kern.desktop",
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "http://127.0.0.1:8000",
+    "frontendDist": "../app/static"
+  },
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": []
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "publisher": "KERN",
+    "category": "Productivity",
+    "shortDescription": "Privacy-first AI workspace",
+    "longDescription": "KERN desktop shell for the local privacy-first AI workspace runtime.",
+    "resources": ["../desktop-runtime"],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false,
+        "installMode": "perMachine"
+      }
+    }
+  }
+}

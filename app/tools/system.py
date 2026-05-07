@@ -51,7 +51,6 @@ class OpenAppTool(Tool):
                 success=False,
                 status="failed",
                 display_text="No application specified.",
-                spoken_text="I need an app name.",
             )
         # Validate against allowed applications whitelist
         normalized = app_name.lower().replace(".exe", "")
@@ -60,7 +59,6 @@ class OpenAppTool(Tool):
                 success=False,
                 status="failed",
                 display_text=f"'{app_name}' is not in the allowed applications list.",
-                spoken_text=f"{app_name} is not allowed. Ask your administrator to add it.",
                 data={"app": app_name, "attempted": False, "reason": "not_whitelisted"},
             )
         executable = shutil.which(normalized) or shutil.which(f"{normalized}.exe")
@@ -69,7 +67,6 @@ class OpenAppTool(Tool):
                 success=False,
                 status="failed",
                 display_text=f"Failed to resolve a safe launch path for {app_name}.",
-                spoken_text=f"I could not resolve {app_name}.",
                 data={"app": app_name, "attempted": False},
             )
         try:
@@ -79,13 +76,11 @@ class OpenAppTool(Tool):
                 success=False,
                 status="failed",
                 display_text=f"Failed to send a launch request for {app_name}.",
-                spoken_text=f"I could not send the launch request for {app_name}.",
                 data={"app": app_name, "attempted": False},
             )
         return ToolResult(
             status="attempted",
             display_text=f"Sent a launch request for {app_name}.",
-            spoken_text=f"I sent the launch request for {app_name}.",
             evidence=[f"Start request issued for {app_name}."],
             side_effects=["launch_request"],
             data={"app": app_name, "attempted": True},
@@ -116,7 +111,6 @@ class OpenWebsiteTool(Tool):
                 success=False,
                 status="failed",
                 display_text="No website specified.",
-                spoken_text="I need a website.",
             )
         try:
             url = validate_public_https_url(url)
@@ -126,13 +120,11 @@ class OpenWebsiteTool(Tool):
                 success=False,
                 status="failed",
                 display_text=f"Failed to send an open request for {url}.",
-                spoken_text="I could not send the browser request.",
                 data={"url": url, "attempted": False},
             )
         return ToolResult(
             status="attempted" if opened else "failed",
             display_text=f"Sent a browser open request for {url}." if opened else f"Attempted to open {url}.",
-            spoken_text="I sent the browser request." if opened else "I could not confirm the browser request.",
             evidence=["Request sent to default browser."] if opened else [],
             side_effects=["browser_open_request"] if opened else [],
             data={"url": url, "attempted": bool(opened)},

@@ -2,11 +2,18 @@
 
 KERN is designed for local Windows deployment with a `production` or `personal` product posture and a separate `personal` or `corporate` policy mode.
 
+In server mode, KERN uses PostgreSQL for durable tenant data and Redis for ephemeral coordination. Redis must not be treated as a source of truth for messages, permissions, audit events, or documents.
+
 ## Core controls
 
 - Profile DB encryption defaults to `fernet`.
-- Artifact encryption is enabled by default for profile-owned document and meeting artifacts.
+- Artifact encryption is enabled by default for profile-owned document artifacts.
 - Audit events are chained and verified at startup and before sensitive exports.
+- Server-mode conversations are thread-scoped; private threads are visible only to the owner unless explicitly shared.
+- Shared workspace memory can only be promoted explicitly by the thread owner or a workspace admin.
+- Server-mode WebSocket chat requires an authenticated session and a `thread_id`.
+- Server mode disables bootstrap/admin-token authentication and blocks unmigrated local-profile routes.
+- Server break-glass requires explicit enablement, an IP allowlist, a configured password, a short TTL, and audit logging.
 - `/health` exposes degraded reasons, background component state, and audit-chain status.
 - `/governance/export` emits a review bundle containing health, security, policy, retention, audit, backup inventory, and document-classification summaries.
 - `scripts/preflight-kern.py` is read-only and inspects the system DB plus the active profile DB without mutating either.
@@ -24,7 +31,7 @@ KERN is designed for local Windows deployment with a `production` or `personal` 
 - `KERN_POLICY_MODE=personal`
   - standard allow / confirm / deny behavior
 - `KERN_POLICY_MODE=corporate`
-  - stricter confirmation for mailbox sync, bulk ingest, backup operations, audit access, and other higher-risk actions
+  - stricter confirmation for bulk ingest, backup operations, audit access, and other higher-risk actions
   - external browser/network actions require confirmation unless `KERN_POLICY_ALLOW_EXTERNAL_NETWORK=true`
   - sensitive document and spreadsheet reads are restricted unless the request explicitly opts in
 
@@ -33,7 +40,7 @@ KERN is designed for local Windows deployment with a `production` or `personal` 
 - `KERN_PRODUCT_POSTURE=production`
   - rollout default
   - workspace-first shell and documentation
-  - media-style controls hidden from the default UI
+  - removed workplace integrations are not part of the product surface
 - `KERN_PRODUCT_POSTURE=personal`
   - optional assistant-style compatibility posture for local personal use
 
@@ -44,8 +51,8 @@ KERN is designed for local Windows deployment with a `production` or `personal` 
 These settings are enforced automatically and surfaced in runtime snapshot and governance export:
 
 - `KERN_RETENTION_DOCUMENTS_DAYS`
-- `KERN_RETENTION_EMAIL_DAYS`
-- `KERN_RETENTION_TRANSCRIPTS_DAYS`
+- Deprecated legacy email data is exported/pruned only when old local databases already contain legacy tables; no active email retention setting is exposed.
+- Deprecated legacy meeting data is exported/pruned only when old local databases already contain legacy tables; no active meeting-recording retention setting is exposed.
 - `KERN_RETENTION_AUDIT_DAYS`
 - `KERN_RETENTION_BACKUPS_DAYS`
 - `KERN_RETENTION_ENFORCEMENT_ENABLED`

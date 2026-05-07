@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -14,7 +13,7 @@ from app.types import FeedbackSignal, ProfileSummary, TrainingExampleRecord
 
 
 class IntelligenceService:
-    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÄÖÜäöüß_-]+")
+    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ_-]+")
 
     def __init__(self, platform: PlatformStore, memory: MemoryRepository, profile: ProfileSummary) -> None:
         self.platform = platform

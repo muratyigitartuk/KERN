@@ -1,6 +1,6 @@
 """Lightweight in-memory metrics for KERN.
 
-No external dependencies — counters and histograms stored in a thread-safe
+No external dependencies â€” counters and histograms stored in a thread-safe
 dict, exposed as JSON via the ``/metrics`` endpoint.
 """
 

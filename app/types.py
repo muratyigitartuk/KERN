@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -15,13 +15,13 @@ ConfirmationRule = Literal["never", "always", "on_risk"]
 VerificationSupport = Literal["none", "heuristic", "database"]
 AssistantTrigger = Literal["manual_ui", "scheduler"]
 VerificationSource = Literal["none", "tool", "process", "database", "filesystem"]
-CapabilityDomain = Literal["core", "documents", "email", "calendar", "voice", "security", "german_business", "sync", "memory"]
+CapabilityDomain = Literal["core", "documents", "calendar", "security", "german_business", "sync", "memory"]
 BackgroundJobStatus = Literal["queued", "running", "waiting_for_commit", "completed", "failed", "recoverable", "rolled_back", "cancelled"]
 BackupTargetKind = Literal["local_folder", "usb", "external_drive", "nas"]
 MemoryScope = Literal["off", "session", "profile", "profile_plus_archive"]
 ProductPosture = Literal["production", "personal"]
-EmailDraftStatus = Literal["draft", "ready", "sent", "failed"]
-EmailSyncStatus = Literal["idle", "configured", "syncing", "degraded"]
+ThreadVisibility = Literal["private", "shared", "system_audit"]
+ResourceScope = Literal["private", "workspace", "organization", "system_audit"]
 ReminderSuggestionStatus = Literal["suggested", "accepted", "rejected"]
 ReviewState = Literal["pending", "accepted", "rejected"]
 DocumentClassification = Literal["public", "internal", "confidential", "finance", "legal", "hr"]
@@ -33,6 +33,10 @@ DataClass = Literal["personal", "regulated_business", "operational", "security_a
 RetentionDecision = Literal["allow_delete", "retain", "blocked_by_legal_hold", "pseudonymize"]
 ErasureStepStatus = Literal["pending", "completed", "blocked", "failed", "skipped"]
 MemoryPromotionState = Literal["none", "candidate", "workspace_promoted", "personal_only", "rejected"]
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 WorkflowType = Literal[
     "correspondence_follow_up",
     "regulated_document_lifecycle",
@@ -142,7 +146,6 @@ class PolicyDecision(BaseModel):
 class ToolResult(BaseModel):
     success: bool = True
     display_text: str = ""
-    spoken_text: str = ""
     data: dict[str, Any] = Field(default_factory=dict)
     status: CapabilityStatus = "observed"
     evidence: list[str] = Field(default_factory=list)
@@ -156,7 +159,7 @@ class ToolResult(BaseModel):
 
 
 class ExecutionReceipt(BaseModel):
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=_utcnow)
     capability_name: str
     status: CapabilityStatus
     message: str
@@ -174,7 +177,6 @@ class AssistantTurn(BaseModel):
     transcript: str
     intent_type: IntentType
     response_text: str
-    spoken: bool
     tool_calls: list[ToolRequest] = Field(default_factory=list)
     plan: ExecutionPlan | None = None
     candidates: list[IntentCandidate] = Field(default_factory=list)
@@ -188,7 +190,7 @@ class ConversationTurn(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     role: Literal["user", "assistant", "system"]
     text: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=_utcnow)
     kind: Literal["message", "confirmation", "tool_status", "proactive"] = "message"
     status: Literal["complete", "pending", "failed"] = "complete"
     meta: dict[str, Any] = Field(default_factory=dict)
@@ -225,7 +227,6 @@ class MorningBrief(BaseModel):
     tasks: list[Any] = Field(default_factory=list)
     reminders: list[Any] = Field(default_factory=list)
     focus_suggestion: str
-    music_suggestion: str | None = None
     next_event: Any | None = None
 
 
@@ -270,7 +271,7 @@ class ProactivePrompt(BaseModel):
     reason: str
     message: str
     source: str = "local"
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=_utcnow)
 
 
 class PendingConfirmation(BaseModel):
@@ -294,7 +295,6 @@ class ActionHistoryEntry(BaseModel):
 
 class PersonaReply(BaseModel):
     display_text: str
-    spoken_text: str
     priority: Literal["low", "normal", "high"] = "normal"
 
 
@@ -394,6 +394,45 @@ class AuthContext(BaseModel):
         return any(role in self.roles for role in allowed)
 
 
+class ThreadRecord(BaseModel):
+    id: str
+    organization_id: str
+    workspace_id: str
+    workspace_slug: str
+    owner_user_id: str
+    title: str
+    visibility: ThreadVisibility = "private"
+    created_at: datetime
+    updated_at: datetime
+
+
+class MessageRecord(BaseModel):
+    id: str
+    thread_id: str
+    organization_id: str
+    workspace_id: str
+    workspace_slug: str
+    actor_user_id: str | None = None
+    role: Literal["user", "assistant", "system", "tool"]
+    content: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+
+
+class WorkspaceAccessContext(BaseModel):
+    organization_id: str
+    workspace_id: str
+    workspace_slug: str
+    user_id: str
+    roles: list[WorkspaceRole] = Field(default_factory=list)
+
+
+class AuthorizedRuntimeContext(BaseModel):
+    auth: AuthContext
+    workspace: WorkspaceAccessContext
+    thread: ThreadRecord | None = None
+
+
 class RetentionPolicyRecord(BaseModel):
     id: str
     organization_id: str
@@ -451,12 +490,12 @@ class ErasureExecutionStep(BaseModel):
     name: str
     status: ErasureStepStatus = "pending"
     detail: str = ""
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class EvidenceManifest(BaseModel):
     version: str = "v1"
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=_utcnow)
     generator_actor_id: str | None = None
     generator_service: str = "compliance_service"
     organization_id: str | None = None
@@ -477,7 +516,7 @@ class RegulatedDocumentVersion(BaseModel):
     content_digest: str
     version_chain_digest: str
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class RegulatedDocumentRecord(BaseModel):
@@ -496,8 +535,8 @@ class RegulatedDocumentRecord(BaseModel):
     finalized_at: datetime | None = None
     finalized_by_user_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class AuditEvent(BaseModel):
@@ -520,8 +559,8 @@ class BackgroundJob(BaseModel):
     title: str
     detail: str = ""
     progress: float = Field(default=0.0, ge=0.0, le=1.0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
     payload: dict[str, Any] = Field(default_factory=dict)
     result: dict[str, Any] = Field(default_factory=dict)
     checkpoint_stage: str | None = None
@@ -551,11 +590,12 @@ class DocumentRecord(BaseModel):
     classification: DocumentClassification = "internal"
     data_class: DataClass = "operational"
     retention_state: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
     provenance: dict[str, Any] = Field(default_factory=dict)
     tags: list[str] = Field(default_factory=list)
     archived: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    imported_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    imported_at: datetime = Field(default_factory=_utcnow)
 
 
 class DocumentChunk(BaseModel):
@@ -586,48 +626,8 @@ class ConversationArchiveRecord(BaseModel):
     source: Literal["chatgpt", "claude", "other"] = "other"
     title: str
     file_path: str
-    archived_at: datetime = Field(default_factory=datetime.utcnow)
+    archived_at: datetime = Field(default_factory=_utcnow)
     imported_turns: int = 0
-
-
-class EmailAccount(BaseModel):
-    id: str
-    profile_slug: str
-    label: str
-    email_address: str
-    imap_host: str
-    smtp_host: str
-    sync_status: EmailSyncStatus = "idle"
-    last_sync_at: datetime | None = None
-    last_failure: str | None = None
-    draft_count: int = 0
-    health: Literal["ready", "degraded", "drafts_only"] = "drafts_only"
-
-
-class EmailMessage(BaseModel):
-    id: str
-    account_id: str | None = None
-    message_id: str | None = None
-    subject: str
-    sender: str
-    recipients: list[str] = Field(default_factory=list)
-    received_at: datetime
-    has_attachments: bool = False
-    folder: str = "INBOX"
-    body_preview: str = ""
-    attachment_paths: list[str] = Field(default_factory=list)
-
-
-class EmailDraft(BaseModel):
-    id: str | None = None
-    to: list[str] = Field(default_factory=list)
-    cc: list[str] = Field(default_factory=list)
-    subject: str = ""
-    body: str = ""
-    attachments: list[str] = Field(default_factory=list)
-    status: EmailDraftStatus = "draft"
-    created_at: datetime | None = None
-    sent_at: datetime | None = None
 
 
 class CalendarActionPlan(BaseModel):
@@ -635,17 +635,7 @@ class CalendarActionPlan(BaseModel):
     starts_at: datetime
     ends_at: datetime | None = None
     invite_recipients: list[str] = Field(default_factory=list)
-    draft: EmailDraft | None = None
     event_id: int | None = None
-    draft_id: str | None = None
-    invite_status: Literal["draft_only", "sent", "failed"] = "draft_only"
-
-
-class NotificationChannel(BaseModel):
-    kind: Literal["ntfy"] = "ntfy"
-    label: str
-    endpoint: str
-    enabled: bool = True
 
 
 class MeetingRecord(BaseModel):
@@ -655,7 +645,7 @@ class MeetingRecord(BaseModel):
     audio_path: str
     transcript_path: str | None = None
     status: str = "recorded"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class TranscriptArtifact(BaseModel):
@@ -664,7 +654,7 @@ class TranscriptArtifact(BaseModel):
     artifact_type: str = "transcript"
     content: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class TranscriptSummary(BaseModel):
@@ -719,7 +709,7 @@ class FeedbackSignal(BaseModel):
     memory_item_id: str | None = None
     approved_for_training: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class TrainingExampleRecord(BaseModel):
@@ -735,8 +725,8 @@ class TrainingExampleRecord(BaseModel):
     status: Literal["candidate", "approved", "rejected", "exported"] = "candidate"
     approved_for_training: bool = False
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class WorkflowEvent(BaseModel):
@@ -749,7 +739,7 @@ class WorkflowEvent(BaseModel):
     event_type: str
     detail: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class WorkflowRecord(BaseModel):
@@ -768,8 +758,8 @@ class WorkflowRecord(BaseModel):
     evidence_refs: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class ObligationRecord(BaseModel):
@@ -787,8 +777,8 @@ class ObligationRecord(BaseModel):
     blocking_reasons: list[str] = Field(default_factory=list)
     evidence_refs: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class DecisionRecord(BaseModel):
@@ -804,7 +794,7 @@ class DecisionRecord(BaseModel):
     reasoning_source: ReasoningSource = "system_decision"
     rationale: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class RankingFeatureVector(BaseModel):
@@ -836,7 +826,7 @@ class WorkflowDomainEvent(BaseModel):
     detail: str = ""
     fingerprint: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class ClaimEvidenceRef(BaseModel):
@@ -904,7 +894,7 @@ class ShadowRankingRecord(BaseModel):
     score: float = 0.0
     features: dict[str, Any] = Field(default_factory=dict)
     outcome: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class EvidenceBundle(BaseModel):
@@ -958,7 +948,7 @@ class FreeformIntentRecord(BaseModel):
     clarification_required: bool = False
     clarification_prompt: str = ""
     clarification_reason: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class TaskIntentRecord(FreeformIntentRecord):
@@ -975,7 +965,7 @@ class DocumentQueryPlan(BaseModel):
     citation_required: bool = False
     clarification_required: bool = False
     notes: list[str] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class DocumentCitationRecord(BaseModel):
@@ -1030,7 +1020,7 @@ class PreparationPacket(BaseModel):
     clarification_reason: str = ""
     suggested_draft: SuggestedDraftRecord | None = None
     focus_hint: FocusHint | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class RecommendationRecord(BaseModel):
@@ -1062,7 +1052,7 @@ class RecommendationRecord(BaseModel):
     worker_review_required: bool = True
     generation_contract: GenerationContract = Field(default_factory=GenerationContract)
     event_refs: list[str] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class DocumentAnswerPacket(BaseModel):
@@ -1096,7 +1086,7 @@ class DocumentAnswerPacket(BaseModel):
     support_breadth: float = Field(default=0.0, ge=0.0, le=1.0)
     clarification_reason: str = ""
     deterministic_answer: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class ContextLinkRecord(BaseModel):
@@ -1111,7 +1101,7 @@ class ContextLinkRecord(BaseModel):
     strength: float = Field(default=0.0, ge=0.0, le=1.0)
     reasons: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class InteractionOutcomeRecord(BaseModel):
@@ -1124,7 +1114,7 @@ class InteractionOutcomeRecord(BaseModel):
     packet_id: str
     outcome_type: Literal["packet_used", "packet_ignored", "clarification_answered", "llm_rewrite_used", "same_thread_packet_accepted", "same_contact_packet_accepted"]
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class ThreadContextPacket(BaseModel):
@@ -1154,7 +1144,7 @@ class ThreadContextPacket(BaseModel):
     generation_contract: GenerationContract = Field(default_factory=GenerationContract)
     worker_review_required: bool = True
     deterministic_answer: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class PersonContextPacket(BaseModel):
@@ -1184,14 +1174,14 @@ class PersonContextPacket(BaseModel):
     generation_contract: GenerationContract = Field(default_factory=GenerationContract)
     worker_review_required: bool = True
     deterministic_answer: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 class WorldStateSnapshot(BaseModel):
     organization_id: str | None = None
     workspace_slug: str | None = None
     actor_user_id: str | None = None
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=_utcnow)
     workflow_count: int = 0
     obligation_count: int = 0
     risk_count: int = 0
@@ -1273,7 +1263,7 @@ class SyncJob(BaseModel):
 class RecoveryCheckpoint(BaseModel):
     job_id: str
     stage: str
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class RAGSource(BaseModel):
@@ -1379,7 +1369,6 @@ class LoopMetricsSnapshot(BaseModel):
     last_context_refresh_ms: float = 0.0
     last_capability_refresh_ms: float = 0.0
     last_receipt_refresh_ms: float = 0.0
-    tts_queue_depth: int = 0
 
 
 class RenderKeysSnapshot(BaseModel):
@@ -1404,19 +1393,9 @@ class ClipboardSnapshot(BaseModel):
     captured_at: datetime | None = None
 
 
-class MediaContextSnapshot(BaseModel):
-    source_app: str = ""
-    status: str = ""
-    title: str = ""
-    artist: str = ""
-    album: str = ""
-    captured_at: datetime | None = None
-
-
 class CurrentContextSnapshot(BaseModel):
     window: ForegroundWindowSnapshot | None = None
     clipboard: ClipboardSnapshot | None = None
-    media: MediaContextSnapshot | None = None
     sources: dict[str, bool] = Field(default_factory=dict)
 
 
@@ -1446,8 +1425,6 @@ class ModelInfoSnapshot(BaseModel):
     hybrid_details: list[str] = Field(default_factory=list)
     cognition_model_path: str | None = None
     embed_model: str | None = None
-    voice_backend: str = "none"
-    voice_model: str | None = None
     cloud_available: bool = False
     llm_model: str | None = None
     model_mode: str = "off"
@@ -1556,14 +1533,11 @@ class RuntimeSnapshot(BaseModel):
     last_action: str = "Waiting for you."
     morning_brief: MorningBrief | None = None
     pending_confirmation: PendingConfirmation | None = None
-    speaking_enabled: bool = True
     runtime_muted: bool = False
     local_mode_enabled: bool = True
     cloud_available: bool = False
     llm_available: bool = False
     cognition_backend: str = "rules"
-    voice_backend: str = "none"
-    voice_status: str = "No offline voice output available."
     startup_checks: dict[str, str] = Field(default_factory=dict)
     action_in_progress: bool = False
     conversation_turns: list[ConversationTurn] = Field(default_factory=list)
@@ -1608,15 +1582,11 @@ class RuntimeSnapshot(BaseModel):
     background_job_counts: dict[str, int] = Field(default_factory=dict)
     domain_totals: dict[str, int] = Field(default_factory=dict)
     recent_documents: list[DocumentRecord] = Field(default_factory=list)
-    recent_email_messages: list[EmailMessage] = Field(default_factory=list)
-    email_accounts: list[EmailAccount] = Field(default_factory=list)
-    email_drafts: list[EmailDraft] = Field(default_factory=list)
     recent_meetings: list[MeetingRecord] = Field(default_factory=list)
     recent_transcripts: list[TranscriptArtifact] = Field(default_factory=list)
     business_documents: list[GermanBusinessDocument] = Field(default_factory=list)
     sync_targets: list[SyncTarget] = Field(default_factory=list)
     recovery_checkpoints: list[RecoveryCheckpoint] = Field(default_factory=list)
-    notification_channels: list[NotificationChannel] = Field(default_factory=list)
     available_backups: list[str] = Field(default_factory=list)
     model_fallback_state: ModelFallbackState = Field(default_factory=ModelFallbackState)
     last_model_route: ModelRouteSnapshot = Field(default_factory=ModelRouteSnapshot)
@@ -1635,7 +1605,6 @@ class RuntimeSnapshot(BaseModel):
     memory_timeline: list[dict] = Field(default_factory=list)
     last_retrieval_query: str = ""
     recent_retrieval_hits: list[RetrievalHit] = Field(default_factory=list)
-    email_reminder_suggestions: list[EmailReminderSuggestion] = Field(default_factory=list)
     recent_meeting_reviews: list[MeetingReviewSnapshot] = Field(default_factory=list)
     loop_metrics: LoopMetricsSnapshot = Field(default_factory=LoopMetricsSnapshot)
     last_snapshot_reason: str = "startup"
@@ -1658,12 +1627,8 @@ class UICommand(BaseModel):
         "set_profile_pin",
         "create_backup",
         "restore_backup",
-        "sync_mailbox",
-        "save_email_draft",
-        "send_email_draft",
         "search_knowledge",
         "review_action_item",
-        "apply_email_reminder_suggestion",
         "export_audit",
         "ingest_files",
         "create_schedule",
@@ -1675,8 +1640,6 @@ class UICommand(BaseModel):
         "execute_suggested_action",
         "get_knowledge_graph",
         "search_knowledge_graph",
-        "set_tts_speed",
-        "set_tts_voice",
         "rerun_readiness",
         "retry_failure_action",
         "rerun_license_check",

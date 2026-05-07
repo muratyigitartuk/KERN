@@ -1,4 +1,4 @@
-﻿# KERN Current-State Technical Guide
+# KERN Current-State Technical Guide
 
 This file describes **what KERN currently is in this repository**.
 
@@ -14,18 +14,20 @@ Latest verified local run in this workspace:
 
 Result from the last verified run:
 
-- `577 passed, 1 skipped`
+- `504 passed, 10 skipped`
 
 ## Short Truth
 
-KERN is now a **single-customer, on-prem, multi-user local workspace system** with:
+KERN is now a **controlled local/on-prem work-preparation system** with:
 
 - FastAPI + WebSocket control plane
 - authenticated browser sessions
 - OIDC as the main user login path
-- loopback-only break-glass / bootstrap access
+- local-mode loopback-only bootstrap access
+- restricted server-mode IP-allowlisted break-glass access with short TTL and audit logging
 - one organization per installation
 - multiple workspaces per organization
+- private user threads inside shared workspaces
 - encrypted local workspace storage and encrypted backup flows
 - compliance and governance workflows
 - deterministic local reasoning and prepared-work generation
@@ -66,24 +68,26 @@ Rather than:
 Current deployment assumptions:
 
 - one organization per install
-- one local deployment per customer
+- local mode for one controlled internal machine
+- restricted server mode for shared on-prem or private-network thread/auth workflows backed by PostgreSQL and Redis
 - multiple workspaces inside that install
 - Windows desktop / managed local install remains the practical target posture
-- loopback control plane remains the security boundary for admin-token and break-glass access
+- loopback control plane remains the security boundary for local-mode admin-token/bootstrap access
+- OIDC session auth is the normal restricted server boundary
 
 Important current non-goals:
 
 - not multi-tenant SaaS
-- not shared hosted cloud control plane
 - not "LLM required for basic product value"
+- not full server-mode document/evidence/compliance parity yet
 
 ## Runtime And Workspace Model
 
 Main runtime pieces:
 
-- [app/main.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/main.py)
-- [app/runtime.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/runtime.py)
-- [app/runtime_manager.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/runtime_manager.py)
+- [app/main.py](app/main.py)
+- [app/runtime.py](app/runtime.py)
+- [app/runtime_manager.py](app/runtime_manager.py)
 
 Current runtime structure:
 
@@ -98,7 +102,7 @@ Current runtime structure:
   - compliance/intelligence/reasoning services
   - scheduler/watchers
   - current-context service
-  - backup, sync, reminders, meetings, email, retention, policy, license, and TTS services
+  - backup, sync, reminders, retention, policy, and license services
 
 Important current truth:
 
@@ -110,14 +114,14 @@ Important current truth:
 
 Main files:
 
-- [app/auth.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/auth.py)
-- [app/routes.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/routes.py)
+- [app/auth.py](app/auth.py)
+- [app/routes.py](app/routes.py)
 
 Current auth model:
 
 - OIDC is the primary user-facing login path
-- a local break-glass admin path exists for recovery/operator access
-- a bootstrap/admin bearer token still exists, but only for loopback-only bootstrap/recovery flows
+- local mode has loopback-only bootstrap/admin-token recovery
+- server mode disables bootstrap/admin-token auth and uses IP-allowlisted break-glass only when explicitly enabled
 
 Current public HTTP paths:
 
@@ -134,14 +138,15 @@ Current public HTTP paths:
 
 Important access rules:
 
-- break-glass routes are loopback-only
+- local break-glass/bootstrap routes are loopback-only
+- server break-glass requires explicit enablement and IP allowlisting
 - bootstrap/admin token usage is loopback-only
 - authenticated session cookie is the normal browser auth mechanism
 - WebSocket `/ws` requires either:
   - valid session cookie context, or
   - valid admin token from loopback
 - WebSocket origin is checked against allowed hosts
-- break-glass sessions are also loopback-limited
+- server break-glass sessions are short-lived, audited, and IP-allowlisted
 
 Current role model:
 
@@ -162,9 +167,9 @@ Current session behavior:
 
 Main files:
 
-- [app/static/dashboard.html](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/static/dashboard.html)
-- [app/static/dashboard.css](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/static/dashboard.css)
-- [app/static/js/workbench.js](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/static/js/workbench.js)
+- [app/static/dashboard.html](app/static/dashboard.html)
+- [app/static/dashboard.css](app/static/dashboard.css)
+- [app/static/js/workbench.js](app/static/js/workbench.js)
 
 Current UI shape:
 
@@ -193,9 +198,9 @@ Current UI behavior:
 
 Main files:
 
-- [app/reasoning.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/reasoning.py)
-- [app/intelligence.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/intelligence.py)
-- [app/orchestrator.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/orchestrator.py)
+- [app/reasoning.py](app/reasoning.py)
+- [app/intelligence.py](app/intelligence.py)
+- [app/orchestrator.py](app/orchestrator.py)
 
 Current intelligence architecture:
 
@@ -284,7 +289,7 @@ The reasoning service currently uses:
 - data export records
 - legal holds
 - scheduler tasks
-- saved email drafts
+- local preparation records
 - retrieval hits
 
 ### Current memory/retrieval influence
@@ -373,8 +378,8 @@ It is no longer accurate to describe KERN as "LLM-first".
 
 Main files:
 
-- [app/memory.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/memory.py)
-- [app/intelligence.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/intelligence.py)
+- [app/memory.py](app/memory.py)
+- [app/intelligence.py](app/intelligence.py)
 
 Current memory behavior:
 
@@ -417,8 +422,8 @@ These update local scoring and promotion state before they ever become training 
 
 Main files:
 
-- [app/retrieval.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/retrieval.py)
-- [app/reasoning.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/reasoning.py)
+- [app/retrieval.py](app/retrieval.py)
+- [app/reasoning.py](app/reasoning.py)
 
 Current retrieval behavior:
 
@@ -437,8 +442,8 @@ Current evidence bundle behavior:
 
 Main files:
 
-- [app/compliance.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/compliance.py)
-- [app/routes.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/routes.py)
+- [app/compliance.py](app/compliance.py)
+- [app/routes.py](app/routes.py)
 
 Current compliance capabilities:
 
@@ -461,9 +466,8 @@ The compliance service currently exposes handling metadata for:
 - workspace memberships
 - sessions
 - documents
-- email drafts
-- mailbox messages
-- meetings
+- deprecated legacy email data, if present in an old database
+- deprecated legacy meeting data, if present in an old database
 - schedules
 - knowledge graph
 - structured memory
@@ -493,8 +497,6 @@ Workspace exports currently gather:
 - business documents
 - regulated documents
 - regulated document versions
-- email drafts
-- meetings
 - structured memory
 - feedback signals
 - training examples
@@ -537,8 +539,8 @@ Current GoBD-style regulated document handling includes:
 
 Main files:
 
-- [app/intelligence.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/intelligence.py)
-- [app/routes.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/routes.py)
+- [app/intelligence.py](app/intelligence.py)
+- [app/routes.py](app/routes.py)
 
 Current training-related truth:
 
@@ -705,7 +707,7 @@ Current upload behavior includes:
 
 Main file:
 
-- [app/ws_handlers.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/ws_handlers.py)
+- [app/ws_handlers.py](app/ws_handlers.py)
 
 Current WebSocket facts:
 
@@ -737,12 +739,8 @@ Current dashboard commands include:
 - `set_profile_pin`
 - `create_backup`
 - `restore_backup`
-- `sync_mailbox`
-- `save_email_draft`
-- `send_email_draft`
 - `search_knowledge`
 - `review_action_item`
-- `apply_email_reminder_suggestion`
 - `reminder_action`
 - `create_schedule`
 - `delete_schedule`
@@ -754,8 +752,6 @@ Current dashboard commands include:
 - `execute_suggested_action`
 - `get_knowledge_graph`
 - `search_knowledge_graph`
-- `set_tts_speed`
-- `set_tts_voice`
 
 ### Current WebSocket enforcement details
 
@@ -770,7 +766,7 @@ Current dashboard commands include:
 
 Main file:
 
-- [app/orchestrator.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/orchestrator.py)
+- [app/orchestrator.py](app/orchestrator.py)
 
 The orchestrator currently registers capabilities in these broad groups.
 
@@ -822,18 +818,6 @@ The orchestrator currently registers capabilities in these broad groups.
 - search files
 - read file excerpt
 
-### Email / meeting / notifications
-
-- read email
-- read mailbox summary
-- sync mailbox
-- compose email
-- create email reminder
-- schedule meeting invite
-- send ntfy notification
-- start meeting recording
-- stop meeting recording
-
 ### German business helpers
 
 - create Angebot
@@ -867,7 +851,6 @@ Current scheduler-related truth:
 Current allowed action types exposed in the WebSocket layer:
 
 - `custom_prompt`
-- `summarize_emails`
 - `generate_report`
 
 Important current rule:
@@ -944,8 +927,8 @@ Current storage-related truth:
 
 Main runtime pieces:
 
-- [app/runtime.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/runtime.py)
-- [app/orchestrator.py](/C:/Users/mur4t/Desktop/kern-ai-codex-product-packaging/app/orchestrator.py)
+- [app/runtime.py](app/runtime.py)
+- [app/orchestrator.py](app/orchestrator.py)
 
 Current model runtime truth:
 
@@ -990,7 +973,7 @@ Current top-level scripts include:
 If another model reads this repo, the safest current assumptions are:
 
 - KERN is **session-authenticated and workspace-aware**
-- KERN is **single-customer multi-user**, not public multi-tenant SaaS
+- KERN is **single-customer and workspace-aware**, not public SaaS
 - KERN has a **real compliance surface**
 - KERN has a **real deterministic reasoning / worker-amplifier surface**
 - KERN still has **bounded LLM fallback paths**

@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from app.capabilities import CapabilityRegistry, Capability
 from app.tools.base import Tool
-from app.types import CapabilityDescriptor, ToolRequest, ToolResult
+from app.types import ToolRequest, ToolResult
 from app.validation_pack import (
+    VALIDATION_ADMIN_TOKEN,
     ValidationPackError,
     _extract_markdown_link_paths,
     _http_post_upload,
@@ -63,26 +63,6 @@ def test_rollout_dashboard_defaults_to_production_posture() -> None:
     assert 'id="composerTranscribeAction"' not in source
 
 
-def test_capability_registry_hides_media_controls_in_production_posture() -> None:
-    registry = CapabilityRegistry(
-        {
-            "play_spotify": Capability(
-                descriptor=CapabilityDescriptor(
-                    name="play_spotify",
-                    title="Media Control",
-                    summary="Control Spotify playback.",
-                ),
-                tool=_FakeTool(),
-            )
-        },
-        product_posture="production",
-    )
-    available, note = registry.is_available("play_spotify")
-    assert available is False
-    assert note
-    assert "personal posture" in note.lower()
-
-
 def test_http_post_upload_bootstraps_csrf_header(monkeypatch, tmp_path: Path) -> None:
     upload_file = tmp_path / "fixture.txt"
     upload_file.write_text("fixture", encoding="utf-8")
@@ -124,8 +104,13 @@ def test_http_post_upload_bootstraps_csrf_header(monkeypatch, tmp_path: Path) ->
     payload = _http_post_upload("http://127.0.0.1:8123", [upload_file])
 
     assert payload["indexed"] == 1
-    assert calls[0] == ("GET", "http://127.0.0.1:8123/health", {"Authorization": "Bearer test-token"})
-    assert calls[1] == ("POST", "http://127.0.0.1:8123/upload", {"x-csrf-token": "csrf-token", "Authorization": "Bearer test-token"})
+    expected_auth = {"Authorization": f"Bearer {VALIDATION_ADMIN_TOKEN}"}
+    assert calls[0] == ("GET", "http://127.0.0.1:8123/health", expected_auth)
+    assert calls[1] == (
+        "POST",
+        "http://127.0.0.1:8123/upload",
+        {"x-csrf-token": "csrf-token", **expected_auth},
+    )
 
 
 def test_http_post_upload_raises_when_csrf_cookie_missing(monkeypatch, tmp_path: Path) -> None:

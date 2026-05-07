@@ -1,35 +1,28 @@
 /**
  * Shared utility functions for KERN dashboard modules.
  */
-const ADMIN_TOKEN_STORAGE_KEY = "kern.admin.token";
 
+/**
+ * @deprecated No-op retained for call-site compatibility. Token exchange
+ * is now handled server-side via httpOnly session cookies.
+ */
 export function bootstrapAdminAuthToken() {
-  const url = new URL(window.location.href);
-  const queryToken = url.searchParams.get("token");
-  if (queryToken) {
-    localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, queryToken);
-    url.searchParams.delete("token");
-    window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
-    return queryToken;
-  }
-  return localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "";
+  // Clean up any legacy localStorage token from previous versions.
+  localStorage.removeItem("kern.admin.token");
 }
 
+/**
+ * @deprecated Always returns empty string. Auth is cookie-based now.
+ */
 export function getAdminAuthToken() {
-  return localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "";
+  return "";
 }
 
+/**
+ * @deprecated Identity function. Token is no longer appended to URLs.
+ */
 export function withAdminToken(url) {
-  const token = getAdminAuthToken();
-  if (!token) {
-    return url;
-  }
-  const resolved = new URL(url, window.location.origin);
-  resolved.searchParams.set("token", token);
-  if (resolved.origin === window.location.origin) {
-    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
-  }
-  return resolved.toString();
+  return url;
 }
 
 /**
@@ -43,7 +36,8 @@ export function escapeHTML(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/'/g, "&#39;")
+    .replace(/`/g, "&#96;");  // H-18: Also escape backticks.
 }
 
 /**
@@ -65,15 +59,12 @@ export function getCSRFToken() {
 export function secureFetch(url, options = {}) {
   const method = (options.method || "GET").toUpperCase();
   const headers = new Headers(options.headers || {});
-  const adminToken = getAdminAuthToken();
-  if (adminToken) {
-    headers.set("authorization", `Bearer ${adminToken}`);
-  }
   if (["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
     headers.set("x-csrf-token", getCSRFToken());
   }
   options.headers = headers;
-  return fetch(withAdminToken(url), options);
+  options.credentials = "same-origin";
+  return fetch(url, options);
 }
 
 /**

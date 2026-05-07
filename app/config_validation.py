@@ -103,8 +103,12 @@ def validate_settings(settings) -> list[str]:
             f"got '{value('policy_mode', 'personal')}'"
         )
 
-    if value("product_posture", "production") == "production" or value("policy_mode", "personal") == "corporate":
-        if not str(value("admin_auth_token", "") or "").strip():
+    desktop_loopback_mode = bool(value("desktop_mode", False)) and bool(value("disable_auth_for_loopback", False))
+
+    if not value("server_mode", False) and (
+        value("product_posture", "production") == "production" or value("policy_mode", "personal") == "corporate"
+    ):
+        if not desktop_loopback_mode and not str(value("admin_auth_token", "") or "").strip():
             errors.append(
                 "KERN_ADMIN_AUTH_TOKEN must be set when production posture or corporate policy mode is enabled"
             )
@@ -119,6 +123,36 @@ def validate_settings(settings) -> list[str]:
                 errors.append("KERN_OIDC_CLIENT_ID must be set when KERN_OIDC_ENABLED=true")
             if not str(value("oidc_redirect_uri", "") or "").strip():
                 errors.append("KERN_OIDC_REDIRECT_URI must be set when KERN_OIDC_ENABLED=true")
+
+    if value("server_mode", False):
+        required = {
+            "KERN_POSTGRES_DSN": "postgres_dsn",
+            "KERN_REDIS_URL": "redis_url",
+            "KERN_OIDC_ISSUER_URL": "oidc_issuer_url",
+            "KERN_OIDC_CLIENT_ID": "oidc_client_id",
+            "KERN_OIDC_CLIENT_SECRET": "oidc_client_secret",
+            "KERN_OIDC_REDIRECT_URI": "oidc_redirect_uri",
+            "KERN_SESSION_SECRET": "session_secret",
+            "KERN_ENCRYPTION_KEY_PROVIDER": "encryption_key_provider",
+            "KERN_OBJECT_STORAGE_ROOT": "object_storage_root",
+            "KERN_NETWORK_ALLOWED_HOSTS": "network_allowed_hosts",
+            "KERN_PUBLIC_BASE_URL": "public_base_url",
+        }
+        for env_name, attr in required.items():
+            if not str(value(attr, "") or "").strip():
+                errors.append(f"{env_name} must be set when KERN_SERVER_MODE=true")
+        if not value("oidc_enabled", False):
+            errors.append("KERN_OIDC_ENABLED=true is required when KERN_SERVER_MODE=true")
+        if not value("proxy_headers_enabled", False):
+            errors.append("KERN_PROXY_HEADERS_ENABLED=true is required when KERN_SERVER_MODE=true")
+        if value("disable_auth_for_loopback", False):
+            errors.append("KERN_DISABLE_AUTH_FOR_LOOPBACK=false is required when KERN_SERVER_MODE=true")
+        if str(value("admin_auth_token", "") or "").strip():
+            errors.append("KERN_ADMIN_AUTH_TOKEN must not be used for normal server-mode authentication")
+        if value("server_break_glass_enabled", False) and not str(value("break_glass_ip_allowlist", "") or "").strip():
+            errors.append("KERN_BREAK_GLASS_IP_ALLOWLIST must be set when server break-glass is enabled")
+        if value("server_break_glass_enabled", False) and not str(value("break_glass_password", "") or "").strip():
+            errors.append("KERN_BREAK_GLASS_PASSWORD must be set when server break-glass is enabled")
 
     if value("cognition_backend", "hybrid") not in ("hybrid", "llama_cpp", "openai"):
         errors.append(
@@ -202,14 +236,12 @@ def validate_settings(settings) -> list[str]:
         "KERN_SESSION_TTL_HOURS": value("session_ttl_hours", 8),
         "KERN_SESSION_IDLE_MINUTES": value("session_idle_minutes", 60),
         "KERN_RETENTION_DOCUMENTS_DAYS": value("retention_documents_days", 3650),
-        "KERN_RETENTION_EMAIL_DAYS": value("retention_email_days", 730),
         "KERN_RETENTION_TRANSCRIPTS_DAYS": value("retention_transcripts_days", 365),
         "KERN_RETENTION_AUDIT_DAYS": value("retention_audit_days", 2555),
         "KERN_RETENTION_BACKUPS_DAYS": value("retention_backups_days", 365),
         "KERN_RETENTION_RUN_INTERVAL_HOURS": value("retention_run_interval_hours", 12),
         "KERN_RAG_TOP_K": value("rag_top_k", 12),
         "KERN_RAG_RERANK_TOP_N": value("rag_rerank_top_n", 4),
-        "KERN_INBOX_WATCH_INTERVAL": value("inbox_watch_interval", 300),
         "KERN_PROACTIVE_SCAN_INTERVAL": value("proactive_scan_interval", 600),
         "KERN_OCR_MIN_TEXT_CHARS_PER_PAGE": value("ocr_min_text_chars_per_page", 16),
     }
@@ -227,7 +259,6 @@ def validate_settings(settings) -> list[str]:
         "KERN_CAPABILITY_REFRESH_SECONDS": value("capability_refresh_seconds", 3.0),
         "KERN_LLAMA_SERVER_TIMEOUT": value("llama_server_timeout", 30.0),
         "KERN_LLM_TEMPERATURE": value("llm_temperature", 0.3),
-        "KERN_TTS_SPEED": value("tts_speed", 1.0),
         "KERN_OCR_LOW_CONFIDENCE_THRESHOLD": value("ocr_low_confidence_threshold", 0.55),
     }
     for var_name, field_value in positive_float_fields.items():
@@ -266,10 +297,10 @@ def validate_env_types() -> list[str]:
         "KERN_SCHEDULER_RETRY_DELAY_MINUTES", "KERN_SCHEDULER_MAX_RETRIES",
         "KERN_SCHEDULER_STALE_RUN_MINUTES", "KERN_RETENTION_DOCUMENTS_DAYS",
         "KERN_SESSION_TTL_HOURS", "KERN_SESSION_IDLE_MINUTES",
-        "KERN_RETENTION_EMAIL_DAYS", "KERN_RETENTION_TRANSCRIPTS_DAYS",
+        "KERN_RETENTION_TRANSCRIPTS_DAYS",
         "KERN_RETENTION_AUDIT_DAYS", "KERN_RETENTION_BACKUPS_DAYS",
         "KERN_RETENTION_RUN_INTERVAL_HOURS", "KERN_RAG_TOP_K",
-        "KERN_RAG_RERANK_TOP_N", "KERN_INBOX_WATCH_INTERVAL",
+        "KERN_RAG_RERANK_TOP_N",
         "KERN_PROACTIVE_SCAN_INTERVAL", "KERN_FILE_WATCH_RECONCILE_MINUTES",
         "KERN_OCR_MIN_TEXT_CHARS_PER_PAGE",
     ]
@@ -287,7 +318,7 @@ def validate_env_types() -> list[str]:
         "KERN_HEARTBEAT_SECONDS", "KERN_MONITOR_INTERVAL_SECONDS",
         "KERN_CONTEXT_REFRESH_SECONDS", "KERN_CAPABILITY_REFRESH_SECONDS",
         "KERN_LLAMA_SERVER_TIMEOUT", "KERN_LLM_TEMPERATURE",
-        "KERN_TTS_SPEED", "KERN_RAG_MIN_SCORE",
+        "KERN_RAG_MIN_SCORE",
         "KERN_INTENT_FALLBACK_MIN_CONFIDENCE",
         "KERN_OCR_LOW_CONFIDENCE_THRESHOLD",
     ]

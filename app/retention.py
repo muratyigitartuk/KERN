@@ -73,7 +73,7 @@ class RetentionService:
         self._current_failures: int = 0
         counts = {
             "documents": self._prune_documents(),
-            "email": self._prune_mailbox_messages(),
+            "deprecated_legacy_email_data": self._prune_legacy_mailbox_messages(),
             "transcripts": self._prune_meetings_and_transcripts(),
             "audit": self._prune_audit_events(),
             "backups": self._prune_backups(),
@@ -136,8 +136,17 @@ class RetentionService:
         self.memory.connection.commit()
         return removed
 
-    def _prune_mailbox_messages(self) -> int:
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=settings.retention_email_days)).isoformat()
+    def _legacy_table_exists(self, table_name: str) -> bool:
+        row = self.memory.connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table_name,),
+        ).fetchone()
+        return bool(row)
+
+    def _prune_legacy_mailbox_messages(self) -> int:
+        if not self._legacy_table_exists("mailbox_messages"):
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=settings.legacy_email_retention_days)).isoformat()
         rows = self.memory.connection.execute(
             """
             SELECT id, attachment_paths_json, metadata_json
@@ -257,10 +266,10 @@ class RetentionService:
         try:
             path.unlink()
         except PermissionError:
-            logger.error("Retention: cannot delete %s — file locked", path)
+            logger.error("Retention: cannot delete %s â€” file locked", path)
             self._current_failures = getattr(self, "_current_failures", 0) + 1
             metrics.inc("kern_retention_deletions_total", labels={"result": "failure"})
         except OSError as exc:
-            logger.error("Retention: failed to delete %s — %s", path, exc)
+            logger.error("Retention: failed to delete %s â€” %s", path, exc)
             self._current_failures = getattr(self, "_current_failures", 0) + 1
             metrics.inc("kern_retention_deletions_total", labels={"result": "failure"})

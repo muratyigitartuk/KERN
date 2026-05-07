@@ -35,7 +35,6 @@ class QueryKnowledgeGraphTool(Tool):
                 success=True,
                 status="observed",
                 display_text=f"No entities found for: {query}",
-                spoken_text="Nothing found in the knowledge graph.",
                 data={"entities": []},
             )
         lines = [f"[{e['type']}] {e['name']}" for e in entities]
@@ -57,7 +56,6 @@ class QueryKnowledgeGraphTool(Tool):
             success=True,
             status="observed",
             display_text="\n".join(lines),
-            spoken_text=f"Found {len(entities)} entities matching your query.",
             data={"entities": entities, "neighborhood": neighborhood},
         )
 
@@ -84,7 +82,6 @@ class BuildKnowledgeGraphTool(Tool):
             success=True,
             status="observed",
             display_text=f"Knowledge graph built. Extracted {total} entities from documents.",
-            spoken_text=f"Knowledge graph updated with {total} entities.",
             side_effects=["knowledge_graph_built"],
             data={"entity_count": total},
         )

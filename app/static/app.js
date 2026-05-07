@@ -1,16 +1,69 @@
-import { elements } from "/static/js/dashboard-dom.js";
-import { bindDashboardEvents } from "/static/js/dashboard-events.js";
-import { createDashboardRenderer } from "/static/js/dashboard-renderer.js";
-import { createModalController } from "/static/js/modal-controller.js";
-import { createSocketClient } from "/static/js/socket-client.js";
-import { createThemeController } from "/static/js/theme-controller.js";
-import { createWorkbenchController } from "/static/js/workbench.js";
-import { applyText, loadLocale, t } from "/static/js/i18n.js";
-import { bootstrapAdminAuthToken, withAdminToken } from "/static/js/utils.js";
+import { elements } from "/static/js/dashboard-dom.js?v=20260422m";
+import { bindDashboardEvents } from "/static/js/dashboard-events.js?v=20260430a";
+import { createDashboardRenderer } from "/static/js/dashboard-renderer.js?v=20260430a";
+import { createModalController } from "/static/js/modal-controller.js?v=20260422m";
+import { createSocketClient } from "/static/js/socket-client.js?v=20260422m";
+import { createThemeController } from "/static/js/theme-controller.js?v=20260422m";
+import { createWorkbenchController } from "/static/js/workbench.js?v=20260422m";
+import { applyText, loadLocale, t } from "/static/js/i18n.js?v=20260430a";
+import { bootstrapAdminAuthToken, secureFetch } from "/static/js/utils.js?v=20260422m";
 
-const savedLang = localStorage.getItem("kern.ui.language") || "en";
+// L-17: Allowlist language values to prevent path traversal in loadLocale.
+const _ALLOWED_LANGS = new Set(["en", "de"]);
+const rawLang = localStorage.getItem("kern.ui.language") || "en";
+const savedLang = _ALLOWED_LANGS.has(rawLang) ? rawLang : "en";
 await loadLocale(savedLang);
 bootstrapAdminAuthToken();
+
+async function loadUiFeatures() {
+  try {
+    const response = await secureFetch("/api/version", {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`UI config request failed with ${response.status}`);
+    }
+    const payload = await response.json();
+    return {
+      utilityEnabled: payload?.features?.utility_enabled !== false,
+    };
+  } catch (error) {
+    console.warn("[KERN] Falling back to default UI feature flags:", error);
+    return {
+      utilityEnabled: true,
+    };
+  }
+}
+
+const uiFeatures = await loadUiFeatures();
+const utilityEnabled = uiFeatures.utilityEnabled && Boolean(elements.utilityModal);
+
+function noopModalController() {
+  return { open() {}, close() {}, setOnClose() {} };
+}
+
+function createOptionalModalController({ modal, dialogSelector, backdrop, closeButton }) {
+  const dialog = modal?.querySelector(dialogSelector);
+  if (!modal || !dialog) {
+    return noopModalController();
+  }
+  return createModalController({ modal, dialog, backdrop, closeButton });
+}
+
+function applyUiFeatureFlags() {
+  document.body.dataset.utilityEnabled = utilityEnabled ? "true" : "false";
+  elements.workspaceShell?.setAttribute("data-utility-enabled", utilityEnabled ? "true" : "false");
+  if (!utilityEnabled) {
+    elements.utilityToggle?.classList.add("hidden");
+    elements.utilityToggle?.setAttribute("aria-hidden", "true");
+    elements.utilityToggle?.setAttribute("tabindex", "-1");
+    elements.utilityModal?.classList.add("hidden");
+    elements.utilityModal?.setAttribute("aria-hidden", "true");
+  }
+}
+
+applyUiFeatureFlags();
 
 function setText(target, key) {
   const element = typeof target === "string" ? document.querySelector(target) : target;
@@ -127,6 +180,15 @@ function applyStaticUiTranslations() {
   setAttr("[data-tab='evidence']", "title", "tabs.evidence");
   setAttr("[data-tab='evidence']", "aria-label", "tabs.evidence");
 
+  setText("#adminAccessState .panel-state__pill", "utility.admin.posture");
+  setText("#adminAccessState .panel-state__title", "utility.admin.title");
+  setText("#adminAccessState .panel-state__body", "utility.admin.body");
+  setText("#adminRefreshButton", "actions.refresh");
+  setText("#adminCreateWorkspaceButton", "utility.admin.create_workspace");
+  setText("#adminCreateUserButton", "utility.admin.invite_user");
+
+  setText("#createTrainingExportButton", "utility.intelligence.create_training_export");
+
   setParentLeadText("knowledgeBackend", "knowledge.title");
   setText("#knowledgeBackend", "knowledge.backend_lexical");
   setText("#knowledgeState", "knowledge.ready");
@@ -135,13 +197,7 @@ function applyStaticUiTranslations() {
   setAttr("#conversationSearchInput", "placeholder", "search.placeholder");
   setAttr("#composerKbSearch", "placeholder", "composer.search_docs");
 
-  setParentLeadText("briefDate", "brief.title");
-  setText("#briefDate", "brief.not_generated");
   setText("#focusText", "brief.default_focus");
-  setText("#musicText", "brief.no_suggestion");
-  setParentLeadText("eventsList", "sections.events");
-  setParentLeadText("tasksList", "sections.tasks");
-  setParentLeadText("remindersList", "sections.reminders");
   setParentLeadText("contextList", "sections.context");
   setParentLeadText("proactiveReason", "sections.suggestions");
   setText("#proactiveReason", "proactive.no_prompt");
@@ -174,22 +230,10 @@ function applyStaticUiTranslations() {
   setText("#dropZone .drop-zone__hint", "docs.drop_zone");
   setText("#uploadProgressLabel", "docs.uploading");
   setParentLeadText("businessDocsList", "docs.business_title");
-  setPreviousGroupLabel("mailboxList", "email.group");
-  setParentLeadText("mailboxList", "email.mailbox");
-  setText("#syncMailboxButton", "email.sync");
-  setParentLeadText("emailAccountsList", "email.accounts");
-  setParentLeadText("draftsList", "email.drafts");
-  setParentLeadText("emailSuggestionsList", "email.suggestions");
-  setPreviousGroupLabel("meetingsList", "meetings.group");
-  setParentLeadText("meetingsList", "meetings.title");
-  setParentLeadText("meetingReviewsList", "meetings.summaries");
 
   setToggleLabel("localModeToggle", "ops.local_mode");
   setPreviousGroupLabel("deviceProfileMeta", "ops.system_health");
   setParentLeadText("deviceProfileMeta", "ops.system_status");
-  setMiniStatLabel("voiceBackendName", "ops.voice");
-  setText("#voiceBackendName", "ops.voice_backend");
-  setText("#voiceBackendStatus", "ops.audio_waiting");
   setMiniStatLabel("systemProfileName", "ops.profile");
   setText("#systemProfileState", "ops.unlocked");
   setMiniStatLabel("systemMemoryScope", "ops.memory_scope");
@@ -214,30 +258,8 @@ function applyStaticUiTranslations() {
   setText("#auditCategoryFilter option[value='documents']", "audit.documents");
   setText("#auditCategoryFilter option[value='audit']", "audit.audit");
   setText("#auditCategoryFilter option[value='network']", "audit.network");
-  setText("#auditCategoryFilter option[value='scheduler']", "audit.scheduler");
   setText("#exportAuditButton", "audit.export_json");
   setParentLeadText("domainNotesList", "settings.domain_notes");
-  setPreviousGroupLabel("proactiveAlertsList", "schedules.group");
-  setParentLeadText("proactiveAlertsList", "schedules.alerts");
-  setText("#dismissAllAlertsButton", "schedules.dismiss_all");
-  setParentLeadText("scheduleList", "schedules.title");
-  setText("#addScheduleButton", "schedules.add");
-  setText("#addScheduleForm > .eyebrow", "schedules.new");
-  setLabelTextForInput("scheduleTitle", "schedules.form_title");
-  setAttr("#scheduleTitle", "placeholder", "schedules.form_title_placeholder");
-  setLabelTextForInput("scheduleFrequency", "schedules.form_frequency");
-  setText("#scheduleFrequency option[value='0 9 * * *']", "schedules.freq_daily");
-  setText("#scheduleFrequency option[value='0 9 * * 1']", "schedules.freq_weekly");
-  setText("#scheduleFrequency option[value='0 9 1 * *']", "schedules.freq_monthly");
-  setText("#scheduleFrequency option[value='custom']", "schedules.freq_custom");
-  setAttr("#scheduleCron", "placeholder", "schedules.cron_placeholder");
-  setLabelTextForInput("scheduleActionType", "schedules.form_action");
-  setText("#scheduleActionType option[value='custom_prompt']", "schedules.action_prompt");
-  setText("#scheduleActionType option[value='summarize_emails']", "schedules.action_email");
-  setText("#scheduleActionType option[value='generate_report']", "schedules.action_report");
-  setAttr("#scheduleActionPayload", "placeholder", "schedules.action_placeholder");
-  setText("#saveScheduleButton", "schedules.save");
-  setText("#cancelScheduleButton", "schedules.cancel");
 
   document.querySelector("[data-settings-section='appearance']")?.setAttribute("data-settings-title", t("settings.appearance"));
   document.querySelector("[data-settings-section='profile']")?.setAttribute("data-settings-title", t("settings.profile"));
@@ -289,6 +311,11 @@ function applyStaticUiTranslations() {
   setRowLabel("settingsSupportBundleLastExport", "settings.last_support_export");
   setRowLabel("settingsUpdateChannel", "settings.update_channel");
   setText("#settingsUpdateCard .eyebrow", "settings.update_policy");
+  setText("#settingsUpdateTitle", "settings.update_default_title");
+  setText("#settingsUpdateBody", "settings.update_default_body");
+  setText("#settingsBackupStatusCard .eyebrow", "settings.recovery_posture");
+  setText("#settingsDataLifecycleCard .eyebrow", "settings.data_lifecycle");
+  setText("#settingsDataLifecycleCard .settings-story-card__title", "settings.data_lifecycle_title");
   setText("#settingsDataLifecycleNote", "settings.data_lifecycle_note");
 
   setRowLabel("settingsModelName", "settings.ai_engine");
@@ -301,16 +328,12 @@ function applyStaticUiTranslations() {
   setRowLabel("settingsEmbedModel", "settings.embed_model");
   setRowLabel("settingsRetrievalBackend", "settings.search_method");
   setRowLabel("settingsRetrievalHealth", "settings.search_index");
-  setRowLabel("settingsVoiceBackend", "settings.voice_output");
   setRowLabel("settingsCloudMode", "settings.data_mode");
   setText("#settingsModelStoryPill", "status.checking");
   setText("#settingsModelStoryTitle", "settings.model_story_initial_title");
   setText("#settingsModelStoryText", "settings.model_story_initial_body");
 
   setRowLabel("settingsDocumentCount", "settings.indexed_docs");
-  setRowLabel("settingsEmailAccounts", "settings.email_accounts");
-  setRowLabel("settingsDraftCount", "settings.email_drafts");
-  setRowLabel("settingsMeetingCount", "settings.meetings_label");
   setRowLabel("settingsBusinessCount", "settings.business_docs");
   setRowLabel("settingsSyncCount", "settings.sync_targets");
 
@@ -321,37 +344,39 @@ applyStaticUiTranslations();
 
 const themeController = createThemeController();
 
-const passageController = createModalController({
+const passageController = createOptionalModalController({
   modal: elements.passageModal,
-  dialog: elements.passageModal.querySelector(".passage-modal__dialog"),
+  dialogSelector: ".passage-modal__dialog",
   backdrop: elements.passageBackdrop,
   closeButton: elements.closePassageModal,
 });
 
-const settingsController = createModalController({
+const settingsController = createOptionalModalController({
   modal: elements.settingsModal,
-  dialog: elements.settingsModal.querySelector(".settings-modal__dialog"),
+  dialogSelector: ".settings-modal__dialog",
   backdrop: elements.settingsBackdrop,
   closeButton: elements.closeSettings,
 });
 
-const utilityController = createModalController({
-  modal: elements.utilityModal,
-  dialog: elements.utilityModal.querySelector(".settings-modal__dialog"),
-  backdrop: elements.utilityBackdrop,
-  closeButton: elements.closeUtilityModal,
-});
+const utilityController = utilityEnabled
+  ? createOptionalModalController({
+      modal: elements.utilityModal,
+      dialogSelector: ".settings-modal__dialog",
+      backdrop: elements.utilityBackdrop,
+      closeButton: elements.closeUtilityModal,
+    })
+  : noopModalController();
 
-const conversationSearchController = createModalController({
+const conversationSearchController = createOptionalModalController({
   modal: elements.conversationSearchModal,
-  dialog: elements.conversationSearchModal.querySelector(".settings-modal__dialog"),
+  dialogSelector: ".settings-modal__dialog",
   backdrop: elements.conversationSearchBackdrop,
   closeButton: elements.closeConversationSearch,
 });
 
-const uploadNoticeController = createModalController({
+const uploadNoticeController = createOptionalModalController({
   modal: elements.uploadNoticeModal,
-  dialog: elements.uploadNoticeModal.querySelector(".settings-modal__dialog"),
+  dialogSelector: ".settings-modal__dialog",
   backdrop: elements.uploadNoticeBackdrop,
   closeButton: elements.closeUploadNotice,
 });
@@ -364,11 +389,11 @@ const renderer = createDashboardRenderer({
 });
 
 const socketClient = createSocketClient({
-  url: withAdminToken(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`),
+  url: `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`,
   onOpen: renderer.updateClock,
   onMessage(message) {
     if (message.type === "snapshot") {
-      renderer.scheduleSnapshotRender(message.payload);
+      renderer.queueSnapshotRender(message.payload);
     } else if (message.type === "llm_token") {
       renderer.appendLlmToken(message.payload?.token || "");
     } else if (message.type === "llm_done") {
@@ -382,7 +407,9 @@ const socketClient = createSocketClient({
     } else if (message.type === "memory_search_result") {
       renderer.renderMemorySearchResults(message.hits || []);
     } else if (message.type === "audit_export") {
-      const blob = new Blob([message.payload], { type: "application/json" });
+      // L-18: Type-check payload and defer revocation.
+      const payload = typeof message.payload === "string" ? message.payload : JSON.stringify(message.payload);
+      const blob = new Blob([payload], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -390,7 +417,7 @@ const socketClient = createSocketClient({
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
   },
   onStateChange: renderer.updateConnectionState,
@@ -398,21 +425,29 @@ const socketClient = createSocketClient({
 
 function send(payload) {
   const sent = socketClient.send(payload);
-  if (!sent) {
+  if (!sent && elements.statusText) {
     elements.statusText.textContent = t("app.command_not_sent");
   }
   return sent;
 }
 
-const workbenchController = createWorkbenchController({ renderer });
+const workbenchController = utilityEnabled
+  ? createWorkbenchController({ renderer })
+  : {
+      async init() {},
+      async onTabActivated() {},
+      async refreshActiveTab() {},
+    };
 
-const baseActivateUtilityTab = renderer.activateUtilityTab;
-renderer.activateUtilityTab = (tabName) => {
-  baseActivateUtilityTab(tabName);
-  workbenchController.onTabActivated(tabName).catch((error) => {
-    console.error("[KERN] workbench tab activation failed:", error);
-  });
-};
+if (utilityEnabled) {
+  const baseActivateUtilityTab = renderer.activateUtilityTab;
+  renderer.activateUtilityTab = (tabName) => {
+    baseActivateUtilityTab(tabName);
+    workbenchController.onTabActivated(tabName).catch((error) => {
+      console.error("[KERN] workbench tab activation failed:", error);
+    });
+  };
+}
 
 bindDashboardEvents({
   elements,
@@ -423,13 +458,18 @@ bindDashboardEvents({
   conversationSearchController,
   uploadNoticeController,
   themeController,
+  utilityEnabled,
 });
 
-await workbenchController.init();
+if (utilityEnabled) {
+  await workbenchController.init();
+}
 
 renderer.updateClock();
 window.setInterval(renderer.updateClock, 1000);
-renderer.activateUtilityTab("workspace");
+if (utilityEnabled) {
+  renderer.activateUtilityTab("workspace");
+}
 renderer.activateSettingsSection("appearance", { behavior: "auto", scroll: false });
 renderer.applySidebarCollapsed(localStorage.getItem(renderer.getSidebarCollapsedKey()) === "1");
 renderer.autoResizeCommandInput();
@@ -439,8 +479,48 @@ themeController.subscribe(() => {
   renderer.renderThemeState();
 });
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register(withAdminToken("/static/service-worker.js")).catch((err) => { console.error("[KERN] SW registration failed:", err); });
+function isLoopbackHost(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
+async function clearLocalShellCaches() {
+  if (!("caches" in window)) {
+    return;
+  }
+  try {
+    const cacheKeys = await caches.keys();
+    await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+  } catch (error) {
+    console.error("[KERN] cache cleanup failed:", error);
+  }
+}
+
+async function disableServiceWorkersForLoopback() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  } catch (error) {
+    console.error("[KERN] service worker cleanup failed:", error);
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("load", async () => {
+    const loopback = isLoopbackHost(window.location.hostname);
+    if (loopback) {
+      await disableServiceWorkersForLoopback();
+      await clearLocalShellCaches();
+      return;
+    }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker
+        .register("/sw.js?v=20260428a", { scope: "/" })
+        .catch((err) => {
+          console.error("[KERN] SW registration failed:", err);
+        });
+    }
   });
 }

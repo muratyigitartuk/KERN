@@ -11,13 +11,14 @@ from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
-_PERSON_PATTERN = re.compile(r"\b([A-ZÄÖÜa-zäöüß][a-zäöüß]+ [A-ZÄÖÜa-zäöüß][a-zäöüß]+)\b")
-_PERSON_3WORD_PATTERN = re.compile(r"\b([A-ZÄÖÜa-zäöüß][a-zäöüß]+ [A-ZÄÖÜa-zäöüß][a-zäöüß]+ [A-ZÄÖÜa-zäöüß][a-zäöüß]+)\b")
-_COMPANY_PATTERN = re.compile(r"\b([A-ZÄÖÜa-zäöüß][a-zA-ZäöüÄÖÜß]+(?: [A-ZÄÖÜa-zäöüß][a-zA-ZäöüÄÖÜß]+)* (?:GmbH|AG|Ltd|Inc|Corp|LLC|UG|SE|KG|eV|e\.V\.|OHG|KGaA|mbH|GbR))(?:\b|\s|$|[,;.])")
+_WORD = r"[^\W\d_][^\W\d_.-]*"
+_PERSON_PATTERN = re.compile(rf"\b({_WORD} {_WORD})\b", re.UNICODE)
+_PERSON_3WORD_PATTERN = re.compile(rf"\b({_WORD} {_WORD} {_WORD})\b", re.UNICODE)
+_COMPANY_PATTERN = re.compile(rf"\b({_WORD}(?: {_WORD})* (?:GmbH|AG|Ltd|Inc|Corp|LLC|UG|SE|KG|eV|e\.V\.|OHG|KGaA|mbH|GbR))(?:\b|\s|$|[,;.])", re.UNICODE)
 _DATE_PATTERN = re.compile(r"\b(\d{1,2}[./]\d{1,2}[./]\d{2,4}|\d{4}-\d{2}-\d{2})\b")
 _AMOUNT_PATTERN = re.compile(r"\b(\d[\d.,]*\s*(?:EUR|USD|GBP|CHF|€|\$|£|Fr\.))(?:\b|\s|$|[,;.])")
-_LOCATION_PATTERN = re.compile(r"\b(\d{5})\s+([A-ZÄÖÜa-zäöüß][a-zäöüß]+(?:\s[A-ZÄÖÜa-zäöüß][a-zäöüß]+){0,2})\b")
-_GERMAN_ADDRESS_PATTERN = re.compile(r"\b([A-ZÄÖÜa-zäöüß][a-zäöüß]+(?:straße|str\.|weg|platz|allee|gasse|ring|damm|ufer)\s+\d+\w?)\b", re.IGNORECASE)
+_LOCATION_PATTERN = re.compile(rf"\b(\d{{5}})\s+({_WORD}(?:\s{_WORD}){{0,2}})\b", re.UNICODE)
+_GERMAN_ADDRESS_PATTERN = re.compile(rf"\b({_WORD}(?:straße|strasse|str\.|weg|platz|allee|gasse|ring|damm|ufer)\s+\d+\w?)\b", re.IGNORECASE | re.UNICODE)
 
 _SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?])\s+|\n+")
 _DUE_CUES = ("due", "deadline", "pay by", "fällig", "bis", "payment")
@@ -36,13 +37,31 @@ _ENTITY_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 
-_UMLAUT_MAP = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss", "Ä": "Ae", "Ö": "Oe", "Ü": "Ue"})
+_UMLAUT_MAP = {
+    "ä": "ae",
+    "ö": "oe",
+    "ü": "ue",
+    "ß": "ss",
+    "Ä": "Ae",
+    "Ö": "Oe",
+    "Ü": "Ue",
+    "Ã¤": "ae",
+    "Ã¶": "oe",
+    "Ã¼": "ue",
+    "ÃŸ": "ss",
+    "Ã„": "Ae",
+    "Ã–": "Oe",
+    "Ãœ": "Ue",
+}
 _UMLAUT_REVERSE_MAP = {"ae": "ä", "oe": "ö", "ue": "ü", "ss": "ß"}
 
 
 def _normalize_umlaut(text: str) -> str:
-    """Normalize Umlauts for comparison: ä→ae, ö→oe, ü→ue, ß→ss."""
-    return text.translate(_UMLAUT_MAP).lower()
+    """Normalize Umlauts for comparison: Ã¤â†’ae, Ã¶â†’oe, Ã¼â†’ue, ÃŸâ†’ss."""
+    normalized = text
+    for source, replacement in _UMLAUT_MAP.items():
+        normalized = normalized.replace(source, replacement)
+    return normalized.lower()
 
 
 def _levenshtein_ratio(a: str, b: str) -> float:
@@ -276,7 +295,7 @@ class KnowledgeGraphService:
                     "Extract named entities from the text. Return a JSON object with keys: "
                     '"persons" (list of person names), "companies" (list of company names), '
                     '"dates" (list of dates in YYYY-MM-DD format), "amounts" (list of monetary amounts). '
-                    "Include German names with Umlauts (ä, ö, ü, ß). Only return the JSON, nothing else."
+                    "Include German names with Umlauts (Ã¤, Ã¶, Ã¼, ÃŸ). Only return the JSON, nothing else."
                 ),
             },
             {"role": "user", "content": prompt_text},
@@ -478,8 +497,8 @@ class KnowledgeGraphService:
             cleaned = re.sub(r"\b(gmbh|ag|ltd|inc|corp|llc|ug|se|kg)\b", lambda match: match.group(1).upper(), cleaned, flags=re.IGNORECASE)
             return cleaned.lower()
         if entity_type == "amount":
-            normalized = cleaned.replace("€", "EUR").replace("£", "GBP").replace("$", "USD")
-            normalized = normalized.replace("â‚¬", "EUR").replace("Â£", "GBP")
+            normalized = cleaned.replace("â‚¬", "EUR").replace("Â£", "GBP").replace("$", "USD")
+            normalized = normalized.replace("Ã¢â€šÂ¬", "EUR").replace("Ã‚Â£", "GBP")
             return re.sub(r"\s+", " ", normalized).lower()
         if entity_type == "date":
             return self._normalize_date(cleaned)

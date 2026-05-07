@@ -129,7 +129,10 @@ class Brain:
         if not self.rag_available:
             return
         history = conversation_history or []
-        system_msg = f"{KERN_RAG_SYSTEM_PROMPT} Address the user as '{preferred_title}'."
+        system_msg = KERN_RAG_SYSTEM_PROMPT
+        title = preferred_title.strip()
+        if title and title.lower() not in {"sir", "boss", "master", "chief", "commander"}:
+            system_msg = f"{system_msg} The user's preferred form of address is '{title}'; use it sparingly only when natural."
         async for token in self._rag.answer_stream(
             text,
             system_msg,
@@ -155,7 +158,10 @@ class Brain:
         if not self.rag_available:
             return None, []
         history = conversation_history or []
-        system_msg = f"{KERN_RAG_SYSTEM_PROMPT} Address the user as '{preferred_title}'."
+        system_msg = KERN_RAG_SYSTEM_PROMPT
+        title = preferred_title.strip()
+        if title and title.lower() not in {"sir", "boss", "master", "chief", "commander"}:
+            system_msg = f"{system_msg} The user's preferred form of address is '{title}'; use it sparingly only when natural."
         try:
             result = await self._rag.answer(
                 text,
@@ -185,7 +191,10 @@ class Brain:
         if not self.llm_available:
             return
         history = conversation_history or []
-        system_msg = f"{KERN_SYSTEM_PROMPT} Address the user as '{preferred_title}'."
+        system_msg = KERN_SYSTEM_PROMPT
+        title = preferred_title.strip()
+        if title and title.lower() not in {"sir", "boss", "master", "chief", "commander"}:
+            system_msg = f"{system_msg} The user's preferred form of address is '{title}'; use it sparingly only when natural."
         messages: list[dict[str, str]] = [{"role": "system", "content": system_msg}]
         messages.extend(history[-20:])
         messages.append({"role": "user", "content": text})

@@ -125,7 +125,6 @@ def test_infer_event_none(kg):
 # ── Database adversarial ──────────────────────────────────────────────
 
 from app.database import db_retry
-from unittest.mock import patch
 
 
 def test_db_retry_value_error_no_retry():

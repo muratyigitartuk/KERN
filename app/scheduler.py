@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _CRON_LIMIT_MINUTES = 366 * 24 * 60
-_ALLOWED_ACTION_TYPES = frozenset({"custom_prompt", "summarize_emails", "generate_report"})
+_ALLOWED_ACTION_TYPES = frozenset({"custom_prompt", "generate_report"})
 _CRON_FIELD_RANGES = (
     (0, 59),
     (0, 23),

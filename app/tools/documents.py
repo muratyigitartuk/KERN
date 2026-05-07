@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from app.config import settings
 from app.documents import DocumentService
 from app.local_data import LocalDataService
+from app.path_safety import ensure_path_within_roots, validate_user_import_path
 from app.spreadsheet import SpreadsheetParser
 from app.tools.base import Tool
 from app.types import ToolRequest, ToolResult
@@ -35,12 +36,11 @@ class IngestDocumentTool(Tool):
     async def run(self, request: ToolRequest) -> ToolResult:
         path = str(request.arguments.get("path", "") or request.arguments.get("file_path", "")).strip()
         if not path:
-            return ToolResult(status="failed", display_text="I need a document path.", spoken_text="Tell me which document to ingest.")
+            return ToolResult(status="failed", display_text="I need a document path.")
         record = self.service.ingest_file(path, source=str(request.arguments.get("source", "manual") or "manual"))
         return ToolResult(
             status="observed",
             display_text=f"Ingested {record.title}.",
-            spoken_text=f"I indexed {record.title}.",
             evidence=[f"Document stored at {record.file_path}."],
             side_effects=["document_ingested"],
             data={"document": record.model_dump(mode="json")},
@@ -74,7 +74,7 @@ class SearchDocumentsTool(Tool):
         query = str(request.arguments.get("query", "")).strip()
         scope = str(request.arguments.get("scope", "profile_plus_archive") or "profile_plus_archive")
         if not query:
-            return ToolResult(status="failed", display_text="I need a search query.", spoken_text="Tell me what to search for.")
+            return ToolResult(status="failed", display_text="I need a search query.")
         hits = self.service.search(query, scope=scope, limit=6)
         sensitive_hits = [
             hit
@@ -85,14 +85,12 @@ class SearchDocumentsTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="Sensitive document hits are restricted in corporate mode. Narrow the query or use a less sensitive corpus.",
-                spoken_text="Sensitive document hits are restricted in corporate mode.",
                 data={"restricted_hits": len(sensitive_hits)},
             )
         if not hits:
             return ToolResult(
                 status="observed",
                 display_text="No matching documents found.",
-                spoken_text="I did not find matching documents.",
                 evidence=["No matching document chunks."],
                 data={"hits": []},
             )
@@ -100,7 +98,6 @@ class SearchDocumentsTool(Tool):
         return ToolResult(
             status="observed",
             display_text=f"Document hits: {summary}",
-            spoken_text="I found relevant document matches.",
             evidence=[f"Matched {len(hits)} document chunk(s)."],
             data={"hits": [hit.model_dump(mode="json") for hit in hits]},
         )
@@ -126,12 +123,18 @@ class ImportConversationArchiveTool(Tool):
         path = str(request.arguments.get("path", "") or request.arguments.get("file_path", "")).strip()
         source = str(request.arguments.get("source", "other") or "other")
         if not path:
-            return ToolResult(status="failed", display_text="I need an archive path.", spoken_text="Tell me which archive file to import.")
+            return ToolResult(status="failed", display_text="I need an archive path.")
+        try:
+            if self.service.profile is not None:
+                path = str(validate_user_import_path(path, self.service.profile))
+            else:
+                path = str(ensure_path_within_roots(path, roots=[self.service.documents_root, self.service.archives_root], reject_symlink=True))
+        except ValueError as exc:
+            return ToolResult(status="failed", display_text=f"Path denied: {exc}")
         record = self.service.import_conversation_archive(path, source=source)
         return ToolResult(
             status="observed",
             display_text=f"Imported archive {record.title}.",
-            spoken_text=f"I archived {record.title}.",
             evidence=[f"Imported {record.imported_turns} archived turn(s)."],
             side_effects=["conversation_archive_imported"],
             data={"archive": record.model_dump(mode="json")},
@@ -164,16 +167,14 @@ class ListDocumentsTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="Sensitive document listings are restricted in corporate mode. Filter more narrowly.",
-                spoken_text="Sensitive document listings are restricted in corporate mode.",
                 data={"restricted_documents": len(sensitive_records)},
             )
         if not records:
-            return ToolResult(status="observed", display_text="No indexed documents yet.", spoken_text="No indexed documents yet.", data={"documents": []})
+            return ToolResult(status="observed", display_text="No indexed documents yet.", data={"documents": []})
         summary = ", ".join(record.title for record in records[:4])
         return ToolResult(
             status="observed",
             display_text=f"Indexed documents: {summary}",
-            spoken_text="Here are the most recent indexed documents.",
             data={"documents": [record.model_dump(mode="json") for record in records]},
         )
 
@@ -204,13 +205,11 @@ class SetMemoryScopeTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="Memory scope must be off, session, profile, or profile_plus_archive.",
-                spoken_text="That memory scope is not valid.",
             )
         self.data.set_preference("memory_scope", scope)
         return ToolResult(
             status="observed",
             display_text=f"Memory scope set to {scope}.",
-            spoken_text="Memory scope updated.",
             side_effects=["memory_scope_updated"],
             data={"scope": scope},
         )
@@ -261,13 +260,11 @@ class BulkIngestTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="Provide either folder_path or file_paths to bulk ingest.",
-                spoken_text="Tell me which folder or files to ingest.",
             )
 
         return ToolResult(
             status="observed",
             display_text=f"Ingested {len(records)} document(s).",
-            spoken_text=f"I indexed {len(records)} documents.",
             evidence=[f"Processed {len(records)} file(s)."],
             side_effects=["documents_ingested"],
             data={"count": len(records), "documents": [{"id": r.id, "title": r.title} for r in records]},
@@ -331,7 +328,6 @@ class CompareDocumentsTool(Tool):
                 return ToolResult(
                     status="failed",
                     display_text=f"Could not resolve document(s): {', '.join(unresolved)}.",
-                    spoken_text="I could not resolve one or more document names locally.",
                     data={"unresolved_documents": unresolved},
                 )
 
@@ -339,19 +335,16 @@ class CompareDocumentsTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="Provide document IDs or named documents and a query to compare documents.",
-                spoken_text="I need two local documents and a comparison question.",
             )
         if self._rag is None:
             return ToolResult(
                 status="failed",
                 display_text="RAG pipeline is not available.",
-                spoken_text="The document reasoning system is offline.",
             )
         result = await self._rag.answer_multi_document(query, [str(d) for d in document_ids])
         return ToolResult(
             status="observed",
             display_text=result.answer or "No relevant content found.",
-            spoken_text=result.answer or "I could not find relevant content in those documents.",
             evidence=[f"Retrieved from {len(result.sources)} source(s)."],
             data={
                 "answer": result.answer,
@@ -432,14 +425,12 @@ class SummarizeDocumentTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="Provide a document_name to summarize.",
-                spoken_text="I need the local document name to summarize it.",
             )
         record = self._resolve_document_by_name(document_name)
         if record is None:
             return ToolResult(
                 status="failed",
                 display_text=f"Could not resolve document '{document_name}'.",
-                spoken_text="I could not find that local document.",
                 data={"document_name": document_name},
             )
         text = self.service.extract_text(record.file_path)
@@ -447,7 +438,6 @@ class SummarizeDocumentTool(Tool):
         return ToolResult(
             status="observed",
             display_text=summary,
-            spoken_text=summary,
             evidence=[f"Summarized local document {record.title}."],
             data={
                 "document_id": record.id,
@@ -531,7 +521,6 @@ class QuerySpreadsheetTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="Provide file_path and a query to analyse a spreadsheet.",
-                spoken_text="I need a file path and a question to query the spreadsheet.",
             )
         if self.service.platform and self.service.profile:
             self.service.platform.assert_profile_unlocked(
@@ -540,9 +529,13 @@ class QuerySpreadsheetTool(Tool):
                 "query_spreadsheet",
             )
 
-        path = Path(file_path).expanduser().resolve()
-        if not path.exists():
-            return ToolResult(status="failed", display_text=f"File not found: {file_path}", spoken_text="That file does not exist.")
+        try:
+            if self.service.profile is not None:
+                path = validate_user_import_path(file_path, self.service.profile)
+            else:
+                path = ensure_path_within_roots(file_path, roots=[self.service.documents_root, self.service.archives_root], reject_symlink=True)
+        except ValueError as exc:
+            return ToolResult(status="failed", display_text=f"Path denied: {exc}")
         indexed_row = self.service.memory.connection.execute(
             """
             SELECT metadata_json
@@ -563,7 +556,6 @@ class QuerySpreadsheetTool(Tool):
                 return ToolResult(
                     status="failed",
                     display_text=f"{classification.title()} spreadsheet reads are restricted in corporate mode.",
-                    spoken_text="That spreadsheet is restricted in corporate mode.",
                     data={"classification": classification},
                 )
 
@@ -575,10 +567,10 @@ class QuerySpreadsheetTool(Tool):
                 sheets = SpreadsheetParser.parse_excel(plaintext_path)
                 data = [row for rows in sheets.values() for row in rows]
             else:
-                return ToolResult(status="failed", display_text="Only CSV and Excel files are supported.", spoken_text="That file format is not supported.")
+                return ToolResult(status="failed", display_text="Only CSV and Excel files are supported.")
 
         if not data:
-            return ToolResult(status="observed", display_text="The spreadsheet is empty.", spoken_text="The spreadsheet contains no data.")
+            return ToolResult(status="observed", display_text="The spreadsheet is empty.")
 
         answer = SpreadsheetParser.query_dataframe(data, query)
         natural = SpreadsheetParser.to_natural_language(data, title=path.stem)
@@ -597,7 +589,6 @@ class QuerySpreadsheetTool(Tool):
         return ToolResult(
             status="observed",
             display_text=answer,
-            spoken_text=answer,
             evidence=[natural[:500]],
             data={
                 "answer": answer,

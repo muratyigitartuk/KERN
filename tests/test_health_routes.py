@@ -54,7 +54,6 @@ def _build_runtime(tmp_path: Path, *, severity: str = "ok"):
         audit_chain_reason=None if severity != "degraded" else "audit chain mismatch",
         last_audit_verification_at=None,
         scheduler_service=None,
-        tts=None,
         _pending_proactive_alerts=[],
         _using_locked_scaffold=severity == "warning",
     )

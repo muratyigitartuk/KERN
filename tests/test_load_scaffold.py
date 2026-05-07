@@ -11,8 +11,6 @@ os.environ.setdefault("KERN_PRODUCT_POSTURE", "personal")
 
 from pathlib import Path
 
-import pytest
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 LOCUSTFILE = PROJECT_ROOT / "tests" / "locustfile.py"
 

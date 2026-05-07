@@ -56,5 +56,5 @@ Use the license card to confirm:
 
 Related:
 
-- [operator-runbook.md](/Users/mur4t/Desktop/claudes/skillstests/docs/operator-runbook.md)
-- [internal-deployment.md](/Users/mur4t/Desktop/claudes/skillstests/docs/internal-deployment.md)
+- [operator-runbook.md](operator-runbook.md)
+- [internal-deployment.md](internal-deployment.md)

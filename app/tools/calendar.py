@@ -47,7 +47,6 @@ class TodayCalendarTool(Tool):
                 success=True,
                 status="observed",
                 display_text="No events today.",
-                spoken_text="Your calendar is clear today.",
                 evidence=["No calendar events found for today."],
                 data={"events": []},
             )
@@ -56,7 +55,6 @@ class TodayCalendarTool(Tool):
             success=True,
             status="observed",
             display_text=f"Today's agenda: {summary}",
-            spoken_text=f"Today you have {summary}.",
             evidence=[f"Loaded {len(events)} calendar event(s)."],
             data={"events": [event.model_dump(mode='json') for event in events]},
         )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from app.german_business import GermanBusinessService
 from app.tools.base import Tool
@@ -26,7 +26,6 @@ class CreateAngebotTool(Tool):
         return ToolResult(
             status="observed",
             display_text=f"Created {document.title}.",
-            spoken_text=f"I created {document.title}.",
             side_effects=["angebot_created"],
             data={"document": document.model_dump(mode="json"), "output_label": "draft"},
         )
@@ -52,7 +51,6 @@ class CreateRechnungTool(Tool):
         return ToolResult(
             status="observed",
             display_text=f"Created {document.title}.",
-            spoken_text=f"I created {document.title}.",
             side_effects=["invoice_created"],
             data={"document": document.model_dump(mode="json"), "output_label": "draft"},
         )
@@ -74,7 +72,6 @@ class DraftBehoerdeLetterTool(Tool):
         return ToolResult(
             status="observed",
             display_text=f"Created formal draft '{document.title}'.",
-            spoken_text="I created the formal draft.",
             side_effects=["behoerde_draft_created"],
             data={"document": document.model_dump(mode="json"), "output_label": "draft"},
         )
@@ -94,7 +91,6 @@ class CreateDsgvoReminderTool(Tool):
         return ToolResult(
             status="observed",
             display_text=f"Created {len(reminder_ids)} DSGVO reminders.",
-            spoken_text="I created the DSGVO reminders.",
             side_effects=["dsgvo_reminders_created"],
             data={"reminder_ids": reminder_ids, "output_label": "reminder"},
         )
@@ -112,13 +108,12 @@ class TaxSupportTool(Tool):
     async def run(self, request: ToolRequest) -> ToolResult:
         question = str(request.arguments.get("question", "")).strip()
         if not question:
-            return ToolResult(status="failed", display_text="I need a tax support question.", spoken_text="I need a tax support question.")
+            return ToolResult(status="failed", display_text="I need a tax support question.")
         result = self.service.tax_support_result(TaxSupportQuery(question=question))
         answer = self.service.tax_support(TaxSupportQuery(question=question))
         return ToolResult(
             status="observed",
             display_text=answer,
-            spoken_text="I prepared a tax support summary with a disclaimer.",
             data={
                 "answer": answer,
                 "output_label": "support",

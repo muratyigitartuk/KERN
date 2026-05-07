@@ -108,19 +108,17 @@ def test_memory_recall_normalizes_working_preferences_query(tmp_path: Path):
     assert "response style" in result.display_text.lower()
 
 
-def test_brain_preserves_full_mailbox_sync_request_when_second_clause_is_contextual():
+def test_brain_does_not_route_removed_mailbox_sync_request():
     brain = Brain(None, local_mode_enabled=True, cognition_backend="hybrid")
     context = ActiveContextSummary(preferred_title="sir")
 
     analysis = brain.analyze_intent(
         "Sync my mailbox and tell me if anything urgent arrived today.",
         context_summary=context,
-        available_capabilities=["sync_mailbox"],
+        available_capabilities=[],
     )
 
-    assert len(analysis.execution_plan.steps) == 1
-    assert analysis.execution_plan.steps[0].arguments["urgent_only"] is True
-    assert analysis.execution_plan.steps[0].arguments["today_only"] is True
+    assert analysis.execution_plan.steps == []
 
 
 def test_brain_preserves_full_backup_listing_request_when_second_clause_is_contextual():

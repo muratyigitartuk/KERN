@@ -6,9 +6,9 @@ Supported topology matrix:
 
 - `Supported`: Windows internal-machine runtime, per-user managed installs, scheduled-task startup
 - `Limited`: Docker/dev container use for development and API smoke testing
-- `Not a supported production topology`: multi-user Linux server deployment
+- `Separate topology`: server-mode multi-user deployment with PostgreSQL, Redis, OIDC, HTTPS/proxy, and durable object storage
 
-For this hardening pass, the release-blocking target is one controlled internal Windows machine, not a broad desktop rollout.
+For this Windows guide, the release-blocking target is one controlled internal Windows machine, not a broad desktop rollout.
 
 Rollout defaults:
 

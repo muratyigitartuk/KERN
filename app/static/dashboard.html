@@ -6,34 +6,18 @@
     <title>KERN Local Drafting Workspace</title>
     <meta name="description" content="KERN drafts German business replies from local company documents." />
     <meta name="theme-color" id="themeColorMeta" content="#111111" />
-    <script>
-      (() => {
-        const storageKey = "kern.theme.mode";
-        const stored = localStorage.getItem(storageKey);
-        const preference = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const resolved = preference === "system" ? (prefersDark ? "dark" : "light") : preference;
-        document.documentElement.dataset.theme = resolved;
-        const meta = document.getElementById("themeColorMeta");
-        if (meta) {
-          meta.setAttribute("content", resolved === "dark" ? "#111111" : "#f5f5f5");
-        }
-      })();
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Doto:wght@400..900&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <script defer src="/static/js/theme-bootstrap.js?v=20260422i"></script>
     <link rel="manifest" href="/static/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/static/icons/kern-192.svg" />
     <link rel="apple-touch-icon" href="/static/icons/kern-192.svg" />
-    <link rel="stylesheet" href="/static/dashboard.css" />
+  <link rel="stylesheet" href="/static/dashboard.css?v=20260430a" />
   </head>
   <body data-product-posture="production">
     <div class="workspace-shell">
       <aside class="sidebar">
         <div class="sidebar__top">
-          <button type="button" id="sidebarHome" class="sidebar__title sidebar__title-button" title="New conversation" data-i18n-title="nav.new_conversation">
-            KERN
+          <button type="button" id="sidebarHome" class="sidebar__title sidebar__title-button" title="KERN home" data-i18n-title="nav.new_conversation" aria-hidden="true" tabindex="-1">
+            <span class="sidebar__brand-mark" aria-hidden="true">K</span>
           </button>
           <button
             type="button"
@@ -45,92 +29,128 @@
             data-i18n-title="nav.collapse_sidebar"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
-              <path d="M13.5 16.5 9 12l4.5-4.5M18.75 16.5 14.25 12l4.5-4.5" />
+              <rect x="3.5" y="4.5" width="17" height="15" rx="4.5" />
+              <path d="M9 7.75V16.25" />
             </svg>
           </button>
         </div>
 
-        <button type="button" id="newConversation" class="sidebar-primary" title="New conversation" data-i18n-title="nav.new_conversation">
+        <button type="button" id="newConversation" class="sidebar-primary sidebar-nav-link" title="New conversation" data-tooltip="New conversation" data-i18n-title="nav.new_conversation">
           <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
-            <path d="M12 4.5v15m7.5-7.5h-15" />
+            <path d="M2.5 12.0001C2.5 7.52171 2.5 5.28254 3.89124 3.8913C5.28249 2.50005 7.52166 2.50005 12 2.50005C16.4783 2.50005 18.7175 2.50005 20.1088 3.8913C21.5 5.28254 21.5 7.52171 21.5 12.0001C21.5 16.4784 21.5 18.7176 20.1088 20.1088C18.7175 21.5001 16.4783 21.5001 12 21.5001C7.52166 21.5001 5.28249 21.5001 3.89124 20.1088C2.5 18.7176 2.5 16.4784 2.5 12.0001Z" />
+            <path d="M12 8.00005V16.0001M16 12.0001L8 12.0001" />
           </svg>
-          <span class="sidebar-primary__label" data-i18n="nav.new_conversation">New conversation</span>
+          <span class="sidebar-primary__label" data-i18n="nav.new_conversation">New Conversation</span>
         </button>
 
-        <button type="button" id="openConversationSearch" class="sidebar-search sidebar-search-button" title="Search conversation" data-i18n-title="nav.search_conversation">
+        <button type="button" id="openConversationSearch" class="sidebar-search sidebar-search-button sidebar-nav-link" title="Search conversation" data-tooltip="Search" data-i18n-title="nav.search_conversation">
           <div class="sidebar-search__head">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
-              <path d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+              <path d="M17 17L21 21" />
+              <path d="M19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19C15.4183 19 19 15.4183 19 11Z" />
             </svg>
-            <span class="eyebrow" data-i18n="nav.search">Search</span>
+            <span class="sidebar-nav-link__label" data-i18n="nav.search">Search</span>
           </div>
-          <span class="sidebar-search__hint" data-i18n="nav.search_conversation">Search conversation</span>
+          <span class="sidebar-search__shortcut" aria-hidden="true">&#8984;K</span>
         </button>
+
+        <section class="sidebar-section sidebar-section--workspaces" id="workspaceSection">
+          <div class="sidebar-section__head">
+            <span class="eyebrow" data-i18n="nav.workspaces">Workspaces</span>
+            <div class="sidebar-section__actions">
+              <button
+                type="button"
+                id="newWorkspaceButton"
+                class="sidebar-section__header-action"
+                aria-label="New workspace"
+                data-i18n-aria-label="nav.new_workspace"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                </button>
+              </div>
+            </div>
+          <ul id="workspaceList" class="sidebar-list sidebar-workspace-list"></ul>
+        </section>
+
+        <div class="sidebar-collapsed-sessions-wrap">
+          <button
+            type="button"
+            id="collapsedSessionsButton"
+            class="sidebar-collapsed-sessions sidebar-nav-link"
+            aria-label="Recent"
+              title="Recent"
+              data-tooltip="Recent"
+              data-i18n-aria-label="nav.recent"
+            data-i18n-title="nav.recent"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
+              <path d="M21.5 12C21.5 17.2467 17.2467 21.5 12 21.5C10.3719 21.5 8.8394 21.0904 7.5 20.3687C5.63177 19.362 4.37462 20.2979 3.26592 20.4658C3.09774 20.4913 2.93024 20.4302 2.80997 20.31C2.62741 20.1274 2.59266 19.8451 2.6935 19.6074C3.12865 18.5818 3.5282 16.6382 2.98341 15C2.6698 14.057 2.5 13.0483 2.5 12C2.5 6.75329 6.75329 2.5 12 2.5C17.2467 2.5 21.5 6.75329 21.5 12Z" />
+              <path d="M12.1257 12H12.0007M8.125 12H8M16.125 12H16M12.2507 12C12.2507 12.1381 12.1388 12.25 12.0007 12.25C11.8627 12.25 11.7507 12.1381 11.7507 12C11.7507 11.8619 11.8627 11.75 12.0007 11.75C12.1388 11.75 12.2507 11.8619 12.2507 12ZM8.25 12C8.25 12.1381 8.13807 12.25 8 12.25C7.86193 12.25 7.75 12.1381 7.75 12C7.75 11.8619 7.86193 11.75 8 11.75C8.13807 11.75 8.25 11.8619 8.25 12ZM16.25 12C16.25 12.1381 16.1381 12.25 16 12.25C15.8619 12.25 15.75 12.1381 15.75 12C15.75 11.8619 15.8619 11.75 16 11.75C16.1381 11.75 16.25 11.8619 16.25 12Z" />
+            </svg>
+          </button>
+          <div id="collapsedSessionsFlyout" class="sidebar-collapsed-sessions__flyout hidden">
+            <div class="sidebar-collapsed-sessions__head">
+              <span class="eyebrow" data-i18n="nav.recent">Recent</span>
+            </div>
+            <ul id="collapsedSessionsList" class="sidebar-collapsed-sessions__list"></ul>
+          </div>
+        </div>
 
         <section class="sidebar-section" id="sessionSection">
           <div class="sidebar-section__head">
-            <span class="eyebrow" data-i18n="nav.session">Session</span>
-            <span id="topTimestamp" class="meta-text">00:00:00</span>
+            <span class="eyebrow" data-i18n="nav.recent">Recent</span>
+            <span id="topTimestamp" class="hidden" aria-hidden="true">00:00:00</span>
           </div>
           <ul id="sessionList" class="sidebar-list"></ul>
         </section>
 
         <div class="sidebar-settings">
-          <button type="button" id="utilityToggle" class="sidebar-secondary utility-toggle" title="Utility" data-i18n-title="nav.utility">
+          <button type="button" id="utilityToggle" class="sidebar-secondary utility-toggle sidebar-nav-link" title="Utility" data-tooltip="Utility" data-i18n-title="nav.utility">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="utility-toggle__icon">
-              <path d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0m3 0H3.75m16.5 12h-9.75m9.75 0a1.5 1.5 0 1 0-3 0m3 0a1.5 1.5 0 1 1-3 0m0 0H3.75m9.75-6h6.75m-6.75 0a1.5 1.5 0 1 0-3 0m3 0a1.5 1.5 0 1 1-3 0m0 0H3.75" />
+              <path d="M17.25 3V4.33957M17.25 4.33957C17.9156 4.33957 18.5182 4.60934 18.9545 5.04551M17.25 4.33957C16.5844 4.33957 15.9818 4.60934 15.5455 5.04551M17.25 9.161V10.5M17.25 9.161C17.9158 9.161 18.5185 8.89111 18.9548 8.45477M17.25 9.161C16.5842 9.161 15.9815 8.89111 15.5452 8.45477M21 6.75L19.6607 6.75028M19.6607 6.75028C19.6607 7.41591 19.3909 8.01853 18.9548 8.45477M19.6607 6.75028C19.6607 6.08451 19.3908 5.48177 18.9545 5.04551M14.8393 6.75028L13.5 6.75M14.8393 6.75028C14.8393 6.08451 15.1092 5.48177 15.5455 5.04551M14.8393 6.75028C14.8393 7.41591 15.1091 8.01853 15.5452 8.45477M19.9017 4.09835L18.9545 5.04551M14.5984 9.40165L15.5452 8.45477M19.9017 9.40165L18.9548 8.45477M14.5984 4.09835L15.5455 5.04551" />
+              <path d="M13.6903 19.4567C13.5 18.9973 13.5 18.4149 13.5 17.25C13.5 16.0851 13.5 15.5027 13.6903 15.0433C13.944 14.4307 14.4307 13.944 15.0433 13.6903C15.5027 13.5 16.0851 13.5 17.25 13.5C18.4149 13.5 18.9973 13.5 19.4567 13.6903C20.0693 13.944 20.556 14.4307 20.8097 15.0433C21 15.5027 21 16.0851 21 17.25C21 18.4149 21 18.9973 20.8097 19.4567C20.556 20.0693 20.0693 20.556 19.4567 20.8097C18.9973 21 18.4149 21 17.25 21C16.0851 21 15.5027 21 15.0433 20.8097C14.4307 20.556 13.944 20.0693 13.6903 19.4567Z" />
+              <path d="M3.1903 19.4567C3 18.9973 3 18.4149 3 17.25C3 16.0851 3 15.5027 3.1903 15.0433C3.44404 14.4307 3.93072 13.944 4.54329 13.6903C5.00272 13.5 5.58515 13.5 6.75 13.5C7.91485 13.5 8.49728 13.5 8.95671 13.6903C9.56928 13.944 10.056 14.4307 10.3097 15.0433C10.5 15.5027 10.5 16.0851 10.5 17.25C10.5 18.4149 10.5 18.9973 10.3097 19.4567C10.056 20.0693 9.56928 20.556 8.95671 20.8097C8.49728 21 7.91485 21 6.75 21C5.58515 21 5.00272 21 4.54329 20.8097C3.93072 20.556 3.44404 20.0693 3.1903 19.4567Z" />
+              <path d="M3.1903 8.95671C3 8.49728 3 7.91485 3 6.75C3 5.58515 3 5.00272 3.1903 4.54329C3.44404 3.93072 3.93072 3.44404 4.54329 3.1903C5.00272 3 5.58515 3 6.75 3C7.91485 3 8.49728 3 8.95671 3.1903C9.56928 3.44404 10.056 3.93072 10.3097 4.54329C10.5 5.00272 10.5 5.58515 10.5 6.75C10.5 7.91485 10.5 8.49728 10.3097 8.95671C10.056 9.56928 9.56928 10.056 8.95671 10.3097C8.49728 10.5 7.91485 10.5 6.75 10.5C5.58515 10.5 5.00272 10.5 4.54329 10.3097C3.93072 10.056 3.44404 9.56928 3.1903 8.95671Z" />
             </svg>
-            <span class="sidebar-secondary__label" data-i18n="nav.utility">Utility</span>
+            <span class="sidebar-secondary__label" data-i18n="nav.utility">Knowledge &amp; tools</span>
           </button>
-
-          <button type="button" id="openSettings" class="sidebar-secondary" title="Settings" data-i18n-title="nav.settings">
+          <button type="button" id="openSettings" class="sidebar-secondary sidebar-bottom-link" title="Settings" data-tooltip="Settings" data-i18n-title="nav.settings">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon sidebar-nav__icon--settings">
-              <path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28ZM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              <path d="M15.5 12C15.5 13.933 13.933 15.5 12 15.5C10.067 15.5 8.5 13.933 8.5 12C8.5 10.067 10.067 8.5 12 8.5C13.933 8.5 15.5 10.067 15.5 12Z" />
+              <path d="M21.011 14.0965C21.5329 13.9558 21.7939 13.8854 21.8969 13.7508C22 13.6163 22 13.3998 22 12.9669V11.0332C22 10.6003 22 10.3838 21.8969 10.2493C21.7938 10.1147 21.5329 10.0443 21.011 9.90358C19.0606 9.37759 17.8399 7.33851 18.3433 5.40087C18.4817 4.86799 18.5509 4.60156 18.4848 4.44529C18.4187 4.28902 18.2291 4.18134 17.8497 3.96596L16.125 2.98673C15.7528 2.77539 15.5667 2.66972 15.3997 2.69222C15.2326 2.71472 15.0442 2.90273 14.6672 3.27873C13.208 4.73448 10.7936 4.73442 9.33434 3.27864C8.95743 2.90263 8.76898 2.71463 8.60193 2.69212C8.43489 2.66962 8.24877 2.77529 7.87653 2.98663L6.15184 3.96587C5.77253 4.18123 5.58287 4.28891 5.51678 4.44515C5.45068 4.6014 5.51987 4.86787 5.65825 5.4008C6.16137 7.3385 4.93972 9.37763 2.98902 9.9036C2.46712 10.0443 2.20617 10.1147 2.10308 10.2492C2 10.3838 2 10.6003 2 11.0332V12.9669C2 13.3998 2 13.6163 2.10308 13.7508C2.20615 13.8854 2.46711 13.9558 2.98902 14.0965C4.9394 14.6225 6.16008 16.6616 5.65672 18.5992C5.51829 19.1321 5.44907 19.3985 5.51516 19.5548C5.58126 19.7111 5.77092 19.8188 6.15025 20.0341L7.87495 21.0134C8.24721 21.2247 8.43334 21.3304 8.6004 21.3079C8.76746 21.2854 8.95588 21.0973 9.33271 20.7213C10.7927 19.2644 13.2088 19.2643 14.6689 20.7212C15.0457 21.0973 15.2341 21.2853 15.4012 21.3078C15.5682 21.3303 15.7544 21.2246 16.1266 21.0133L17.8513 20.034C18.2307 19.8187 18.4204 19.711 18.4864 19.5547C18.5525 19.3984 18.4833 19.132 18.3448 18.5991C17.8412 16.6616 19.0609 14.6226 21.011 14.0965Z" />
             </svg>
             <span class="sidebar-secondary__label" data-i18n="nav.settings">Settings</span>
           </button>
-          <section class="sidebar-account" id="sidebarAccount">
-            <div class="workspace-switcher" id="workspaceAccessShell">
-              <span class="eyebrow" data-i18n="workspace.current_label">Workspace</span>
-              <button
-                type="button"
-                id="workspaceSwitcherButton"
-                class="workspace-switcher__button"
-                aria-haspopup="menu"
-                aria-expanded="false"
-                data-i18n-aria-label="workspace.select"
-              >
-                <span id="workspaceSwitcherValue">Primary profile</span>
-                <svg viewBox="0 0 24 24" aria-hidden="true" class="workspace-switcher__icon">
-                  <path d="m7.5 9 4.5 4.5L16.5 9" />
-                </svg>
-              </button>
-              <div id="workspaceSwitcherMenu" class="workspace-switcher__menu hidden" role="menu" data-i18n-aria-label="workspace.select"></div>
-            </div>
-            <div class="sidebar-account__summary">
-              <div id="workspaceUserInitials" class="sidebar-account__avatar" aria-hidden="true">K</div>
-              <div class="sidebar-account__copy">
-                <strong id="workspaceUserName">KERN User</strong>
-                <span id="workspaceUserMeta">Local account</span>
-              </div>
-            </div>
-          </section>
-          <button type="button" id="workspaceLogout" class="sidebar-secondary sidebar-secondary--danger" data-i18n="nav.sign_out">Sign out</button>
         </div>
       </aside>
 
       <main class="workspace-main">
-        <header class="workspace-topbar">
-          <div class="workspace-topbar__meta">
-            <button type="button" id="trustBadge" class="trust-badge trust-badge--checking" title="Network isolation status" aria-live="polite" data-i18n-title="trust.network_isolation">
-              <svg viewBox="0 0 24 24" aria-hidden="true" class="trust-badge__icon">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              <span id="trustBadgeLabel" data-i18n="trust.checking">Checking</span>
-            </button>
-            <span id="connectionState" class="connection-pill" aria-live="polite" data-i18n="status.connecting">Connecting</span>
-          </div>
-        </header>
+        <div class="hidden" aria-hidden="true">
+          <button type="button" data-tab="workspace">Workspace</button>
+          <button type="button" data-tab="admin">Admin</button>
+          <button type="button" data-tab="compliance">Compliance</button>
+          <button type="button" data-tab="intelligence">Intelligence</button>
+          <button type="button" data-tab="evidence">Evidence</button>
+          <span id="statusText">Waiting for you.</span>
+          <span id="reactorState">IDLE</span>
+          <span id="statusDot"></span>
+          <span id="overviewProfileState"></span>
+          <span id="overviewProfileMeta"></span>
+          <span id="overviewKnowledgeState"></span>
+          <span id="overviewKnowledgeMeta"></span>
+          <span id="overviewSecurityState"></span>
+          <span id="overviewSecurityMeta"></span>
+          <span id="overviewSyncState"></span>
+          <span id="overviewSyncMeta"></span>
+          <span id="connectionState" data-i18n="status.connecting">Connecting</span>
+          <button type="button" id="trustBadge" title="Network isolation status" data-i18n-title="trust.network_isolation">
+            <span id="trustBadgeLabel" data-i18n="trust.checking">Checking</span>
+          </button>
+        </div>
 
         <section class="conversation-shell" id="workspaceView">
           <div id="threadShell" class="thread-shell">
@@ -141,10 +161,13 @@
                       <path d="M12 3.75v10.5m0 0 3.75-3.75M12 14.25 8.25 10.5M4.5 15.75v1.5A2.25 2.25 0 0 0 6.75 19.5h10.5a2.25 2.25 0 0 0 2.25-2.25v-1.5" />
                   </svg>
                 </div>
+                <span id="workspaceDropEyebrow" class="hidden" aria-hidden="true">Local drop zone</span>
                 <h3 id="workspaceDropTitle" class="workspace-drop-panel__title" data-i18n="dropzone.ready_title">Drop files to add them locally</h3>
                 <p id="workspaceDropBody" class="workspace-drop-panel__body" data-i18n="dropzone.ready_body">
-                  PDFs, Office files, email exports, and text documents stay inside this local profile for grounded drafting.
+                  PDFs, Office files, spreadsheets, and text documents stay inside this local profile for grounded drafting.
                 </p>
+                <p id="workspaceDropFormats" class="hidden" aria-hidden="true">PDF, Office, spreadsheet, and text files supported.</p>
+                <p id="workspaceDropPrivacy" class="hidden" aria-hidden="true">Files stay inside this local profile.</p>
                 <div id="workspaceDropProgress" class="workspace-drop-progress hidden" aria-live="polite">
                   <span id="workspaceDropProgressLabel" class="workspace-drop-progress__label">Uploading 1 file...</span>
                   <div class="workspace-drop-progress__bar">
@@ -155,9 +178,9 @@
             </div>
             <div id="emptyState" class="empty-state">
               <div class="empty-state__copy">
-                <h2 data-i18n="empty.heading">Ready to Help.</h2>
+                <h2 id="emptyHeading" data-i18n="empty.heading">Ready to Help.</h2>
+                <p id="emptyLead" class="empty-state__lead" hidden aria-hidden="true">Ask from local documents or draft a grounded German business reply.</p>
               </div>
-
             </div>
 
             <div id="threadList" class="thread-list" aria-live="polite"></div>
@@ -171,6 +194,22 @@
             <div class="confirmation-card__actions">
               <button id="confirmButton" type="button" class="solid-button" data-i18n="confirm.approve">Approve</button>
               <button id="cancelButton" type="button" class="ghost-button" data-i18n="confirm.cancel">Cancel</button>
+            </div>
+          </div>
+
+          <div id="workspaceCreateModal" class="session-confirm-toast hidden" aria-hidden="true">
+            <div class="session-confirm-toast__backdrop"></div>
+      <div class="session-confirm-toast__dialog workspace-create-dialog" role="dialog" aria-modal="true" aria-labelledby="workspaceCreateTitle">
+        <div class="session-confirm-toast__copy workspace-create-dialog__copy">
+          <strong id="workspaceCreateTitle" data-i18n="workspace.create_title">New workspace</strong>
+        </div>
+        <label class="workspace-create-dialog__field" for="workspaceCreateInput">
+                <input id="workspaceCreateInput" type="text" maxlength="48" autocomplete="off" aria-label="Workspace name" data-i18n-placeholder="workspace.create_prompt" placeholder="Name the new workspace" />
+              </label>
+              <div class="session-confirm-toast__actions">
+                <button type="button" class="ghost-button" id="workspaceCreateCancel" data-i18n="confirm.cancel">Cancel</button>
+                <button type="button" class="solid-button" id="workspaceCreateConfirm" data-i18n="confirm.create">Create</button>
+              </div>
             </div>
           </div>
 
@@ -196,12 +235,56 @@
 
             <form id="commandForm" class="composer">
               <div id="composerUploads" class="composer-uploads hidden" aria-live="polite">
+                <div id="composerUploadsMeta" class="hidden" aria-hidden="true"></div>
+                <div id="composerUploadsStats" class="composer-uploads__stats hidden" aria-hidden="true"></div>
                 <div id="composerUploadsList" class="composer-uploads__list"></div>
               </div>
               <div class="composer__top">
-                <textarea id="commandInput" placeholder="Ask from local documents or draft a grounded German business reply" aria-label="Message KERN" data-i18n-placeholder="composer.placeholder" data-i18n-aria-label="composer.aria_label"></textarea>
+                <textarea id="commandInput" placeholder="Describe a task, workflow, or document..." aria-label="Write a message" data-i18n-placeholder="composer.placeholder" data-i18n-aria-label="composer.aria_label"></textarea>
               </div>
               <div class="composer__bottom">
+              <div class="composer__left">
+                <div class="composer-quick-actions" aria-label="Suggested tasks">
+                  <button type="button" class="composer-quick-chip prompt-chip" data-prompt-key="prompts.summarize_document" data-i18n-prompt="prompts.summarize_document">
+                    <span class="composer-quick-chip__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M7 4.75h7.286c.265 0 .52.105.707.293l3.964 3.964a1 1 0 0 1 .293.707V18.25A1.75 1.75 0 0 1 17.5 20h-10A1.75 1.75 0 0 1 5.75 18.25v-11.75A1.75 1.75 0 0 1 7.5 4.75Z" />
+                        <path d="M14 4.75v4.5h4.5" />
+                      </svg>
+                    </span>
+                    <span class="composer-quick-chip__label" data-i18n="composer.quick_summarize">Summarize a document</span>
+                  </button>
+                  <button type="button" class="composer-quick-chip prompt-chip" data-prompt-key="prompts.review_compliance" data-i18n-prompt="prompts.review_compliance">
+                    <span class="composer-quick-chip__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M12 3.5 5 6.5v5.25c0 4.4 2.7 7.8 7 8.75 4.3-.95 7-4.35 7-8.75V6.5l-7-3Z" />
+                        <path d="m9.25 12 1.85 1.85L14.9 10.05" />
+                      </svg>
+                    </span>
+                    <span class="composer-quick-chip__label" data-i18n="composer.quick_compliance">Review compliance</span>
+                  </button>
+                  <button type="button" class="composer-quick-chip prompt-chip" data-prompt-key="prompts.analyze_risk" data-i18n-prompt="prompts.analyze_risk">
+                    <span class="composer-quick-chip__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M4.75 18.25h14.5" />
+                        <path d="M7.5 15.25v-3.5" />
+                        <path d="M12 15.25V8.75" />
+                        <path d="M16.5 15.25v-5.5" />
+                      </svg>
+                    </span>
+                    <span class="composer-quick-chip__label" data-i18n="composer.quick_risk">Analyze risk</span>
+                  </button>
+                  <button type="button" class="composer-quick-chip prompt-chip" data-prompt-key="prompts.create_policy" data-i18n-prompt="prompts.create_policy">
+                    <span class="composer-quick-chip__icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <path d="M7 4.75h7.286c.265 0 .52.105.707.293l3.964 3.964a1 1 0 0 1 .293.707V18.25A1.75 1.75 0 0 1 17.5 20h-10A1.75 1.75 0 0 1 5.75 18.25v-11.75A1.75 1.75 0 0 1 7.5 4.75Z" />
+                        <path d="M9 11.25h6M9 14.25h6" />
+                      </svg>
+                    </span>
+                    <span class="composer-quick-chip__label" data-i18n="composer.quick_policy">Create a policy</span>
+                  </button>
+                </div>
+              </div>
               <div class="composer__right">
                 <div class="composer-plus-wrap">
                   <button type="button" id="composerPlusButton" class="icon-button composer-action-button" aria-label="Attach or reference" title="Attach or reference" data-i18n-aria-label="composer.attach" data-i18n-title="composer.attach" aria-expanded="false" aria-haspopup="true">
@@ -212,11 +295,12 @@
                   <div id="composerPlusMenu" class="composer-plus-menu hidden" role="menu">
                     <button type="button" class="composer-plus-menu__item" id="composerAttachFile" role="menuitem">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="composer-plus-menu__icon">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 12L4 14.5442C4 17.7892 4 19.4117 4.88607 20.5107C5.06508 20.7327 5.26731 20.9349 5.48933 21.1139C6.58831 22 8.21082 22 11.4558 22C12.1614 22 12.5141 22 12.8372 21.886C12.9044 21.8623 12.9702 21.835 13.0345 21.8043C13.3436 21.6564 13.593 21.407 14.0919 20.9081L18.8284 16.1716C19.4065 15.5935 19.6955 15.3045 19.8478 14.9369C20 14.5694 20 14.1606 20 13.3431V10C20 6.22876 20 4.34315 18.8284 3.17157C17.6569 2 15.7712 2 12 2M13 21.5V21C13 18.1716 13 16.7574 13.8787 15.8787C14.7574 15 16.1716 15 19 15H19.5" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 5C9.41016 4.39316 7.84027 2 7 2C6.15973 2 4.58984 4.39316 4 5M7 3L7 10" />
                       </svg>
                       <div class="composer-plus-menu__body">
                         <span class="composer-plus-menu__label" data-i18n="composer.upload_file">Upload file</span>
-                        <span class="composer-plus-menu__desc" data-i18n="composer.upload_file_desc">Add a local document for grounded drafting</span>
+                        <span class="composer-plus-menu__desc" data-i18n="composer.upload_file_desc">Add a PDF, Word file, spreadsheet, or notes</span>
                       </div>
                     </button>
                     <button type="button" class="composer-plus-menu__item" id="composerKbAction" role="menuitem" aria-expanded="false">
@@ -225,7 +309,7 @@
                       </svg>
                       <div class="composer-plus-menu__body">
                         <span class="composer-plus-menu__label" data-i18n="composer.from_kb">From knowledge base</span>
-                        <span class="composer-plus-menu__desc" data-i18n="composer.from_kb_desc">Reference an indexed local document</span>
+                        <span class="composer-plus-menu__desc" data-i18n="composer.from_kb_desc">Choose one of your saved documents</span>
                       </div>
                     </button>
                     <div id="composerKbPicker" class="composer-kb-picker hidden">
@@ -235,7 +319,19 @@
                   </div>
                 </div>
                 <input id="composerFileInput" type="file" accept=".pdf,.txt,.md,.csv,.xlsx,.xls,.doc,.docx,.eml,.json,.html,.htm,.rtf" multiple hidden />
-                <button type="submit" id="sendButton" class="send-button" data-i18n="composer.send">Send</button>
+                <button
+                  type="submit"
+                  id="sendButton"
+                  class="send-button"
+                  aria-label="Send message"
+                  title="Send message"
+                  data-i18n-aria-label="composer.send"
+                  data-i18n-title="composer.send"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" class="send-button__icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 12h11.5m-4.75-4.75L16.75 12 12 16.75" />
+                  </svg>
+                </button>
               </div>
             </div>
           </form>
@@ -316,804 +412,6 @@
       </section>
     </div>
 
-    <div id="utilityModal" class="settings-modal hidden utility-modal" aria-hidden="true">
-      <div id="utilityBackdrop" class="settings-modal__backdrop"></div>
-      <section class="settings-modal__dialog utility-modal__dialog" role="dialog" aria-modal="true" aria-label="Utility controls">
-        <aside class="settings-modal__sidebar">
-          <button type="button" id="closeUtilityModal" class="settings-modal__close" aria-label="Close utility">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
-              <path d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-
-          <div class="workbench-brand">
-            <span class="eyebrow">Workbench</span>
-            <strong>Operate, govern, and review the live workspace.</strong>
-            <p>The control plane now separates workspace activity, governance, and evidence inside one authenticated shell.</p>
-          </div>
-
-          <nav class="settings-modal__nav" role="tablist" aria-label="Workbench sections">
-            <button type="button" role="tab" aria-selected="true" class="settings-modal__nav-item utility-tab is-active" data-tab="workspace" title="Workspace" aria-label="Workspace">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
-              </svg>
-              <span class="utility-tab__label">Workspace</span>
-            </button>
-            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab" data-tab="admin" data-role-allow="org_admin,org_owner,break_glass_admin" title="Admin" aria-label="Admin">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 6.75h15m-15 5.25h15m-15 5.25h9M8.25 3.75v16.5m7.5-16.5v16.5" />
-              </svg>
-              <span class="utility-tab__label">Admin</span>
-            </button>
-            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab" data-tab="compliance" data-role-allow="member,org_admin,org_owner,auditor,break_glass_admin" title="Compliance" aria-label="Compliance">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3.75 4.5 7.5v4.125c0 4.664 3.182 8.844 7.5 10.125 4.318-1.281 7.5-5.461 7.5-10.125V7.5L12 3.75Zm0 5.25v5.25m0 3h.008" />
-              </svg>
-              <span class="utility-tab__label">Compliance</span>
-            </button>
-            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab" data-tab="intelligence" data-role-allow="member,org_admin,org_owner,auditor,break_glass_admin" title="Intelligence" aria-label="Intelligence">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
-              </svg>
-              <span class="utility-tab__label">Intelligence</span>
-            </button>
-            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab hidden" data-tab="comms" title="Data &amp; Comms" aria-label="Data and Communications">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M7.875 14.25l1.214 1.942a2.25 2.25 0 0 0 1.908 1.058h1.006c.776 0 1.497-.4 1.908-1.058l1.214-1.942M2.41 9h4.636a2.25 2.25 0 0 1 1.872 1.002l.164.246a2.25 2.25 0 0 0 1.872 1.002h2.092a2.25 2.25 0 0 0 1.872-1.002l.164-.246A2.25 2.25 0 0 1 16.954 9h4.636M2.41 9a2.25 2.25 0 0 0-.16.832V12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 12V9.832c0-.287-.055-.57-.16-.832M2.41 9a2.25 2.25 0 0 1 .382-.632l3.285-3.832a2.25 2.25 0 0 1 1.708-.786h8.43c.657 0 1.281.287 1.709.786l3.284 3.832c.163.19.291.404.382.632M4.5 20.25h15A2.25 2.25 0 0 0 21.75 18v-2.625c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125V18a2.25 2.25 0 0 0 2.25 2.25z" />
-              </svg>
-              <span class="utility-tab__label">Data &amp; Comms</span>
-            </button>
-            <button type="button" role="tab" aria-selected="false" class="settings-modal__nav-item utility-tab" data-tab="evidence" data-role-allow="org_admin,org_owner,auditor,break_glass_admin" title="Evidence" aria-label="Evidence" style="position:relative">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="utility-tab__icon">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-              </svg>
-              <span class="utility-tab__label">Evidence</span>
-              <span id="alertBadge" class="alert-badge hidden" aria-label="Pending alerts"></span>
-            </button>
-          </nav>
-        </aside>
-
-        <div class="settings-modal__content">
-        <section role="tabpanel" class="utility-panel is-active" data-panel="workspace">
-          <div class="workbench-hero">
-            <div class="workbench-hero__copy">
-              <span class="eyebrow">Workspace cockpit</span>
-              <strong>Daily context, documents, and communication stay anchored to the selected workspace.</strong>
-              <p>Use this surface for live context, uploads, and the exact workspace state the assistant is allowed to use.</p>
-            </div>
-            <div id="workspaceSummaryState" class="panel-state panel-state--success">
-              <div class="panel-state__head">
-                <span class="panel-state__pill">Active workspace</span>
-                <strong id="workspaceSummaryTitle" class="panel-state__title">Loading workspace context…</strong>
-              </div>
-              <p id="workspaceSummaryBody" class="panel-state__body">Fetching memberships, scope, and assignment details.</p>
-            </div>
-          </div>
-
-          <div class="workbench-metric-grid" id="workspaceMetricGrid"></div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Accessible workspaces</span>
-              <button type="button" id="workspaceRefreshButton" class="ghost-button">Refresh</button>
-            </div>
-            <ul id="workspaceAccessList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Knowledge</span>
-              <strong id="knowledgeBackend">Lexical</strong>
-            </div>
-            <p id="knowledgeState">Knowledge search is ready.</p>
-            <div class="settings-inline-actions">
-              <input id="knowledgeQuery" class="settings-text-input" type="search" placeholder="Search memory, documents, and archives" />
-              <button type="button" id="knowledgeSearchButton" class="ghost-button">Search</button>
-            </div>
-            <ul id="knowledgeResults" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Brief</span>
-              <strong id="briefDate">Not generated yet</strong>
-            </div>
-            <p id="focusText">Ask for a workspace summary to populate this panel.</p>
-            <p id="musicText">No follow-up suggestion yet.</p>
-          </div>
-
-          <div class="inspector-block">
-            <span class="eyebrow">Events</span>
-            <ul id="eventsList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <span class="eyebrow">Tasks</span>
-            <ul id="tasksList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <span class="eyebrow">Reminders</span>
-            <ul id="remindersList" class="detail-list reminder-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <span class="eyebrow">What KERN knows</span>
-            <ul id="contextList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <span class="eyebrow">Suggestions</span>
-            <p id="proactiveReason">No proactive prompt is active.</p>
-            <p id="proactiveText">KERN stays quiet until a local signal matters.</p>
-          </div>
-        </section>
-
-        <section role="tabpanel" class="utility-panel" data-panel="admin">
-          <div class="workbench-hero">
-            <div class="workbench-hero__copy">
-              <span class="eyebrow">Identity &amp; ownership</span>
-              <strong>Provision the organization, assign access, and keep sessions contained.</strong>
-              <p>Every workflow here is HTTP-backed, user-attributed, and scoped to the selected organization and workspace context.</p>
-            </div>
-            <div id="adminAccessState" class="panel-state panel-state--warning">
-              <div class="panel-state__head">
-                <span class="panel-state__pill">Admin posture</span>
-                <strong class="panel-state__title">Manual approval is active.</strong>
-              </div>
-              <p class="panel-state__body">Workspace creation, user approval, and session revocation are role-gated and auditable.</p>
-            </div>
-          </div>
-
-          <div class="workbench-metric-grid" id="adminMetricGrid"></div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Create workspace</span>
-                <button type="button" id="adminRefreshButton" class="ghost-button">Refresh</button>
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-label">Workspace slug</label>
-                <input id="adminWorkspaceSlug" type="text" class="settings-text-input" placeholder="finance-desk" />
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-label">Workspace title</label>
-                <input id="adminWorkspaceTitle" type="text" class="settings-text-input" placeholder="Finance Desk" />
-              </div>
-              <div class="settings-inline-actions">
-                <button type="button" id="adminCreateWorkspaceButton" class="solid-button">Create workspace</button>
-              </div>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Invite user</span>
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-label">Email</label>
-                <input id="adminUserEmail" type="email" class="settings-text-input" placeholder="name@company.de" />
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-label">Display name</label>
-                <input id="adminUserDisplayName" type="text" class="settings-text-input" placeholder="Ayla Demir" />
-              </div>
-              <div class="settings-inline-actions">
-                <select id="adminUserRole" class="settings-select">
-                  <option value="member">Member</option>
-                  <option value="org_admin">Org admin</option>
-                  <option value="auditor">Auditor</option>
-                </select>
-                <select id="adminUserWorkspace" class="settings-select"></select>
-                <button type="button" id="adminCreateUserButton" class="solid-button">Invite user</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Pending approvals</span>
-              </div>
-              <ul id="adminPendingUsersList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Workspaces</span>
-              </div>
-              <ul id="adminWorkspaceList" class="detail-list"></ul>
-            </div>
-          </div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Users</span>
-              </div>
-              <ul id="adminUsersList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Active sessions</span>
-              </div>
-              <ul id="adminSessionsList" class="detail-list"></ul>
-            </div>
-          </div>
-        </section>
-
-        <section role="tabpanel" class="utility-panel" data-panel="compliance">
-          <div class="workbench-hero">
-            <div class="workbench-hero__copy">
-              <span class="eyebrow">Compliance queue</span>
-              <strong>Retention, legal holds, export evidence, and erasure all flow through explicit review states.</strong>
-              <p>Every action is shown with current status, blocking reason, and the resulting evidence artifacts.</p>
-            </div>
-            <div id="complianceStateCard" class="panel-state panel-state--warning">
-              <div class="panel-state__head">
-                <span class="panel-state__pill">Governance defaults</span>
-                <strong class="panel-state__title">Retention locks outrank deletion.</strong>
-              </div>
-              <p class="panel-state__body">Legal holds override erasure, retention locks override standard deletion, and immutable audit records are pseudonymized rather than removed.</p>
-            </div>
-          </div>
-
-          <div class="workbench-metric-grid" id="complianceMetricGrid"></div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">My data export</span>
-              </div>
-              <p>Generate an evidence-backed export for the signed-in account in the selected workspace context.</p>
-              <div class="settings-inline-actions">
-                <button type="button" id="generateMyExportButton" class="solid-button">Generate my export</button>
-              </div>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">My erasure request</span>
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-label">Reason</label>
-                <textarea id="selfErasureReason" rows="3" class="settings-text-input" placeholder="Describe the request context for audit review."></textarea>
-              </div>
-              <div class="settings-inline-actions">
-                <button type="button" id="createSelfErasureButton" class="ghost-button">Create erasure request</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Retention presets</span>
-              </div>
-              <div class="settings-inline-actions">
-                <select id="retentionDataClass" class="settings-select">
-                  <option value="personal">Personal</option>
-                  <option value="regulated_business">Regulated business</option>
-                  <option value="operational">Operational</option>
-                  <option value="security_audit">Security audit</option>
-                </select>
-                <input id="retentionDays" type="number" min="1" step="1" class="settings-text-input" placeholder="365" />
-                <label class="ghost-button">
-                  <input id="retentionLegalHoldEnabled" type="checkbox" />
-                  Legal hold enabled
-                </label>
-                <button type="button" id="saveRetentionPolicyButton" class="solid-button">Save preset</button>
-              </div>
-              <ul id="complianceRetentionList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Legal holds</span>
-              </div>
-              <div class="settings-form-group">
-                <label class="settings-label">Reason</label>
-                <textarea id="legalHoldReason" rows="3" class="settings-text-input" placeholder="Regulatory investigation or litigation trigger."></textarea>
-              </div>
-              <div class="settings-inline-actions">
-                <select id="legalHoldWorkspace" class="settings-select"></select>
-                <button type="button" id="createLegalHoldButton" class="solid-button">Create hold</button>
-              </div>
-              <ul id="complianceHoldList" class="detail-list"></ul>
-            </div>
-          </div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Erasure queue</span>
-              </div>
-              <ul id="complianceErasureList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Export jobs</span>
-              </div>
-              <div class="settings-inline-actions">
-                <button type="button" id="generateWorkspaceExportButton" class="ghost-button">Generate workspace export</button>
-              </div>
-              <ul id="complianceExportList" class="detail-list"></ul>
-            </div>
-          </div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Regulated document candidates</span>
-              </div>
-              <ul id="regulatedCandidateList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Finalized regulated documents</span>
-              </div>
-              <ul id="regulatedDocumentWorkbenchList" class="detail-list"></ul>
-            </div>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Data inventory</span>
-            </div>
-            <ul id="complianceInventoryList" class="detail-list"></ul>
-          </div>
-        </section>
-
-        <section role="tabpanel" class="utility-panel" data-panel="intelligence">
-          <div class="workbench-hero">
-            <div class="workbench-hero__copy">
-              <span class="eyebrow">Worker amplifier</span>
-              <strong>KERN prepares work before it drafts language.</strong>
-              <p>Use this surface to see what is ready, what is blocked, which evidence was gathered, and what still needs your judgment.</p>
-            </div>
-            <div id="intelligenceStateCard" class="panel-state panel-state--success">
-              <div class="panel-state__head">
-                <span class="panel-state__pill">Preparation first</span>
-                <strong class="panel-state__title">The local engine prepares context and drafts before the LLM rewrites.</strong>
-              </div>
-              <p class="panel-state__body">Work readiness, missing inputs, evidence packs, and private patterns drive what shows up here.</p>
-            </div>
-          </div>
-
-          <div hidden aria-hidden="true">
-            <div class="utility-group-label">Plan</div>
-            <ul id="planList" class="detail-list"></ul>
-            <ul id="receiptList" class="detail-list"></ul>
-            <ul id="capabilityList" class="detail-list"></ul>
-          </div>
-
-          <div class="workbench-metric-grid" id="intelligenceMetricGrid"></div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Prepared work</span>
-              </div>
-              <ul id="recommendationList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Missing pieces</span>
-              </div>
-              <ul id="obligationList" class="detail-list"></ul>
-            </div>
-          </div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Focus hints</span>
-              </div>
-              <ul id="workflowList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Decision history</span>
-              </div>
-              <ul id="decisionHistoryList" class="detail-list"></ul>
-            </div>
-          </div>
-
-          <div class="utility-group-label">Knowledge Graph</div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Knowledge Graph</span>
-              <div class="settings-inline-actions">
-                <input id="kgSearchInput" class="settings-text-input" type="search" placeholder="Search entities…" />
-                <button type="button" id="kgSearchButton" class="ghost-button">Search</button>
-                <button type="button" id="kgBuildButton" class="ghost-button">Build</button>
-              </div>
-            </div>
-            <p id="kgStatus" class="inspector-hint">No graph data loaded. Click Build to extract entities from documents.</p>
-          </div>
-          <div class="inspector-block" id="kgCanvasBlock" style="display:none">
-            <canvas id="kgCanvas" class="kg-canvas" width="540" height="380"></canvas>
-          </div>
-          <div class="inspector-block" id="kgResultsBlock" style="display:none">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Entities</span>
-            </div>
-            <ul id="kgResultsList" class="detail-list"></ul>
-          </div>
-
-          <div class="utility-group-label">Memory</div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Conversation Memory</span>
-            </div>
-            <div class="settings-inline-actions">
-              <input id="memorySearchInput" class="settings-text-input" type="search" placeholder="Search past conversations…" />
-              <input id="memoryDateFrom" class="settings-text-input" type="date" style="max-width:140px" title="From date" />
-              <input id="memoryDateTo" class="settings-text-input" type="date" style="max-width:140px" title="To date" />
-              <button type="button" id="memorySearchButton" class="ghost-button">Search</button>
-            </div>
-          </div>
-          <div class="inspector-block" id="memoryTimelineBlock" style="display:none">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Timeline</span>
-              <span id="memoryTimelineCount" class="text-soft"></span>
-            </div>
-            <div id="memoryTimeline" class="memory-timeline"></div>
-          </div>
-          <div class="inspector-block" id="memoryResultsBlock" style="display:none">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Matching turns</span>
-            </div>
-            <ul id="memoryResultsList" class="detail-list"></ul>
-          </div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Promotion candidates</span>
-              </div>
-              <ul id="promotionCandidatesList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Training candidates</span>
-              </div>
-              <ul id="trainingExamplesList" class="detail-list"></ul>
-            </div>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Training exports</span>
-              <button type="button" id="createTrainingExportButton" class="solid-button">Create training export</button>
-            </div>
-            <ul id="trainingExportsList" class="detail-list"></ul>
-          </div>
-        </section>
-
-        <section role="tabpanel" class="utility-panel" data-panel="workspace">
-          <div class="utility-group-label">Documents &amp; Knowledge</div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Documents</span>
-              <label class="ghost-button" style="cursor:pointer">
-                Upload files
-                <input id="bulkFileInput" type="file" multiple accept=".pdf,.txt,.md,.csv,.xlsx,.xls,.doc,.docx,.eml,.json,.html,.htm,.rtf" style="display:none" />
-              </label>
-            </div>
-            <div id="dropZone" class="drop-zone" aria-label="Drop files here to ingest">
-              <span class="drop-zone__hint">Drop files or folders here</span>
-              <div id="uploadProgress" class="upload-progress hidden">
-                <span id="uploadProgressLabel" class="upload-progress__label">Uploading…</span>
-                <div class="upload-progress__bar"><div id="uploadProgressFill" class="upload-progress__fill"></div></div>
-              </div>
-            </div>
-            <div id="uploadOutcomeCard" class="upload-outcome-card hidden" aria-live="polite">
-              <div class="upload-outcome-card__head">
-                <span id="uploadOutcomeEyebrow" class="eyebrow" data-i18n="upload.card_eyebrow">Latest upload</span>
-                <span id="uploadOutcomePill" class="upload-outcome-card__pill">Ready</span>
-              </div>
-              <strong id="uploadOutcomeTitle" class="upload-outcome-card__title"></strong>
-              <p id="uploadOutcomeMeta" class="upload-outcome-card__meta"></p>
-              <div id="uploadOutcomeStats" class="upload-outcome-card__stats"></div>
-              <p id="uploadOutcomeBody" class="upload-outcome-card__body"></p>
-              <div class="upload-outcome-card__actions">
-                <button type="button" id="uploadOutcomePrimary" class="solid-button"></button>
-                <button type="button" id="uploadOutcomeSecondary" class="ghost-button"></button>
-                <button type="button" id="uploadOutcomeCompare" class="ghost-button hidden"></button>
-              </div>
-            </div>
-            <ul id="documentsList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Business documents</span>
-            </div>
-            <ul id="businessDocsList" class="detail-list"></ul>
-          </div>
-
-          <div class="utility-group-label">Email</div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Mailbox</span>
-              <button type="button" id="syncMailboxButton" class="ghost-button">Sync mailbox</button>
-            </div>
-            <ul id="mailboxList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Email accounts</span>
-            </div>
-            <ul id="emailAccountsList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Drafts</span>
-            </div>
-            <ul id="draftsList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Email suggestions</span>
-            </div>
-            <ul id="emailSuggestionsList" class="detail-list"></ul>
-          </div>
-
-          <div class="utility-group-label">Meetings</div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Meetings</span>
-            </div>
-            <ul id="meetingsList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Meeting summaries</span>
-            </div>
-            <ul id="meetingReviewsList" class="detail-list"></ul>
-          </div>
-        </section>
-
-        <section role="tabpanel" class="utility-panel" data-panel="evidence">
-          <div class="workbench-hero">
-            <div class="workbench-hero__copy">
-              <span class="eyebrow">Evidence &amp; operations</span>
-              <strong>Watch runtime health, export manifests, backup state, and compliance lineage in one place.</strong>
-              <p>This view is optimized for operators and auditors: it separates support material from formal evidence and surfaces blocked states instead of hiding them.</p>
-            </div>
-            <div id="evidenceStateCard" class="panel-state panel-state--success">
-              <div class="panel-state__head">
-                <span class="panel-state__pill">Traceability</span>
-                <strong class="panel-state__title">Artifacts stay attributable.</strong>
-              </div>
-              <p class="panel-state__body">Support bundles, governance exports, subject exports, and training exports are rendered as distinct evidence classes with manifest visibility.</p>
-            </div>
-          </div>
-
-          <div class="workbench-metric-grid" id="evidenceMetricGrid"></div>
-
-          <div class="inspector-block inspector-block--toggles">
-            <label class="toggle-row">
-              <span>Local mode</span>
-              <input id="localModeToggle" type="checkbox" checked />
-            </label>
-          </div>
-
-          <div class="utility-group-label">System Health</div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">System status</span>
-              <span id="deviceProfileName" class="meta-text">default</span>
-            </div>
-            <p id="deviceProfileMeta">No verified actions yet.</p>
-          </div>
-
-          <div class="mini-grid">
-            <div class="mini-stat">
-              <span>Voice</span>
-              <strong id="voiceBackendName">Local TTS</strong>
-              <small id="voiceBackendStatus">Waiting.</small>
-            </div>
-          </div>
-
-          <div class="mini-grid">
-            <div class="mini-stat">
-              <span>Profile</span>
-              <strong id="systemProfileName">default</strong>
-              <small id="systemProfileState">Unlocked</small>
-            </div>
-            <div class="mini-stat">
-              <span>Memory scope</span>
-              <strong id="systemMemoryScope">profile</strong>
-            </div>
-            <div class="mini-stat">
-              <span>Memory</span>
-              <strong id="checkMemory">unknown</strong>
-            </div>
-            <div class="mini-stat">
-              <span>Cognition</span>
-              <strong id="checkCognition">unknown</strong>
-            </div>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Running tasks</span>
-            </div>
-            <ul id="jobsList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Security log</span>
-            </div>
-            <ul id="auditList" class="detail-list"></ul>
-          </div>
-
-          <div class="utility-group-label">Backup &amp; Sync</div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Backup locations</span>
-            </div>
-            <ul id="backupTargetsList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Saved backups</span>
-            </div>
-            <ul id="backupFilesList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Sync destinations</span>
-            </div>
-            <ul id="syncTargetsList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Recovery</span>
-            </div>
-            <ul id="recoveryList" class="detail-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Recent activity</span>
-              <a id="exportLogsLink" href="/logs/export" class="ghost-link" target="_blank" rel="noreferrer">Export logs</a>
-            </div>
-            <ul id="activityLog" class="detail-list"></ul>
-          </div>
-
-          <div class="utility-group-label">Formal Evidence</div>
-
-          <div class="workbench-two-column">
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Export manifests</span>
-              </div>
-              <ul id="evidenceManifestList" class="detail-list"></ul>
-            </div>
-
-            <div class="inspector-block">
-              <div class="inspector-block__head">
-                <span class="eyebrow">Training datasets</span>
-              </div>
-              <ul id="evidenceTrainingManifestList" class="detail-list"></ul>
-            </div>
-          </div>
-
-          <div class="utility-group-label">Audit Log</div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Network isolation</span>
-              <span id="auditNetworkStatus" class="meta-text">Checking...</span>
-            </div>
-            <p id="auditNetworkDetail">Monitoring KERN process for unexpected outbound connections.</p>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Activity log</span>
-              <div class="settings-inline-actions">
-                <select id="auditCategoryFilter" class="settings-select">
-                  <option value="">All categories</option>
-                  <option value="security">Security</option>
-                  <option value="backup">Backup</option>
-                  <option value="runtime">Runtime</option>
-                  <option value="documents">Documents</option>
-                  <option value="audit">Audit</option>
-                  <option value="network">Network</option>
-                  <option value="scheduler">Scheduler</option>
-                </select>
-                <button type="button" id="exportAuditButton" class="ghost-button">Export JSON</button>
-              </div>
-            </div>
-            <ul id="auditLogList" class="detail-list audit-log-list"></ul>
-          </div>
-
-          <div class="inspector-block hidden">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Domain notes</span>
-            </div>
-            <ul id="domainNotesList" class="detail-list"></ul>
-          </div>
-
-          <div class="utility-group-label">Schedules &amp; Alerts</div>
-
-          <div class="inspector-block" id="proactiveAlertsBlock" style="display:none">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Alerts</span>
-              <button type="button" id="dismissAllAlertsButton" class="ghost-button">Dismiss all</button>
-            </div>
-            <ul id="proactiveAlertsList" class="detail-list proactive-alerts-list"></ul>
-          </div>
-
-          <div class="inspector-block">
-            <div class="inspector-block__head">
-              <span class="eyebrow">Scheduled tasks</span>
-              <button type="button" id="addScheduleButton" class="ghost-button">Add schedule</button>
-            </div>
-            <ul id="scheduleList" class="detail-list"></ul>
-          </div>
-
-          <div id="addScheduleForm" class="inspector-block hidden">
-            <span class="eyebrow">New schedule</span>
-            <div class="settings-form-group">
-              <label class="settings-label">Title</label>
-              <input id="scheduleTitle" type="text" class="settings-text-input" placeholder="Daily summary" />
-            </div>
-            <div class="settings-form-group">
-              <label class="settings-label">Frequency</label>
-              <select id="scheduleFrequency" class="settings-select">
-                <option value="0 9 * * *">Daily at 9am</option>
-                <option value="0 9 * * 1">Weekly (Monday 9am)</option>
-                <option value="0 9 1 * *">Monthly (1st at 9am)</option>
-                <option value="custom">Custom cron</option>
-              </select>
-              <input id="scheduleCron" type="text" class="settings-text-input hidden" placeholder="0 9 * * *" />
-            </div>
-            <div class="settings-form-group">
-              <label class="settings-label">Action</label>
-              <select id="scheduleActionType" class="settings-select">
-                <option value="custom_prompt">Custom prompt</option>
-                <option value="summarize_emails">Summarize emails</option>
-                <option value="generate_report">Generate report</option>
-              </select>
-              <textarea id="scheduleActionPayload" class="settings-text-input" rows="2" placeholder="What should KERN do?"></textarea>
-            </div>
-            <div class="settings-inline-actions">
-              <button type="button" id="saveScheduleButton" class="solid-button">Save schedule</button>
-              <button type="button" id="cancelScheduleButton" class="ghost-button">Cancel</button>
-            </div>
-          </div>
-        </section>
-        </div>
-      </section>
-    </div>
-
     <div id="settingsModal" class="settings-modal hidden" aria-hidden="true">
       <div id="settingsBackdrop" class="settings-modal__backdrop"></div>
       <section class="settings-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
@@ -1127,25 +425,27 @@
           <nav class="settings-modal__nav" aria-label="Settings sections">
             <button type="button" class="settings-modal__nav-item is-active" data-settings-section-nav="appearance">
               <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
-                <path d="M12 3.75a8.25 8.25 0 1 0 0 16.5 8.25 8.25 0 0 0 0-16.5Zm0 0v16.5" />
+                <path d="M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C12.8417 22 14 22.1163 14 21C14 20.391 13.6832 19.9212 13.3686 19.4544C12.9082 18.7715 12.4523 18.0953 13 17C13.6667 15.6667 14.7778 15.6667 16.4815 15.6667C17.3334 15.6667 18.3334 15.6667 19.5 15.5C21.601 15.1999 22 13.9084 22 12Z" />
+                <circle cx="9.5" cy="8.5" r="1.5" />
+                <circle cx="16.5" cy="9.5" r="1.5" />
+                <path d="M7.125 15H7M7.25 15C7.25 15.1381 7.13807 15.25 7 15.25C6.86193 15.25 6.75 15.1381 6.75 15C6.75 14.8619 6.86193 14.75 7 14.75C7.13807 14.75 7.25 14.8619 7.25 15Z" />
               </svg>
               <span>Appearance</span>
             </button>
             <button type="button" class="settings-modal__nav-item" data-settings-section-nav="profile">
               <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
-                <path d="M12 3.75a3.75 3.75 0 1 1 0 7.5 3.75 3.75 0 0 1 0-7.5Zm-6.75 15a6.75 6.75 0 1 1 13.5 0" />
+                <path d="M14 7.5C14 4.73858 11.7614 2.5 9 2.5C6.23858 2.5 4 4.73858 4 7.5C4 10.2614 6.23858 12.5 9 12.5C11.7614 12.5 14 10.2614 14 7.5Z" />
+                <path d="M16 19.5C16 15.634 12.866 12.5 9 12.5C5.13401 12.5 2 15.634 2 19.5" />
+                <path d="M19 13L19 14.5M19 13C19.737 13 20.3809 12.6013 20.7278 12.0079M19 13C18.263 13 17.6191 12.6013 17.2722 12.0079M19 9L19 7.5M19 9C19.737 9 20.3809 9.39866 20.7278 9.99209M19 9C18.263 9 17.6191 9.39865 17.2722 9.99209M22 9.25L20.7278 9.99209M16 12.75L17.2722 12.0079M22 12.75L20.7278 12.0079M16 9.25L17.2722 9.99209M20.7278 12.0079C20.9009 11.7119 21 11.3676 21 11C21 10.6324 20.9009 10.288 20.7278 9.99209M17.2722 9.99209C17.0992 10.288 17 10.6324 17 11C17 11.3676 17.0991 11.712 17.2722 12.0079" />
               </svg>
               <span>Profile</span>
             </button>
-            <button type="button" class="settings-modal__nav-item" data-settings-section-nav="model">
-              <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
-                <path d="M9 3.75V6m6-2.25V6m-6 12v2.25m6-2.25v2.25M3.75 9H6m-2.25 6H6m12-6h2.25M18 15h2.25M7.5 6.75h9A2.25 2.25 0 0 1 18.75 9v6a2.25 2.25 0 0 1-2.25 2.25h-9A2.25 2.25 0 0 1 5.25 15V9A2.25 2.25 0 0 1 7.5 6.75Zm3 3h3v4.5h-3v-4.5Z" />
-              </svg>
-              <span>AI &amp; Models</span>
-            </button>
             <button type="button" class="settings-modal__nav-item" data-settings-section-nav="domains">
               <svg viewBox="0 0 24 24" aria-hidden="true" class="sidebar-nav__icon">
-                <path d="M4.5 4.5h6.75v6.75H4.5V4.5Zm8.25 0h6.75v6.75h-6.75V4.5Zm-8.25 8.25h6.75v6.75H4.5v-6.75Zm8.25 0h6.75v6.75h-6.75v-6.75Z" />
+                <path d="M3.88884 9.66294C4.39329 10 5.09552 10 6.49998 10C7.90445 10 8.60668 10 9.11113 9.66294C9.32951 9.51702 9.51701 9.32952 9.66292 9.11114C9.99998 8.60669 9.99998 7.90446 9.99998 6.5C9.99998 5.09554 9.99998 4.39331 9.66292 3.88886C9.51701 3.67048 9.32951 3.48298 9.11113 3.33706C8.60668 3 7.90445 3 6.49998 3C5.09552 3 4.39329 3 3.88884 3.33706C3.67046 3.48298 3.48296 3.67048 3.33705 3.88886C2.99998 4.39331 2.99998 5.09554 2.99998 6.5C2.99998 7.90446 2.99998 8.60669 3.33705 9.11114C3.48296 9.32952 3.67046 9.51702 3.88884 9.66294Z" />
+                <path d="M14.8888 9.66294C15.3933 10 16.0955 10 17.5 10C18.9044 10 19.6067 10 20.1111 9.66294C20.3295 9.51702 20.517 9.32952 20.6629 9.11114C21 8.60669 21 7.90446 21 6.5C21 5.09554 21 4.39331 20.6629 3.88886C20.517 3.67048 20.3295 3.48298 20.1111 3.33706C19.6067 3 18.9044 3 17.5 3C16.0955 3 15.3933 3 14.8888 3.33706C14.6705 3.48298 14.483 3.67048 14.337 3.88886C14 4.39331 14 5.09554 14 6.5C14 7.90446 14 8.60669 14.337 9.11114C14.483 9.32952 14.6705 9.51702 14.8888 9.66294Z" />
+                <path d="M3.88884 20.6629C4.39329 21 5.09552 21 6.49998 21C7.90445 21 8.60668 21 9.11113 20.6629C9.32951 20.517 9.51701 20.3295 9.66292 20.1111C9.99998 19.6067 9.99998 18.9045 9.99998 17.5C9.99998 16.0955 9.99998 15.3933 9.66292 14.8889C9.51701 14.6705 9.32951 14.483 9.11113 14.3371C8.60668 14 7.90445 14 6.49998 14C5.09552 14 4.39329 14 3.88884 14.3371C3.67046 14.483 3.48296 14.6705 3.33705 14.8889C2.99998 15.3933 2.99998 16.0955 2.99998 17.5C2.99998 18.9045 2.99998 19.6067 3.33705 20.1111C3.48296 20.3295 3.67046 20.517 3.88884 20.6629Z" />
+                <path d="M14.8888 20.6629C15.3933 21 16.0955 21 17.5 21C18.9044 21 19.6067 21 20.1111 20.6629C20.3295 20.517 20.517 20.3295 20.6629 20.1111C21 19.6067 21 18.9045 21 17.5C21 16.0955 21 15.3933 20.6629 14.8889C20.517 14.6705 20.3295 14.483 20.1111 14.3371C19.6067 14 18.9044 14 17.5 14C16.0955 14 15.3933 14 14.8888 14.3371C14.6705 14.483 14.483 14.6705 14.337 14.8889C14 15.3933 14 16.0955 14 17.5C14 18.9045 14 19.6067 14.337 20.1111C14.483 20.3295 14.6705 20.517 14.8888 20.6629Z" />
               </svg>
               <span>Domains</span>
             </button>
@@ -1225,6 +525,33 @@
               <span>Data scope</span>
               <strong id="settingsMemoryScope">profile</strong>
             </div>
+            <div class="settings-row settings-row--stack">
+              <span data-i18n="settings.chat_style">Response style</span>
+              <select id="settingsChatStyleMode" class="settings-select" aria-label="Response style" data-i18n-aria-label="settings.chat_style">
+                <option value="natural" data-i18n="settings.chat_style_natural">Natural</option>
+                <option value="pragmatic" data-i18n="settings.chat_style_pragmatic">Pragmatic</option>
+                <option value="friendly" data-i18n="settings.chat_style_friendly">Friendly</option>
+                <option value="analyst" data-i18n="settings.chat_style_analyst">Analyst</option>
+                <option value="custom" data-i18n="settings.chat_style_custom">Custom</option>
+              </select>
+              <p class="meta-text" data-i18n="settings.chat_style_hint">This changes Gemma's tone, not KERN's grounding and safety rules.</p>
+            </div>
+            <div class="settings-row settings-row--stack">
+              <span data-i18n="settings.chat_custom_prompt">Custom style prompt</span>
+              <textarea
+                id="settingsChatCustomPrompt"
+                class="settings-text-input settings-textarea"
+                rows="5"
+                maxlength="1200"
+                placeholder="Example: Be blunt, concise, and avoid salesy wording."
+                data-i18n-placeholder="settings.chat_custom_prompt_placeholder"
+              ></textarea>
+              <p class="meta-text" data-i18n="settings.chat_custom_prompt_hint">Use this for tone and communication preferences. KERN still keeps its grounding and policy boundaries.</p>
+              <div class="settings-inline-actions">
+                <button type="button" id="settingsSaveChatStyle" class="ghost-button" data-i18n="settings.chat_style_save">Save response style</button>
+                <button type="button" id="settingsClearChatStyle" class="ghost-button" data-i18n="settings.chat_style_clear">Clear custom prompt</button>
+              </div>
+            </div>
             <div class="settings-row">
               <span>Documents root</span>
               <strong id="settingsDocumentsRoot">Not configured</strong>
@@ -1270,6 +597,10 @@
               <strong id="settingsAuditChain">Unverified</strong>
             </div>
             <div class="settings-row">
+              <span>Runtime logs</span>
+              <a id="exportLogsLink" class="ghost-button" href="/logs/export" aria-disabled="false">Export logs</a>
+            </div>
+            <div class="settings-row">
               <span>Local encryption</span>
               <strong id="settingsDbEncryption">Off</strong>
             </div>
@@ -1297,6 +628,15 @@
                 <button type="button" id="settingsCreateBackup" class="ghost-button">Create encrypted backup</button>
               </div>
             </div>
+            <div id="settingsBackupStatusCard" class="settings-story-card">
+              <div class="settings-story-card__head">
+                <span class="eyebrow">Recovery posture</span>
+                <span id="settingsBackupStatusPill" class="settings-story-card__pill">Pending</span>
+              </div>
+              <strong id="settingsBackupStatusTitle" class="settings-story-card__title">No encrypted backup has been recorded yet.</strong>
+              <p id="settingsBackupStatusBody" class="settings-story-card__body">Create the first encrypted backup before treating this local workspace as recoverable.</p>
+              <ul id="settingsBackupStatusFacts" class="settings-story-card__facts"></ul>
+            </div>
             <div class="settings-row settings-row--stack">
               <span>Support bundle</span>
               <strong id="settingsSupportBundlePath">No support bundle exported yet</strong>
@@ -1321,7 +661,7 @@
               <p id="settingsUpdateBody" class="settings-story-card__body">KERN records the last backup and restore attempt so the pilot operator can validate rollback state before changing installs.</p>
               <ul id="settingsUpdateFacts" class="settings-story-card__facts"></ul>
             </div>
-            <div class="settings-story-card">
+            <div class="settings-story-card" id="settingsDataLifecycleCard">
               <div class="settings-story-card__head">
                 <span class="eyebrow">Data lifecycle</span>
                 <span class="settings-story-card__pill">Local</span>
@@ -1331,83 +671,10 @@
             </div>
           </section>
 
-          <section class="settings-section" data-settings-section="model" data-settings-title="AI &amp; Models">
-            <span class="meta-text" id="settingsVersion">v0.0.0</span>
-            <div class="settings-row">
-              <span>AI engine</span>
-              <strong id="settingsModelName">Heuristic local planner</strong>
-            </div>
-            <div class="settings-row hidden">
-              <span>Type</span>
-              <strong id="settingsModelType">hybrid local stack</strong>
-            </div>
-            <div class="settings-row hidden">
-              <span>Backend</span>
-              <strong id="settingsModelBackend">hybrid</strong>
-            </div>
-            <div class="settings-row hidden">
-              <span>Mode</span>
-              <strong id="settingsModelMode">off</strong>
-            </div>
-            <div class="settings-row">
-              <span>Model path</span>
-              <strong id="settingsModelPath">Not configured</strong>
-            </div>
-            <div class="settings-row">
-              <span>Fast model</span>
-              <strong id="settingsFastModelPath">Not configured</strong>
-            </div>
-            <div class="settings-row">
-              <span>Deep model</span>
-              <strong id="settingsDeepModelPath">Not configured</strong>
-            </div>
-            <div class="settings-row">
-              <span>Embedding model</span>
-              <strong id="settingsEmbedModel">Not configured</strong>
-            </div>
-            <div class="settings-row">
-              <span>Search method</span>
-              <strong id="settingsRetrievalBackend">lexical</strong>
-            </div>
-            <div class="settings-row">
-              <span>Search index</span>
-              <strong id="settingsRetrievalHealth">disabled</strong>
-            </div>
-            <div class="settings-row">
-              <span>Voice output (optional)</span>
-              <strong id="settingsVoiceBackend">none</strong>
-            </div>
-            <div class="settings-row">
-              <span>Data mode</span>
-              <strong id="settingsCloudMode">Local only</strong>
-            </div>
-            <div id="settingsModelStory" class="settings-story-card">
-              <div class="settings-story-card__head">
-                <span class="eyebrow" data-i18n="settings.model_story_eyebrow">Local model posture</span>
-                <span id="settingsModelStoryPill" class="settings-story-card__pill">Checking</span>
-              </div>
-              <strong id="settingsModelStoryTitle" class="settings-story-card__title"></strong>
-              <p id="settingsModelStoryText" class="settings-story-card__body"></p>
-              <ul id="settingsModelStoryFacts" class="settings-story-card__facts"></ul>
-            </div>
-          </section>
-
           <section class="settings-section" data-settings-section="domains" data-settings-title="Domains">
             <div class="settings-row">
               <span>Indexed documents</span>
               <strong id="settingsDocumentCount">0</strong>
-            </div>
-            <div class="settings-row">
-              <span>Email accounts</span>
-              <strong id="settingsEmailAccounts">0</strong>
-            </div>
-            <div class="settings-row">
-              <span>Email drafts</span>
-              <strong id="settingsDraftCount">0</strong>
-            </div>
-            <div class="settings-row">
-              <span>Meetings</span>
-              <strong id="settingsMeetingCount">0</strong>
             </div>
             <div class="settings-row">
               <span>Business documents</span>
@@ -1485,7 +752,7 @@
       </section>
     </div>
 
-    <script type="module" src="/static/js/auth-shell.js"></script>
-    <script type="module" src="/static/app.js"></script>
+    <script type="module" src="/static/js/auth-shell.js?v=20260430a"></script>
+    <script type="module" src="/static/app.js?v=20260430a"></script>
   </body>
 </html>

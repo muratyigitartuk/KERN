@@ -1,13 +1,13 @@
 {
-  "name": "KERN AI Workspace",
-  "short_name": "KERN",
-  "description": "Privacy-first local AI assistant for German enterprises.",
+  "name": "Kern",
+  "short_name": "Kern",
+  "description": "Privacy-first local AI workspace for German enterprises.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#161616",
   "theme_color": "#161616",
-  "lang": "de",
+  "lang": "en",
   "dir": "ltr",
   "categories": ["productivity", "business"],
   "icons": [

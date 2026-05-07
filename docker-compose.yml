@@ -1,17 +1,20 @@
-version: "3.9"
-
 services:
-  kern:
+  kern-local:
+    profiles: ["local"]
     build: .
-    container_name: kern-workspace
+    container_name: kern-local
     restart: unless-stopped
     ports:
       - "${KERN_PORT:-8000}:8000"
     volumes:
       - kern-data:/data
-      - ./.env:/app/.env:ro
     environment:
-      - KERN_LLAMA_SERVER_URL=http://llama-server:8080
+      KERN_DISABLE_DOTENV: "true"
+      KERN_PROFILE_ROOT: /data/profiles/default
+      KERN_BACKUP_ROOT: /data/backups/default
+      KERN_DB_PATH: /data/profiles/default/kern.db
+      KERN_LLM_LOCAL_ONLY: "true"
+      KERN_LLAMA_SERVER_URL: http://llama-server:8080
     depends_on:
       llama-server:
         condition: service_healthy
@@ -22,12 +25,82 @@ services:
       retries: 3
       start_period: 60s
 
+  kern-server:
+    profiles: ["server"]
+    build: .
+    container_name: kern-server
+    restart: unless-stopped
+    ports:
+      - "${KERN_PORT:-8000}:8000"
+    volumes:
+      - kern-object-storage:/object-storage
+    environment:
+      KERN_DISABLE_DOTENV: "true"
+      KERN_SERVER_MODE: "true"
+      KERN_POSTGRES_DSN: ${KERN_POSTGRES_DSN:-}
+      KERN_REDIS_URL: redis://redis:6379/0
+      KERN_OBJECT_STORAGE_ROOT: /object-storage
+      KERN_NETWORK_ALLOWED_HOSTS: ${KERN_NETWORK_ALLOWED_HOSTS:-}
+      KERN_PUBLIC_BASE_URL: ${KERN_PUBLIC_BASE_URL:-}
+      KERN_PROXY_HEADERS_ENABLED: ${KERN_PROXY_HEADERS_ENABLED:-true}
+      KERN_SESSION_SECRET: ${KERN_SESSION_SECRET:-}
+      KERN_ENCRYPTION_KEY_PROVIDER: ${KERN_ENCRYPTION_KEY_PROVIDER:-}
+      KERN_OIDC_ENABLED: ${KERN_OIDC_ENABLED:-true}
+      KERN_OIDC_ISSUER_URL: ${KERN_OIDC_ISSUER_URL:-}
+      KERN_OIDC_CLIENT_ID: ${KERN_OIDC_CLIENT_ID:-}
+      KERN_OIDC_CLIENT_SECRET: ${KERN_OIDC_CLIENT_SECRET:-}
+      KERN_OIDC_REDIRECT_URI: ${KERN_OIDC_REDIRECT_URI:-}
+      KERN_LLAMA_SERVER_URL: http://llama-server:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-m", "5", "http://localhost:8000/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: kern-postgres
+    profiles: ["server"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${KERN_POSTGRES_DB:-kern}
+      POSTGRES_USER: ${KERN_POSTGRES_USER:-kern}
+      POSTGRES_PASSWORD: ${KERN_POSTGRES_PASSWORD:-}
+    volumes:
+      - kern-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${KERN_POSTGRES_USER:-kern} -d ${KERN_POSTGRES_DB:-kern}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: kern-redis
+    profiles: ["server"]
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - kern-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   llama-server:
     image: ghcr.io/ggerganov/llama.cpp:server
     container_name: kern-llama
+    profiles: ["local", "llm"]
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${KERN_LLAMA_PORT:-8080}:8080"
     volumes:
       - kern-models:/models
     command: >
@@ -47,4 +120,10 @@ volumes:
   kern-data:
     driver: local
   kern-models:
+    driver: local
+  kern-postgres:
+    driver: local
+  kern-redis:
+    driver: local
+  kern-object-storage:
     driver: local

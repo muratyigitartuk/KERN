@@ -7,6 +7,8 @@ function focusableElements(container) {
 export function createModalController({ modal, dialog, backdrop, closeButton, onClose: initialOnClose = null }) {
   let previousFocus = null;
   let onClose = initialOnClose;
+  let closeTimer = null;
+  const ANIMATION_MS = 180;
 
   const trapFocus = (event) => {
     if (event.key !== "Tab" || modal.classList.contains("hidden")) {
@@ -42,22 +44,31 @@ export function createModalController({ modal, dialog, backdrop, closeButton, on
   };
 
   const open = () => {
+    if (closeTimer) {
+      clearTimeout(closeTimer);
+      closeTimer = null;
+    }
     previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     modal.classList.remove("hidden");
     modal.setAttribute("aria-hidden", "false");
     document.addEventListener("keydown", handleKeydown);
     window.requestAnimationFrame(() => {
+      modal.classList.add("is-open");
       const focusables = focusableElements(dialog);
       (focusables[0] || dialog).focus();
     });
   };
 
   const close = () => {
-    modal.classList.add("hidden");
-    modal.setAttribute("aria-hidden", "true");
+    modal.classList.remove("is-open");
     document.removeEventListener("keydown", handleKeydown);
-    previousFocus?.focus?.();
-    onClose?.();
+    closeTimer = window.setTimeout(() => {
+      modal.classList.add("hidden");
+      modal.setAttribute("aria-hidden", "true");
+      previousFocus?.focus?.();
+      onClose?.();
+      closeTimer = null;
+    }, ANIMATION_MS);
   };
 
   backdrop?.addEventListener("click", close);

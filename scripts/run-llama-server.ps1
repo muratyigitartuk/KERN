@@ -6,7 +6,8 @@ param(
     [string]$BindHost = "127.0.0.1",
     [int]$Port = 8080,
     [string]$ContextSize = $(if ($env:KERN_LLM_CONTEXT_WINDOW) { $env:KERN_LLM_CONTEXT_WINDOW } else { "8192" }),
-    [string]$GpuLayers = "auto"
+    [string]$GpuLayers = $(if ($env:KERN_LLAMA_GPU_LAYERS) { $env:KERN_LLAMA_GPU_LAYERS } else { "auto" }),
+    [switch]$AllowCpuFallback
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,11 +22,39 @@ function Resolve-LlamaServerBinary {
         return (Resolve-Path $RequestedPath).Path
     }
 
+    $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+    $gpuCandidates = @(
+        (Join-Path $env:USERPROFILE "Desktop\tools\llama.cpp-fresh\build-kern-vulkan\bin\llama-server.exe"),
+        (Join-Path $repoRoot "tools\llama.cpp\build-kern-vulkan\bin\llama-server.exe"),
+        (Join-Path $repoRoot "tools\llama.cpp\build\bin\llama-server.exe")
+    )
+    foreach ($candidate in $gpuCandidates) {
+        if (Test-Path $candidate) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+
     $command = Get-Command "llama-server" -ErrorAction SilentlyContinue
-    if ($command) {
+    if ($command -and $command.Source -match "(?i)vulkan|cuda|hip|rocm") {
         return $command.Source
     }
 
+    if (-not $AllowCpuFallback) {
+        throw "No GPU-enabled llama-server was found. Build Vulkan with scripts\build-llama-cpp.ps1 -Vulkan, set KERN_LLAMA_SERVER_BINARY to a GPU build, or pass -AllowCpuFallback explicitly."
+    }
+
+    $cpuCandidates = @(
+        (Join-Path $env:USERPROFILE "Desktop\tools\llama.cpp-fresh\build-kern-cpu\bin\llama-server.exe"),
+        (Join-Path $repoRoot "tools\llama.cpp\build-kern-cpu\bin\llama-server.exe")
+    )
+    foreach ($candidate in $cpuCandidates) {
+        if (Test-Path $candidate) {
+            return (Resolve-Path $candidate).Path
+        }
+    }
+    if ($command) {
+        return $command.Source
+    }
     $wingetBinary = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "llama-server.exe" -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty FullName -First 1
     if ($wingetBinary) {
@@ -92,6 +121,10 @@ function Resolve-OptionalGgufPath {
 $serverBinary = Resolve-LlamaServerBinary $BinaryPath
 $resolvedModel = Resolve-GgufModelPath $ModelPath
 $resolvedLora = Resolve-OptionalGgufPath $LoraPath
+
+if (-not $AllowCpuFallback -and $serverBinary -match "(?i)build-kern-cpu") {
+    throw "Refusing to start CPU llama-server without -AllowCpuFallback: $serverBinary"
+}
 
 $arguments = @(
     "--host", $BindHost,

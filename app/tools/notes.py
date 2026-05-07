@@ -29,14 +29,12 @@ class NoteTool(Tool):
                 success=False,
                 status="failed",
                 display_text="No note content was provided.",
-                spoken_text="I need note content.",
             )
         note_id = self.data.create_note(content)
         return ToolResult(
             success=True,
             status="observed",
             display_text=f"Saved note #{note_id}.",
-            spoken_text="Your note has been saved.",
             evidence=[f"Created note #{note_id}."],
             side_effects=["note_saved"],
             data={"note_id": note_id},
@@ -59,7 +57,6 @@ class ListNotesTool(Tool):
                 success=True,
                 status="observed",
                 display_text="No notes saved yet.",
-                spoken_text="You do not have any saved notes yet.",
                 evidence=["Notes list is empty."],
                 data={"notes": []},
             )
@@ -68,7 +65,6 @@ class ListNotesTool(Tool):
             success=True,
             status="observed",
             display_text=f"Recent notes: {summary}",
-            spoken_text=f"Your recent notes are: {summary}.",
             evidence=[f"Loaded {len(notes)} note(s)."],
             data={"notes": notes},
         )

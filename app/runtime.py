@@ -18,11 +18,10 @@ from app.config import settings
 from app.database import connect
 from app.network_monitor import NetworkMonitor
 from app.scheduler import SchedulerService
-from app.attention import CalendarWatcher, DocumentWatcher, FileWatcher, InboxWatcher
+from app.attention import CalendarWatcher, DocumentWatcher, FileWatcher
 from app.current_context import CurrentContextService, WindowsClipboardClient
 from app.dialogue import DialogueStateStore
 from app.documents import DocumentService
-from app.email_service import EmailService
 from app.events import EventHub
 from app.german_business import GermanBusinessService
 from app.embeddings import EmbeddingService
@@ -32,7 +31,6 @@ from app.llm_client import LlamaServerClient
 from app.license_service import LicenseService
 from app.local_data import LocalDataService
 from app.memory import MemoryRepository
-from app.meetings import MeetingService
 from app.orchestrator import KernOrchestrator
 from app.platform import PlatformStore, connect_platform_db
 from app.policy import PolicyEngine
@@ -46,10 +44,8 @@ from app.sample_workspace import SampleWorkspaceService
 from app.syncing import SyncService
 from app.tools.calendar import CalendarService
 from app.tools.tasks import TaskService
-from app.tts import TTSService
 from app.types import (
     AuthContext,
-    BackupTarget,
     DomainStatus,
     FailureStateSnapshot,
     LicenseSummarySnapshot,
@@ -81,6 +77,7 @@ def _app_version() -> str:
 
 class KernRuntime:
     def __init__(self, *, profile_slug: str = "default") -> None:
+        self._started = False
         self.defer_retrieval_refresh_after_upload = True
         platform_connection = connect_platform_db(settings.system_db_path)
         self.platform = PlatformStore(platform_connection, audit_enabled=settings.audit_enabled)
@@ -125,19 +122,8 @@ class KernRuntime:
             mode=settings.policy_mode,
             allow_external_network=settings.policy_allow_external_network,
         )
-        tts = TTSService(
-            enabled=settings.speaking_enabled,
-            piper_binary=settings.piper_binary,
-            piper_model=settings.piper_model,
-            preferred_backend=settings.tts_preference,
-        )
-        if settings.tts_speed != 1.0:
-            tts.set_speed(settings.tts_speed)
-        if settings.tts_voice:
-            tts.set_voice(settings.tts_voice)
         self.event_hub = event_hub
         self.brain = brain
-        self.tts = tts
         self.policy = policy
         self.backup_service = BackupService()
         self.profile_session = ProfileSession(profile_slug=self.active_profile.slug, unlocked=not self.platform.is_profile_locked(self.active_profile.slug))
@@ -147,8 +133,6 @@ class KernRuntime:
         self.local_data = None
         self.document_service = None
         self.retrieval_service = None
-        self.email_service = None
-        self.meeting_service = None
         self.german_business_service = None
         self.sync_service = None
         self.notification_service = None
@@ -160,7 +144,6 @@ class KernRuntime:
             clipboard_client=WindowsClipboardClient(max_chars=settings.context_clipboard_max_chars),
             window_enabled=settings.context_window_enabled,
             clipboard_enabled=settings.context_clipboard_enabled,
-            media_enabled=settings.context_media_enabled,
         )
         self._locked_scaffold_path = Path(self.active_profile.profile_root) / ".locked-session.db"
         self._using_locked_scaffold = False
@@ -171,7 +154,6 @@ class KernRuntime:
         self.proactive_enabled = settings.proactive_enabled
         self.scheduler_service: SchedulerService | None = None
         self._file_watcher: FileWatcher | None = None
-        self._inbox_watcher: InboxWatcher | None = None
         self._calendar_watcher: CalendarWatcher | None = None
         self._document_watcher: DocumentWatcher | None = None
         self._pending_proactive_alerts: list[dict] = []
@@ -199,7 +181,6 @@ class KernRuntime:
         self._snapshots_sent = 0
         self._snapshots_skipped = 0
         cognition_model_path = Path(settings.cognition_model).name if settings.cognition_model else None
-        piper_model_path = Path(settings.piper_model).name if settings.piper_model else None
         hybrid_details = [
             "Rule engine safety net",
             "Semantic paraphrase matcher",
@@ -220,8 +201,6 @@ class KernRuntime:
         self.orchestrator.snapshot.model_info.hybrid_details = hybrid_details
         self.orchestrator.snapshot.model_info.cognition_model_path = settings.cognition_model
         self.orchestrator.snapshot.model_info.embed_model = settings.embed_model
-        self.orchestrator.snapshot.model_info.voice_backend = tts.backend_name
-        self.orchestrator.snapshot.model_info.voice_model = piper_model_path
         self.orchestrator.snapshot.model_info.cloud_available = brain.cloud_available
         self.orchestrator.snapshot.model_info.model_mode = settings.model_mode
         self.orchestrator.snapshot.model_info.fast_model_path = settings.fast_model_path
@@ -230,7 +209,7 @@ class KernRuntime:
         self.orchestrator.snapshot.model_info.preferred_runtime = self._preferred_runtime_label()
         self.orchestrator.snapshot.model_info.preferred_runtime_detail = self._preferred_runtime_detail()
         self._refresh_platform_snapshot_sync()
-        self.refresh_audio_snapshot()
+        self.refresh_interaction_snapshot()
 
     def _preferred_runtime_path(self) -> str | None:
         return (
@@ -615,7 +594,7 @@ class KernRuntime:
     def _close_profile_stack(self) -> None:
         self._stop_watchers()
         if self.profile_connection is not None:
-            with contextlib.suppress(Exception):  # cleanup — best-effort
+            with contextlib.suppress(Exception):  # cleanup â€” best-effort
                 self.profile_connection.close()
         self.profile_connection = None
         self.memory = None
@@ -652,10 +631,9 @@ class KernRuntime:
     def _stop_watchers(self) -> None:
         file_watcher = getattr(self, "_file_watcher", None)
         if file_watcher is not None:
-            with contextlib.suppress(Exception):  # cleanup — best-effort
+            with contextlib.suppress(Exception):  # cleanup â€” best-effort
                 file_watcher.stop()
         self._file_watcher = None
-        self._inbox_watcher = None
         self._calendar_watcher = None
         self._document_watcher = None
 
@@ -667,17 +645,6 @@ class KernRuntime:
         except (ValueError, binascii.Error) as exc:
             logger.error("Invalid Fernet key for ref %s: %s", key_ref, exc)
             raise RuntimeError(f"Invalid Fernet key for ref {key_ref}: {exc}") from exc
-
-    def _resolve_email_password(self) -> str | None:
-        ref = settings.email_password_ref
-        if ref:
-            try:
-                resolved = self.platform.resolve_secret(ref)
-                if resolved:
-                    return resolved
-            except Exception as exc:
-                logger.debug("Failed to resolve email password ref %r: %s", ref, exc)
-        return settings._email_password_env or None
 
     def _bind_profile_stack(self, *, use_locked_scaffold: bool) -> None:
         self._close_profile_stack()
@@ -718,22 +685,6 @@ class KernRuntime:
         )
         self.brain._rag = rag_pipeline
         document_service = DocumentService(connection, self.platform, self.active_profile, retrieval=retrieval_service)
-        email_service = EmailService(
-            connection,
-            self.platform,
-            self.active_profile,
-            local_data,
-            calendar_service,
-            document_service,
-            imap_host=settings.imap_host,
-            smtp_host=settings.smtp_host,
-            username=settings.email_username,
-            password=self._resolve_email_password(),
-            email_address=settings.email_address,
-            ntfy_base_url=settings.ntfy_base_url,
-            ntfy_topic=settings.ntfy_topic,
-        )
-        meeting_service = MeetingService(connection, self.platform, self.active_profile, local_data=local_data)
         german_business_service = GermanBusinessService(connection, self.platform, self.active_profile, local_data, document_service, retrieval_service)
         sync_service = SyncService(memory, self.active_profile, nextcloud_url=settings.nextcloud_url, platform=self.platform)
         if settings.scheduler_enabled and not use_locked_scaffold:
@@ -756,7 +707,6 @@ class KernRuntime:
                 connection=connection,
             )
             self._file_watcher.start()
-            self._inbox_watcher = InboxWatcher(email_service, self.active_profile.slug, settings.inbox_watch_interval)
             self._calendar_watcher = CalendarWatcher(local_data, settings.proactive_scan_interval)
             self._document_watcher = DocumentWatcher(document_service, self.active_profile.slug, settings.proactive_scan_interval)
         else:
@@ -769,8 +719,6 @@ class KernRuntime:
         self.local_data = local_data
         self.document_service = document_service
         self.retrieval_service = retrieval_service
-        self.email_service = email_service
-        self.meeting_service = meeting_service
         self.german_business_service = german_business_service
         self.sync_service = sync_service
         self.notification_service = notification_service
@@ -790,12 +738,9 @@ class KernRuntime:
             brain=self.brain,
             local_data=local_data,
             policy=self.policy,
-            tts=self.tts,
             task_service=task_service,
             calendar_service=calendar_service,
             document_service=document_service,
-            email_service=email_service,
-            meeting_service=meeting_service,
             german_business_service=german_business_service,
             sync_service=sync_service,
             default_title=settings.user_title,
@@ -811,7 +756,6 @@ class KernRuntime:
         )
 
     def lock_active_profile(self, reason: str) -> ProfileSession:
-        self._abort_active_meeting_recording("Active profile locked while a meeting recording was in progress.")
         session = self.platform.lock_profile(self.active_profile.slug, reason=reason)
         self.profile_session = session
         self._bind_profile_stack(use_locked_scaffold=True)
@@ -842,20 +786,17 @@ class KernRuntime:
             await asyncio.to_thread(self.retrieval_service.recover_jobs)
         if hasattr(self.document_service, "recover_jobs"):
             await asyncio.to_thread(self.document_service.recover_jobs)
-        if hasattr(self.email_service, "recover_jobs"):
-            await asyncio.to_thread(self.email_service.recover_jobs)
         if hasattr(self.german_business_service, "recover_jobs"):
             await asyncio.to_thread(self.german_business_service.recover_jobs)
-        await asyncio.to_thread(self.meeting_service.recover_jobs)
         await asyncio.to_thread(self.sync_service.recover_jobs)
 
     async def start(self) -> None:
+        if self._started:
+            return
         self._main_loop = asyncio.get_running_loop()
         if self._llm_client:
             await self._llm_client.startup()
-            if await self._llm_client.health():
-                self.orchestrator.snapshot.llm_available = True
-                self.orchestrator.snapshot.model_info.llm_model = settings.llm_model or "llama-server"
+            await self.refresh_llm_status(retries=20)
         await self.orchestrator.initialize()
         repaired_audit_chain = await asyncio.to_thread(self.platform.repair_legacy_audit_chain)
         if repaired_audit_chain:
@@ -897,12 +838,9 @@ class KernRuntime:
             await asyncio.to_thread(self.retrieval_service.recover_jobs)
         if self.profile_session.unlocked and hasattr(self.document_service, "recover_jobs"):
             await asyncio.to_thread(self.document_service.recover_jobs)
-        if self.profile_session.unlocked and hasattr(self.email_service, "recover_jobs"):
-            await asyncio.to_thread(self.email_service.recover_jobs)
         if self.profile_session.unlocked and hasattr(self.german_business_service, "recover_jobs"):
             await asyncio.to_thread(self.german_business_service.recover_jobs)
         if self.profile_session.unlocked:
-            await asyncio.to_thread(self.meeting_service.recover_jobs)
             await asyncio.to_thread(self.sync_service.recover_jobs)
             await self._run_retention(force=True, reason="startup")
         await asyncio.to_thread(
@@ -914,20 +852,17 @@ class KernRuntime:
             profile_slug=self.active_profile.slug,
         )
         await asyncio.to_thread(self._refresh_platform_snapshot_sync)
-        self.refresh_audio_snapshot()
+        self.refresh_interaction_snapshot()
         await self.broadcast_if_changed(force=True, reason="startup")
         self._monitor_task = asyncio.create_task(self.monitor_runtime())
+        self._started = True
 
     async def stop(self) -> None:
+        self._started = False
         if self._monitor_task:
             self._monitor_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._monitor_task
-        await asyncio.to_thread(
-            self._abort_active_meeting_recording,
-            "KERN runtime stopped while a meeting recording was in progress.",
-        )
-        self.tts.shutdown()
         if self._llm_client:
             await self._llm_client.shutdown()
         await asyncio.to_thread(
@@ -942,13 +877,6 @@ class KernRuntime:
         self._main_loop = None
         if self._locked_scaffold_path.exists():
             self._locked_scaffold_path.unlink(missing_ok=True)
-
-    def _abort_active_meeting_recording(self, reason: str) -> None:
-        meeting_service = getattr(self, "meeting_service", None)
-        if not meeting_service or not getattr(meeting_service, "recording_in_progress", False):
-            return
-        with contextlib.suppress(Exception):  # cleanup — best-effort
-            meeting_service.abort_recording(reason)
 
     def verify_audit_chain(self, source: str) -> tuple[bool, str | None]:
         try:
@@ -1053,7 +981,7 @@ class KernRuntime:
                         final_root=final_root,
                         profile_slug=self.active_profile.slug,
                     )
-                    with contextlib.suppress(Exception):  # cleanup — best-effort
+                    with contextlib.suppress(Exception):  # cleanup â€” best-effort
                         self.backup_service.cleanup_restore_plan(plan)
                 self.platform.update_job(
                     job.id,
@@ -1089,11 +1017,10 @@ class KernRuntime:
             snapshot.last_action,
             snapshot.runtime_muted,
             snapshot.local_mode_enabled,
-            snapshot.voice_status,
             snapshot.reminders_due[0].id if snapshot.reminders_due else None,
         )
 
-    def refresh_audio_snapshot(self) -> None:
+    def refresh_interaction_snapshot(self) -> None:
         snapshot = self.orchestrator.snapshot
         before_signature = self._runtime_signature()
         self._refresh_platform_snapshot_sync()
@@ -1101,13 +1028,9 @@ class KernRuntime:
         snapshot.local_mode_enabled = self.brain.local_mode_enabled
         snapshot.cloud_available = self.brain.cloud_available
         snapshot.cognition_backend = self.brain.cognition_backend
-        snapshot.voice_backend = self.tts.backend_name
-        snapshot.voice_status = self.tts.status
         snapshot.reminders_due = self.local_data.list_pending_reminders(limit=5)
-        snapshot.loop_metrics.tts_queue_depth = self.tts.queue_depth
         snapshot.startup_checks = {
             "input_mode": "text_only",
-            "voice_output": "ready" if self.tts.enabled else "disabled",
             "memory": "ready",
             "cognition": snapshot.cognition_backend,
         }
@@ -1147,7 +1070,6 @@ class KernRuntime:
         snapshot.policy_summary = self.policy.summary()
         snapshot.retention_policies = {
             "documents_days": settings.retention_documents_days,
-            "email_days": settings.retention_email_days,
             "transcripts_days": settings.retention_transcripts_days,
             "audit_days": settings.retention_audit_days,
             "backups_days": settings.retention_backups_days,
@@ -1167,8 +1089,6 @@ class KernRuntime:
         snapshot.network_status = self.network_monitor.status
         snapshot.last_monitor_tick_at = self._last_monitor_tick_at
         document_available, document_note = self.document_service.availability()
-        email_available, email_note = self.email_service.availability()
-        meeting_available, meeting_note = self.meeting_service.availability()
         business_available, business_note = self.german_business_service.availability()
         sync_available, sync_note = self.sync_service.availability()
         snapshot.domain_statuses = {
@@ -1177,18 +1097,6 @@ class KernRuntime:
                 reason=document_note or ("ready" if document_available else "unavailable"),
                 lock_sensitive=True,
                 degraded=document_available and bool(document_note and "unavailable" in document_note.lower()),
-            ),
-            "email": DomainStatus(
-                ready=email_available,
-                reason=email_note or ("ready" if email_available else "unavailable"),
-                lock_sensitive=True,
-                degraded=email_available and bool(email_note and any(token in email_note.lower() for token in {"degraded", "drafts only"})),
-            ),
-            "meetings": DomainStatus(
-                ready=meeting_available,
-                reason=meeting_note or ("ready" if meeting_available else "unavailable"),
-                lock_sensitive=True,
-                degraded=meeting_available and bool(meeting_note and "unavailable" in meeting_note.lower()),
             ),
             "german_business": DomainStatus(
                 ready=business_available,
@@ -1218,7 +1126,6 @@ class KernRuntime:
             "profile_db": "locked_scaffold" if self._using_locked_scaffold else "profile_bound",
             "scheduler": "ready" if self.scheduler_service else "disabled",
             "file_watcher": "running" if self._file_watcher else "disabled",
-            "inbox_watcher": "running" if self._inbox_watcher else "disabled",
             "calendar_watcher": "running" if self._calendar_watcher else "disabled",
             "document_watcher": "running" if self._document_watcher else "disabled",
             "network_monitor": "disabled" if not settings.network_monitor_enabled else snapshot.network_status.status,
@@ -1266,35 +1173,19 @@ class KernRuntime:
         if locked:
             snapshot.domain_totals = {
                 "documents": 0,
-                "email_accounts": 0,
-                "email_messages": 0,
-                "email_drafts": 0,
-                "meetings": 0,
                 "business_documents": 0,
                 "sync_targets": 0,
             }
             snapshot.last_retrieval_query = ""
             snapshot.recent_retrieval_hits = []
             snapshot.recent_documents = []
-            snapshot.email_accounts = []
-            snapshot.recent_email_messages = []
-            snapshot.email_drafts = []
-            snapshot.recent_meetings = []
-            snapshot.recent_transcripts = []
-            snapshot.recent_meeting_reviews = []
             snapshot.business_documents = []
             snapshot.sync_targets = []
-            snapshot.notification_channels = []
             snapshot.available_backups = []
             snapshot.recovery_checkpoints = []
-            snapshot.email_reminder_suggestions = []
             return
         snapshot.domain_totals = {
             "documents": self.memory.count_document_records(),
-            "email_accounts": self.memory.count_email_accounts(),
-            "email_messages": self.memory.count_mailbox_messages(),
-            "email_drafts": self.memory.count_email_drafts(),
-            "meetings": self.memory.count_meetings(),
             "business_documents": self.memory.count_business_documents(),
             "sync_targets": self.memory.count_sync_targets(),
         }
@@ -1305,23 +1196,15 @@ class KernRuntime:
                 for record in snapshot.recent_documents
                 if not self.policy.is_sensitive_classification(record.classification)
             ]
-        snapshot.email_accounts = self.email_service.list_accounts(audit=False) if email_available else []
-        snapshot.recent_email_messages = self.email_service.list_indexed_messages(limit=6, audit=False) if email_available else []
-        snapshot.email_drafts = self.email_service.list_drafts(limit=6, audit=False) if email_available else []
-        snapshot.email_reminder_suggestions = self.email_service.list_reminder_suggestions(limit=5, audit=False) if email_available else []
-        snapshot.recent_meetings = self.meeting_service.list_meetings(limit=5, audit=False) if meeting_available else []
-        transcript_artifacts = []
-        for meeting in snapshot.recent_meetings[:3]:
-            transcript_artifacts.extend(self.meeting_service.memory.list_transcript_artifacts(meeting.id)[:2])
-        snapshot.recent_transcripts = transcript_artifacts[:6]
-        snapshot.recent_meeting_reviews = self.meeting_service.list_recent_reviews(limit=4, audit=False) if meeting_available else []
+        snapshot.recent_meetings = []
+        snapshot.recent_transcripts = []
+        snapshot.recent_meeting_reviews = []
         snapshot.business_documents = self.german_business_service.list_documents(limit=6, audit=False) if business_available else []
         snapshot.sync_targets = self.sync_service.list_targets(audit=False)
         checkpoints = []
         for job in snapshot.background_jobs[:3]:
             checkpoints.extend(self.platform.list_checkpoints(job.id)[:2])
         snapshot.recovery_checkpoints = checkpoints[:6]
-        snapshot.notification_channels = self.email_service.list_notification_channels() if email_available else []
         available_backups: list[str] = []
         for target in snapshot.backup_targets:
             available_backups.extend(self.backup_service.list_backups(self.active_profile, target)[:3])
@@ -1330,12 +1213,37 @@ class KernRuntime:
     async def _refresh_platform_snapshot(self) -> None:
         await asyncio.to_thread(self._refresh_platform_snapshot_sync)
 
+    async def refresh_llm_status(self, *, retries: int = 1) -> bool:
+        if not self._llm_client:
+            if not settings.llm_enabled:
+                self.orchestrator.snapshot.llm_available = False
+                return False
+            self._llm_client = LlamaServerClient(
+                base_url=settings.llama_server_url,
+                timeout=settings.llama_server_timeout,
+                default_model=settings.llm_model,
+            )
+            self.brain.llm_client = self._llm_client
+            await self._llm_client.startup()
+        attempts = max(1, retries)
+        for attempt in range(attempts):
+            if await self._llm_client.health():
+                self.orchestrator.snapshot.llm_available = True
+                self.orchestrator.snapshot.model_info.llm_model = settings.llm_model or "llama-server"
+                return True
+            if attempt + 1 < attempts:
+                await asyncio.sleep(0.5)
+        self.orchestrator.snapshot.llm_available = False
+        return False
+
     async def monitor_runtime(self) -> None:
         while True:
             self._last_monitor_tick_at = datetime.now(timezone.utc)
             self._monitor_cycles += 1
             self.orchestrator.snapshot.loop_metrics.monitor_cycles = self._monitor_cycles
-            self.refresh_audio_snapshot()
+            if self._llm_client and not self.orchestrator.snapshot.llm_available:
+                await self.refresh_llm_status()
+            self.refresh_interaction_snapshot()
             await asyncio.to_thread(self.network_monitor.check)
             self.orchestrator.snapshot.network_status = self.network_monitor.status
             await self._tick_scheduler()
@@ -1408,25 +1316,6 @@ class KernRuntime:
                     "recommendation_id": turn.recommendation_id,
                 }
             raise RuntimeError("Scheduled prompt could not run while another action was in progress.")
-        if action_type == "summarize_emails":
-            tool = self.orchestrator.tools.get("read_mailbox_summary")
-            if tool is None:
-                raise RuntimeError("Mailbox summary tool is unavailable.")
-            request = ToolRequest(
-                tool_name="read_mailbox_summary",
-                arguments={
-                    "urgent_only": bool(payload.get("urgent_only", False)),
-                    "today_only": bool(payload.get("today_only", False)),
-                    "limit": int(payload.get("limit", 5) or 5),
-                },
-                user_utterance="",
-                reason=f"Scheduled task: {task.get('title', 'summarize emails')}",
-                trigger_source="scheduler",
-            )
-            result = await tool.run(request)
-            if not result.success:
-                raise RuntimeError(result.display_text or "Mailbox summary failed.")
-            return {"mode": "tool", "tool_name": "read_mailbox_summary", "status": result.status}
         if action_type == "generate_report":
             tool = self.orchestrator.tools.get("generate_morning_brief")
             if tool is None:
@@ -1452,8 +1341,6 @@ class KernRuntime:
             if self._file_watcher:
                 alerts.extend(await asyncio.to_thread(self._file_watcher.poll))
                 alerts.extend(self._file_watcher.drain_alerts())
-            if self._inbox_watcher:
-                alerts.extend(await asyncio.to_thread(self._inbox_watcher.check))
             if self._calendar_watcher:
                 alerts.extend(await asyncio.to_thread(self._calendar_watcher.check))
             if self._document_watcher:
@@ -1519,8 +1406,6 @@ class KernRuntime:
                     if reminder.id is not None:
                         self.orchestrator.dialogue_state.set_last_announced_reminder_id(reminder.id)
                         await asyncio.to_thread(self.reminder_service.mark_announced, reminder.id)
-                    if self.tts.enabled and not self.local_data.muted():
-                        self.tts.speak(message)
                 self.orchestrator.snapshot.reminders_due = await asyncio.to_thread(self.local_data.list_pending_reminders, limit=5)
 
             next_event = await asyncio.to_thread(self.local_data.next_upcoming_event)
@@ -1537,8 +1422,6 @@ class KernRuntime:
                         self.local_data.mark_event_alerted(next_event)
                         self.orchestrator.add_history("reminder", message)
                         self.orchestrator.snapshot.response_text = message
-                        if self.tts.enabled and not self.local_data.muted():
-                            self.tts.speak(message)
         if self.proactive_enabled and not self.orchestrator.snapshot.action_in_progress:
             await self.orchestrator.maybe_emit_proactive_prompt()
 

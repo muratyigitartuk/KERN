@@ -55,5 +55,5 @@ curl http://127.0.0.1:8000/health/ready
 
 Related:
 
-- [restore-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/restore-guide.md)
-- [operator-runbook.md](/Users/mur4t/Desktop/claudes/skillstests/docs/operator-runbook.md)
+- [restore-guide.md](restore-guide.md)
+- [operator-runbook.md](operator-runbook.md)

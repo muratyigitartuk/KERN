@@ -56,7 +56,6 @@ class FakeSettings:
     llm_enabled: bool = False
     llm_local_only: bool = True
     llm_temperature: float = 0.3
-    tts_speed: float = 1.0
     rag_min_score: float = 0.1
     ocr_engine: str = "paddleocr"
     ocr_low_confidence_threshold: float = 0.55
@@ -226,10 +225,6 @@ class TestPositiveFloatValidation:
         errors = validate_settings(s)
         assert any("KERN_HEARTBEAT_SECONDS" in e for e in errors)
 
-    def test_negative_tts_speed(self):
-        s = FakeSettings(tts_speed=-1.0)
-        errors = validate_settings(s)
-        assert any("KERN_TTS_SPEED" in e for e in errors)
 
 
 # ---------------------------------------------------------------------------
@@ -308,7 +303,7 @@ class TestMultipleErrors:
 # ---------------------------------------------------------------------------
 class TestEnvExample:
     def test_env_example_parses_without_error(self):
-        env_example = Path("C:/Users/mur4t/Desktop/claudes/skillstests/.env.example")
+        env_example = Path(".env.example")
         if not env_example.exists():
             pytest.skip(".env.example not found")
 

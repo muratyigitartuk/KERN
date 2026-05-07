@@ -194,6 +194,12 @@ $validationRuns = @{}
 
 Push-Location $extractRoot
 try {
+    $previousLlmEnabled = $env:KERN_LLM_ENABLED
+    $previousLlamaUrl = $env:KERN_LLAMA_SERVER_URL
+    $previousLlamaModel = $env:KERN_LLAMA_SERVER_MODEL_PATH
+    $env:KERN_LLM_ENABLED = "false"
+    Remove-Item Env:\KERN_LLAMA_SERVER_URL -ErrorAction SilentlyContinue
+    Remove-Item Env:\KERN_LLAMA_SERVER_MODEL_PATH -ErrorAction SilentlyContinue
     if ($Json) {
         Invoke-PowerShellQuiet -ArgumentList @("-ExecutionPolicy", "Bypass", "-File", ".\scripts\install-kern.ps1", "-InternalDeploy") -WorkingDirectory $extractRoot -FailureMessage "Packaged install failed."
     }
@@ -217,8 +223,8 @@ try {
     $baseUrl = "http://127.0.0.1:$port"
     $env:KERN_VALIDATION_LICENSE_DIR = [string]$licenseFixtures.directory
 
-    $health = Wait-HttpReady -Url "$baseUrl/health"
-    $readiness = Wait-HttpReady -Url "$baseUrl/api/readiness"
+    $health = Wait-HttpReady -Url "$baseUrl/health/live"
+    $readiness = Wait-HttpReady -Url "$baseUrl/health/ready"
 
     foreach ($lane in @("shell_smoke", "license_sample_flow", "sample_to_real_transition")) {
         $laneOutputDir = Join-Path $extractRoot "output\package-validation\$lane"
@@ -230,6 +236,9 @@ try {
     }
 }
 finally {
+    if ($null -eq $previousLlmEnabled) { Remove-Item Env:\KERN_LLM_ENABLED -ErrorAction SilentlyContinue } else { $env:KERN_LLM_ENABLED = $previousLlmEnabled }
+    if ($null -eq $previousLlamaUrl) { Remove-Item Env:\KERN_LLAMA_SERVER_URL -ErrorAction SilentlyContinue } else { $env:KERN_LLAMA_SERVER_URL = $previousLlamaUrl }
+    if ($null -eq $previousLlamaModel) { Remove-Item Env:\KERN_LLAMA_SERVER_MODEL_PATH -ErrorAction SilentlyContinue } else { $env:KERN_LLAMA_SERVER_MODEL_PATH = $previousLlamaModel }
     if ($runtimeProcess -and -not $runtimeProcess.HasExited) {
         Stop-Process -Id $runtimeProcess.Id -Force -ErrorAction SilentlyContinue
     }

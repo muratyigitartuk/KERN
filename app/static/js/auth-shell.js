@@ -1,3 +1,13 @@
+function escapeHTMLShell(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function readCookie(name) {
   const prefix = `${name}=`;
   return document.cookie
@@ -10,6 +20,13 @@ function readCookie(name) {
 function csrfHeaders() {
   const token = readCookie("kern_csrf_token");
   return token ? { "x-csrf-token": token } : {};
+}
+
+function persistWorkspaceCookie(slug) {
+  if (!slug) return;
+  // H-16: Add Secure flag to prevent cookie transmission over plain HTTP.
+  const secureSuffix = location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `kern_workspace_slug=${encodeURIComponent(slug)}; path=/; samesite=lax${secureSuffix}`;
 }
 
 async function fetchJson(url, options = {}) {
@@ -54,11 +71,17 @@ function formatRole(user, session) {
 function closeWorkspaceMenu(button, menu) {
   button?.setAttribute("aria-expanded", "false");
   menu?.classList.add("hidden");
+  menu?.setAttribute("aria-hidden", "true");
 }
 
 function openWorkspaceMenu(button, menu) {
+  if (button?.disabled) {
+    closeWorkspaceMenu(button, menu);
+    return;
+  }
   button?.setAttribute("aria-expanded", "true");
   menu?.classList.remove("hidden");
+  menu?.setAttribute("aria-hidden", "false");
 }
 
 async function loadAuthShell() {
@@ -98,44 +121,53 @@ async function loadAuthShell() {
       userMeta.title = metaLine;
     }
     switcherValue.textContent = currentWorkspace?.title || currentWorkspace?.slug || "Workspace";
+    persistWorkspaceCookie(currentWorkspace?.slug || session.workspace_slug || "");
     switcherButton.disabled = workspaces.length <= 1;
+    closeWorkspaceMenu(switcherButton, switcherMenu);
 
     switcherMenu.innerHTML = "";
-    for (const workspace of workspaces) {
-      const option = document.createElement("button");
-      option.type = "button";
-      option.className = "workspace-switcher__option";
-      option.setAttribute("role", "menuitemradio");
-      option.setAttribute("aria-checked", workspace.slug === session.workspace_slug ? "true" : "false");
-      option.dataset.workspaceSlug = workspace.slug;
-      option.innerHTML = `
-        <span class="workspace-switcher__option-title">${workspace.title || workspace.slug}</span>
-        <span class="workspace-switcher__option-meta">${workspace.slug === session.workspace_slug ? "active" : workspace.slug}</span>
-      `;
-      option.addEventListener("click", async () => {
-        if (workspace.slug === session.workspace_slug) {
-          closeWorkspaceMenu(switcherButton, switcherMenu);
-          return;
-        }
-        switcherButton.disabled = true;
-        try {
-          await fetchJson("/auth/session/select-workspace", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...csrfHeaders(),
-            },
-            body: JSON.stringify({ workspace_slug: workspace.slug }),
-          });
-          window.location.reload();
-        } finally {
-          switcherButton.disabled = false;
-        }
-      });
-      switcherMenu.appendChild(option);
+    if (workspaces.length > 1) {
+      for (const workspace of workspaces) {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "workspace-switcher__option";
+        option.setAttribute("role", "menuitemradio");
+        option.setAttribute("aria-checked", workspace.slug === session.workspace_slug ? "true" : "false");
+        option.dataset.workspaceSlug = workspace.slug;
+        option.innerHTML = `
+          <span class="workspace-switcher__option-title">${escapeHTMLShell(workspace.title || workspace.slug)}</span>
+          <span class="workspace-switcher__option-meta">${escapeHTMLShell(workspace.slug === session.workspace_slug ? "active" : workspace.slug)}</span>
+        `;
+        option.addEventListener("click", async () => {
+          if (workspace.slug === session.workspace_slug) {
+            closeWorkspaceMenu(switcherButton, switcherMenu);
+            return;
+          }
+          switcherButton.disabled = true;
+          try {
+            await fetchJson("/auth/session/select-workspace", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...csrfHeaders(),
+              },
+              body: JSON.stringify({ workspace_slug: workspace.slug }),
+            });
+            persistWorkspaceCookie(workspace.slug);
+            window.location.reload();
+          } finally {
+            switcherButton.disabled = false;
+          }
+        });
+        switcherMenu.appendChild(option);
+      }
     }
 
     switcherButton.addEventListener("click", () => {
+      if (switcherButton.disabled) {
+        closeWorkspaceMenu(switcherButton, switcherMenu);
+        return;
+      }
       const isOpen = switcherButton.getAttribute("aria-expanded") === "true";
       if (isOpen) {
         closeWorkspaceMenu(switcherButton, switcherMenu);
@@ -162,6 +194,7 @@ async function loadAuthShell() {
         method: "POST",
         headers: csrfHeaders(),
       });
+      document.cookie = "kern_workspace_slug=; Max-Age=0; path=/; samesite=lax";
       window.location.href = "/login";
     });
   } catch (_error) {

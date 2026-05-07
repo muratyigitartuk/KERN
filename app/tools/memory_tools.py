@@ -86,14 +86,12 @@ class RememberFactTool(Tool):
                     success=False,
                     status="failed",
                     display_text="I need something concrete to remember.",
-                    spoken_text="Tell me what to remember.",
                 )
             summary = "; ".join(f"{item['key']}: {item['value']}" for item in stored)
             return ToolResult(
                 success=True,
                 status="observed",
                 display_text=f"Remembered: {summary}.",
-                spoken_text="I will remember those preferences.",
                 evidence=[f"Stored {len(stored)} fact(s)."],
                 side_effects=["memory_written"],
                 data={"facts": stored},
@@ -105,7 +103,6 @@ class RememberFactTool(Tool):
                 success=False,
                 status="failed",
                 display_text="I need something concrete to remember.",
-                spoken_text="Tell me what to remember.",
             )
         if not key:
             key = _derive_fact_key(value)
@@ -122,7 +119,6 @@ class RememberFactTool(Tool):
             success=True,
             status="observed",
             display_text=f"Remembered {memory_kind} {key}: {value}.",
-            spoken_text=f"I will remember that {key} is {value}.",
             evidence=[f"Stored {memory_kind} under {key}."],
             side_effects=["memory_written"],
             data={"key": key, "value": value, "memory_kind": memory_kind, "entity_key": entity_key},
@@ -169,7 +165,6 @@ class RecallMemoryTool(Tool):
                 success=True,
                 status="observed",
                 display_text="I do not have anything remembered for that yet.",
-                spoken_text="I do not have anything remembered for that yet.",
                 evidence=["No matching facts found."],
                 data={"facts": [], "document_hits": [], "retrieval_hits": []},
             )
@@ -187,7 +182,6 @@ class RecallMemoryTool(Tool):
             success=True,
             status="observed",
             display_text=f"Remembered: {summary}",
-            spoken_text=f"Here is what I remember: {summary}.",
             evidence=[f"Matched {len(facts)} fact(s) and {len(document_hits)} document hit(s)."],
             data={
                 "facts": [fact.model_dump(mode='json') for fact in facts],
@@ -250,7 +244,6 @@ class SearchConversationHistoryTool(Tool):
                 success=True,
                 status="observed",
                 display_text="No matching conversation history found.",
-                spoken_text="Nothing found in past conversations.",
                 data={"hits": []},
             )
         lines = [f"[{h['date']}] {h['content'][:120]}" for h in hits[:10]]
@@ -258,7 +251,6 @@ class SearchConversationHistoryTool(Tool):
             success=True,
             status="observed",
             display_text="\n".join(lines),
-            spoken_text=f"Found {len(hits)} past conversation turn(s) matching your query.",
             data={"hits": hits},
         )
 
@@ -286,7 +278,6 @@ class BuildTopicTimelineTool(Tool):
                 success=True,
                 status="observed",
                 display_text=f"No conversation history found for topic: {topic}",
-                spoken_text="Nothing found for that topic.",
                 data={"timeline": []},
             )
         summary_lines = []
@@ -294,11 +285,10 @@ class BuildTopicTimelineTool(Tool):
             count = len(group["entries"])
             date = group["date"]
             snippet = group["entries"][0]["content"][:80] if group["entries"] else ""
-            summary_lines.append(f"{date} ({count} turn(s)): {snippet}…")
+            summary_lines.append(f"{date} ({count} turn(s)): {snippet}â€¦")
         return ToolResult(
             success=True,
             status="observed",
             display_text="\n".join(summary_lines),
-            spoken_text=f"Found references to '{topic}' across {len(timeline)} date(s).",
             data={"timeline": timeline},
         )

@@ -34,7 +34,6 @@ class CreateReminderTool(Tool):
                 success=False,
                 status="failed",
                 display_text="Reminder is missing a title or time.",
-                spoken_text="I need both a reminder and a due time.",
             )
         normalized_due_at = due_at_raw[:-1] + "+00:00" if due_at_raw.endswith("Z") else due_at_raw
         due_at = datetime.fromisoformat(normalized_due_at)
@@ -43,7 +42,6 @@ class CreateReminderTool(Tool):
             success=True,
             status="observed",
             display_text=f"Created {kind} #{reminder_id} for {title}.",
-            spoken_text=f"I set that for {due_at.strftime('%H:%M')}.",
             evidence=[f"Stored {kind} #{reminder_id}."],
             side_effects=["reminder_created", "open_loop_created"],
             data={"reminder_id": reminder_id, "due_at": due_at.isoformat(), "kind": kind},
@@ -74,14 +72,12 @@ class SnoozeReminderTool(Tool):
                 success=False,
                 status="failed",
                 display_text="No reminder was selected.",
-                spoken_text="I need a reminder to snooze.",
             )
         self.service.snooze(reminder_id, minutes=minutes)
         return ToolResult(
             success=True,
             status="observed",
             display_text=f"Snoozed reminder #{reminder_id} by {minutes} minutes.",
-            spoken_text=f"I snoozed it for {minutes} minutes.",
             evidence=[f"Updated reminder #{reminder_id} due time."],
             side_effects=["reminder_snoozed"],
             data={"reminder_id": reminder_id, "minutes": minutes},
@@ -110,14 +106,12 @@ class DismissReminderTool(Tool):
                 success=False,
                 status="failed",
                 display_text="No reminder was selected.",
-                spoken_text="I need a reminder to dismiss.",
             )
         self.service.dismiss(reminder_id)
         return ToolResult(
             success=True,
             status="observed",
             display_text=f"Dismissed reminder #{reminder_id}.",
-            spoken_text="I dismissed that reminder.",
             evidence=[f"Marked reminder #{reminder_id} complete."],
             side_effects=["reminder_dismissed", "open_loop_resolved"],
             data={"reminder_id": reminder_id},

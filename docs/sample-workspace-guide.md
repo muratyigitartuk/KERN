@@ -58,5 +58,5 @@ Then switch to the real local-document path for actual pilot work.
 
 Related:
 
-- [activation-renewal-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/activation-renewal-guide.md)
-- [operator-runbook.md](/Users/mur4t/Desktop/claudes/skillstests/docs/operator-runbook.md)
+- [activation-renewal-guide.md](activation-renewal-guide.md)
+- [operator-runbook.md](operator-runbook.md)

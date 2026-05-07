@@ -4,16 +4,8 @@
     "expected_tool": "search_documents"
   },
   {
-    "prompt": "show my recent mailbox messages",
-    "expected_tool": "read_mailbox_summary"
-  },
-  {
     "prompt": "create an encrypted backup named before-weekend-checkpoint",
     "expected_tool": "create_backup"
-  },
-  {
-    "prompt": "start a meeting recording for frontend review",
-    "expected_tool": "start_meeting_recording"
   },
   {
     "prompt": "create a draft Angebot for ACME GmbH",

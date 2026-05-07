@@ -44,6 +44,7 @@ REQUIRED_RELEASE_LANES = (
     "regression_visuals",
 )
 ADVISORY_RELEASE_LANES = ("busy_day_advisory",)
+VALIDATION_ADMIN_TOKEN = os.environ.get("KERN_VALIDATION_ADMIN_TOKEN", "validation-token").strip() or "validation-token"
 
 
 class ValidationPackError(RuntimeError):
@@ -310,7 +311,7 @@ def _runtime_env(
     *,
     extra_env: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    env = os.environ.copy()
+    env = {key: value for key, value in os.environ.items() if not key.startswith("KERN_")}
     env_root = root.resolve()
     env.update(
         {
@@ -322,12 +323,18 @@ def _runtime_env(
             "KERN_DOCUMENT_ROOT": str(env_root / "documents"),
             "KERN_ATTACHMENT_ROOT": str(env_root / "attachments"),
             "KERN_ARCHIVE_ROOT": str(env_root / "archives"),
-            "KERN_MEETING_ROOT": str(env_root / "meetings"),
             "KERN_POLICY_MODE": policy_mode,
             "KERN_PRODUCT_POSTURE": product_posture,
-            "KERN_ADMIN_AUTH_TOKEN": env.get("KERN_ADMIN_AUTH_TOKEN", "validation-token"),
+            "KERN_ADMIN_AUTH_TOKEN": VALIDATION_ADMIN_TOKEN,
             "KERN_SEED_DEFAULTS": "true",
             "KERN_PWA_ENABLED": "false",
+            "KERN_DISABLE_DOTENV": "true",
+            "KERN_LLM_ENABLED": "false",
+            "KERN_ARTIFACT_ENCRYPTION_ENABLED": "false",
+            "KERN_PROACTIVE_ENABLED": "false",
+            "KERN_NETWORK_MONITOR_ENABLED": "false",
+            "KERN_OCR_ENABLED": "false",
+            "PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK": "true",
         }
     )
     if extra_env:
@@ -336,8 +343,7 @@ def _runtime_env(
 
 
 def _admin_headers() -> dict[str, str]:
-    token = os.environ.get("KERN_ADMIN_AUTH_TOKEN", "").strip()
-    return {"Authorization": f"Bearer {token}"} if token else {}
+    return {"Authorization": f"Bearer {VALIDATION_ADMIN_TOKEN}"}
 
 
 def _http_get_json(url: str, *, expected_status: int | None = 200) -> tuple[int, Any]:
@@ -353,7 +359,10 @@ def _http_get_json(url: str, *, expected_status: int | None = 200) -> tuple[int,
 
 def _http_post_json(url: str, *, expected_status: int | None = 200) -> tuple[int, Any]:
     with httpx.Client(timeout=20.0) as client:
-        response = client.post(url, headers=_admin_headers())
+        parsed = httpx.URL(url)
+        port = f":{parsed.port}" if parsed.port is not None else ""
+        headers = _bootstrap_csrf_headers(client, f"{parsed.scheme}://{parsed.host}{port}")
+        response = client.post(url, headers=headers)
     if expected_status is not None and response.status_code != expected_status:
         raise ValidationPackError(f"Unexpected status {response.status_code} for {url}")
     try:
@@ -452,11 +461,30 @@ def _build_runtime_package() -> Path:
     return packages[-1]
 
 
-def _wait_for_ready(base_url: str, *, timeout_seconds: float = 45.0) -> tuple[dict[str, Any], dict[str, Any]]:
+def _tail_text(path: Path, *, lines: int = 80) -> str:
+    try:
+        return "\n".join(path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:])
+    except OSError:
+        return ""
+
+
+def _wait_for_ready(
+    base_url: str,
+    *,
+    timeout_seconds: float = 120.0,
+    process: subprocess.Popen[str] | None = None,
+    log_path: Path | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     deadline = time.time() + timeout_seconds
     last_live: dict[str, Any] | None = None
     last_ready: dict[str, Any] | None = None
     while time.time() < deadline:
+        if process is not None and process.poll() is not None:
+            tail = _tail_text(log_path, lines=80) if log_path is not None else ""
+            detail = f"KERN runtime exited before readiness at {base_url} with exit code {process.returncode}."
+            if tail:
+                detail = f"{detail}\nRuntime log tail:\n{tail}"
+            raise ValidationPackError(detail)
         try:
             _, live = _http_get_json(f"{base_url}/health/live", expected_status=None)
             _, ready = _http_get_json(f"{base_url}/health/ready", expected_status=None)
@@ -469,7 +497,11 @@ def _wait_for_ready(base_url: str, *, timeout_seconds: float = 45.0) -> tuple[di
         except Exception as exc:
             logger.debug("Health check attempt failed: %s", exc)
         time.sleep(1.0)
-    raise ValidationPackError(f"KERN runtime did not become reachable at {base_url} within {timeout_seconds:.0f}s.")
+    tail = _tail_text(log_path, lines=80) if log_path is not None else ""
+    detail = f"KERN runtime did not become reachable at {base_url} within {timeout_seconds:.0f}s."
+    if tail:
+        detail = f"{detail}\nRuntime log tail:\n{tail}"
+    raise ValidationPackError(detail)
 
 
 def _launch_local_runtime(
@@ -502,7 +534,11 @@ def _launch_local_runtime(
         text=True,
     )
     base_url = f"http://127.0.0.1:{port}"
-    _wait_for_ready(base_url)
+    try:
+        _wait_for_ready(base_url, process=process, log_path=runtime_log)
+    except Exception:
+        RuntimeHandle(base_url=base_url, output_dir=output_dir, process=process, env_root=runtime_root).stop()
+        raise
     return RuntimeHandle(
         base_url=base_url,
         output_dir=output_dir,
@@ -1138,7 +1174,8 @@ def _run_license_sample_flow(base_url: str, lane_dir: Path, fixtures: LicenseFix
         lane.fail("Expired license state", f"Expected expired state after importing the expired license: {payload!r}", _display_path(expired_shot), "license-after-expired.json")
 
     with httpx.Client(timeout=60.0) as client:
-        response = client.get(f"{base_url}/support/export")
+        headers = _bootstrap_csrf_headers(client, base_url)
+        response = client.post(f"{base_url}/support/export", headers=headers)
     if response.status_code == 200 and response.headers.get("content-type", "").startswith("application/zip"):
         bundle_path = lane_dir / "expired-support-bundle.zip"
         bundle_path.write_bytes(response.content)

@@ -45,9 +45,6 @@ class ContextAssembler:
         if current_context and current_context.window and current_context.window.title:
             label = current_context.window.process_name or "foreground app"
             summary_lines.append(f"Foreground window: {label} - {current_context.window.title}.")
-        if current_context and current_context.media and current_context.media.title:
-            media = current_context.media
-            summary_lines.append(f"Now playing: {media.title} by {media.artist or 'unknown artist'}.")
         if current_context and current_context.clipboard and current_context.clipboard.has_text:
             summary_lines.append(f"Clipboard has text ({current_context.clipboard.char_count} chars).")
         if current_context and current_context.sources:
@@ -67,11 +64,9 @@ class ContextAssembler:
             system_signals={
                 "assistant_mode": self.local_data.assistant_mode(),
                 "quiet_hours_active": self.local_data.quiet_hours_active(),
-                "last_media_query": self.dialogue_state.get_last_media_query() or "",
                 "active_window_title": current_context.window.title if current_context and current_context.window else "",
                 "active_window_process": current_context.window.process_name if current_context and current_context.window else "",
                 "clipboard_present": bool(current_context and current_context.clipboard and current_context.clipboard.has_text),
-                "media_title": current_context.media.title if current_context and current_context.media else "",
                 "context_sources": [name for name, enabled in (current_context.sources.items() if current_context else []) if enabled],
             },
             current_context=current_context,

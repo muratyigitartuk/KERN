@@ -21,8 +21,6 @@ class CapabilityRegistry:
     def _posture_gate(self, capability_name: str) -> tuple[bool, str | None]:
         if self._product_posture != "production":
             return True, None
-        if capability_name in {"play_spotify", "play_media"}:
-            return False, "This capability is hidden in production posture. Enable personal posture to use media controls."
         return True, None
 
     def get(self, name: str) -> Capability:
@@ -77,16 +75,6 @@ class CapabilityRegistry:
 
 def build_capability_registry(tools: dict[str, Tool]) -> CapabilityRegistry:
     descriptors = {
-        "play_spotify": CapabilityDescriptor(
-            name="play_spotify",
-            title="Media Control",
-            summary="Control Spotify and media playback.",
-            domain="core",
-            risk_level="low",
-            confirmation_rule="never",
-            side_effectful=True,
-            verification_support="heuristic",
-        ),
         "open_app": CapabilityDescriptor(
             name="open_app",
             title="Launch App",
@@ -397,96 +385,6 @@ def build_capability_registry(tools: dict[str, Tool]) -> CapabilityRegistry:
             side_effectful=False,
             verification_support="heuristic",
         ),
-        "read_email": CapabilityDescriptor(
-            name="read_email",
-            title="Read Email",
-            summary="Read recent mail from the configured local IMAP account.",
-            domain="email",
-            risk_level="medium",
-            confirmation_rule="on_risk",
-            side_effectful=False,
-            verification_support="database",
-        ),
-        "read_mailbox_summary": CapabilityDescriptor(
-            name="read_mailbox_summary",
-            title="Mailbox Summary",
-            summary="Read recent mailbox messages with lightweight filtering.",
-            domain="email",
-            risk_level="medium",
-            confirmation_rule="never",
-            side_effectful=False,
-            verification_support="database",
-        ),
-        "sync_mailbox": CapabilityDescriptor(
-            name="sync_mailbox",
-            title="Sync Mailbox",
-            summary="Synchronize the configured mailbox and summarize results.",
-            domain="email",
-            risk_level="medium",
-            confirmation_rule="on_risk",
-            side_effectful=True,
-            verification_support="database",
-        ),
-        "compose_email": CapabilityDescriptor(
-            name="compose_email",
-            title="Send Email",
-            summary="Send email through the configured SMTP account.",
-            domain="email",
-            risk_level="high",
-            confirmation_rule="always",
-            side_effectful=True,
-            verification_support="heuristic",
-        ),
-        "create_email_reminder": CapabilityDescriptor(
-            name="create_email_reminder",
-            title="Email Reminder",
-            summary="Create a reminder suggestion from indexed email.",
-            domain="email",
-            risk_level="medium",
-            confirmation_rule="always",
-            side_effectful=True,
-            verification_support="database",
-        ),
-        "schedule_meeting_and_invite": CapabilityDescriptor(
-            name="schedule_meeting_and_invite",
-            title="Meeting Invite Flow",
-            summary="Create a local calendar event and send the invite as one controlled flow.",
-            domain="calendar",
-            risk_level="high",
-            confirmation_rule="always",
-            side_effectful=True,
-            verification_support="database",
-        ),
-        "send_ntfy_notification": CapabilityDescriptor(
-            name="send_ntfy_notification",
-            title="Mobile Notification",
-            summary="Send a self-hosted ntfy notification.",
-            domain="sync",
-            risk_level="low",
-            confirmation_rule="never",
-            side_effectful=True,
-            verification_support="heuristic",
-        ),
-        "start_meeting_recording": CapabilityDescriptor(
-            name="start_meeting_recording",
-            title="Start Meeting Recording",
-            summary="Start a local meeting recording in the active profile.",
-            domain="voice",
-            risk_level="medium",
-            confirmation_rule="always",
-            side_effectful=True,
-            verification_support="heuristic",
-        ),
-        "stop_meeting_recording": CapabilityDescriptor(
-            name="stop_meeting_recording",
-            title="Stop Meeting Recording",
-            summary="Stop the active local meeting recording.",
-            domain="voice",
-            risk_level="low",
-            confirmation_rule="never",
-            side_effectful=True,
-            verification_support="database",
-        ),
         "create_angebot": CapabilityDescriptor(
             name="create_angebot",
             title="Create Angebot",
@@ -509,7 +407,7 @@ def build_capability_registry(tools: dict[str, Tool]) -> CapabilityRegistry:
         ),
         "draft_behoerde_letter": CapabilityDescriptor(
             name="draft_behoerde_letter",
-            title="Behörde Draft",
+            title="BehÃ¶rde Draft",
             summary="Create a formal German administrative correspondence draft.",
             domain="german_business",
             risk_level="medium",

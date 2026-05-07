@@ -23,7 +23,11 @@ function Resolve-SmokeInstallRoot {
     $candidates = Get-ChildItem "output\\package-smoke\\kern-runtime-smoke-*" -Directory -ErrorAction SilentlyContinue |
         Sort-Object Name -Descending
     foreach ($candidate in $candidates) {
-        if (Test-Path (Join-Path $candidate.FullName ".venv\\Scripts\\python.exe")) {
+        if (
+            (Test-Path (Join-Path $candidate.FullName "scripts\\create-kern-update-bundle.py")) -and
+            (Test-Path (Join-Path $candidate.FullName "scripts\\restore-kern.py")) -and
+            (Test-Path (Join-Path $candidate.FullName ".kern"))
+        ) {
             return $candidate.FullName
         }
     }
@@ -31,6 +35,19 @@ function Resolve-SmokeInstallRoot {
     $bootstrapRaw = powershell -ExecutionPolicy Bypass -File ".\scripts\smoke-kern-runtime-package.ps1" -Json
     $bootstrap = $bootstrapRaw | ConvertFrom-Json
     return [string]$bootstrap.extracted_to
+}
+
+function Resolve-SmokePythonExe {
+    param([Parameter(Mandatory = $true)][string]$InstallRoot)
+    $venvPython = Join-Path $InstallRoot ".venv\\Scripts\\python.exe"
+    if (Test-Path $venvPython) {
+        return (Resolve-Path $venvPython).Path
+    }
+    $command = Get-Command "python" -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+    throw "Smoke restore requires either package .venv Python or python on PATH."
 }
 
 function Invoke-PythonJsonQuiet {
@@ -41,35 +58,33 @@ function Invoke-PythonJsonQuiet {
         [string]$FailureMessage = "Python child process failed.",
         [string]$StdinText = ""
     )
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = $PythonExe
-    foreach ($arg in $ArgumentList) { [void]$psi.ArgumentList.Add($arg) }
-    $psi.WorkingDirectory = $WorkingDirectory
-    $psi.RedirectStandardInput = $true
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    $psi.UseShellExecute = $false
-
-    $proc = New-Object System.Diagnostics.Process
-    $proc.StartInfo = $psi
-    $null = $proc.Start()
-    if ($StdinText) {
-        $proc.StandardInput.WriteLine($StdinText)
+    $pythonPath = if ([System.IO.Path]::IsPathRooted($PythonExe)) { $PythonExe } else { Join-Path $WorkingDirectory $PythonExe }
+    $resolvedPythonExe = (Resolve-Path -Path $pythonPath).Path
+    Push-Location $WorkingDirectory
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        if ($StdinText) {
+            $output = $StdinText | & $resolvedPythonExe @ArgumentList 2>&1
+        }
+        else {
+            $output = & $resolvedPythonExe @ArgumentList 2>&1
+        }
+        $exitCode = $LASTEXITCODE
     }
-    $proc.StandardInput.Close()
-    $stdout = $proc.StandardOutput.ReadToEnd()
-    $stderr = $proc.StandardError.ReadToEnd()
-    $proc.WaitForExit()
-    if ($proc.ExitCode -ne 0) {
-        throw "$FailureMessage`n$stderr$stdout".Trim()
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+        Pop-Location
     }
-    return $stdout
+    $text = ($output | Out-String).Trim()
+    if ($exitCode -ne 0) {
+        throw (("$FailureMessage`n$text").Trim())
+    }
+    return $text
 }
 
 $resolvedInstallRoot = Resolve-SmokeInstallRoot -RequestedRoot $InstallRoot
-if (-not (Test-Path (Join-Path $resolvedInstallRoot ".venv\\Scripts\\python.exe"))) {
-    throw "Smoke restore requires an extracted installed package with .venv present."
-}
+$pythonExe = Resolve-SmokePythonExe -InstallRoot $resolvedInstallRoot
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $bundlePath = Join-Path $resolvedInstallRoot ".kern\\upgrade-backups\\restore-smoke-$timestamp.kernbundle"
@@ -86,14 +101,14 @@ Set-Content -Path $sentinelSource -Value "restore smoke $(Get-Date -Format o)" -
 Push-Location $resolvedInstallRoot
 try {
     if ($Json) {
-        Invoke-PythonJsonQuiet -PythonExe ".\.venv\Scripts\python.exe" -ArgumentList @(".\scripts\create-kern-update-bundle.py", "--root", ".", "--output", $bundlePath, "--password-stdin", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle creation failed." -StdinText $Password | Out-Null
-        $validationRaw = Invoke-PythonJsonQuiet -PythonExe ".\.venv\Scripts\python.exe" -ArgumentList @(".\scripts\restore-kern.py", $bundlePath, "--password-stdin", "--validate-only", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle validation failed." -StdinText $Password
-        $restoreRaw = Invoke-PythonJsonQuiet -PythonExe ".\.venv\Scripts\python.exe" -ArgumentList @(".\scripts\restore-kern.py", $bundlePath, "--password-stdin", "--restore-root", $restoreRoot, "--force", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle restore failed." -StdinText $Password
+        Invoke-PythonJsonQuiet -PythonExe $pythonExe -ArgumentList @(".\scripts\create-kern-update-bundle.py", "--root", ".", "--output", $bundlePath, "--password-stdin", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle creation failed." -StdinText $Password | Out-Null
+        $validationRaw = Invoke-PythonJsonQuiet -PythonExe $pythonExe -ArgumentList @(".\scripts\restore-kern.py", $bundlePath, "--password-stdin", "--validate-only", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle validation failed." -StdinText $Password
+        $restoreRaw = Invoke-PythonJsonQuiet -PythonExe $pythonExe -ArgumentList @(".\scripts\restore-kern.py", $bundlePath, "--password-stdin", "--restore-root", $restoreRoot, "--force", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle restore failed." -StdinText $Password
     }
     else {
-        Invoke-PythonJsonQuiet -PythonExe ".\.venv\Scripts\python.exe" -ArgumentList @(".\scripts\create-kern-update-bundle.py", "--root", ".", "--output", $bundlePath, "--password-stdin", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle creation failed." -StdinText $Password | Out-Null
-        $validationRaw = Invoke-PythonJsonQuiet -PythonExe ".\.venv\Scripts\python.exe" -ArgumentList @(".\scripts\restore-kern.py", $bundlePath, "--password-stdin", "--validate-only", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle validation failed." -StdinText $Password
-        $restoreRaw = Invoke-PythonJsonQuiet -PythonExe ".\.venv\Scripts\python.exe" -ArgumentList @(".\scripts\restore-kern.py", $bundlePath, "--password-stdin", "--restore-root", $restoreRoot, "--force", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle restore failed." -StdinText $Password
+        Invoke-PythonJsonQuiet -PythonExe $pythonExe -ArgumentList @(".\scripts\create-kern-update-bundle.py", "--root", ".", "--output", $bundlePath, "--password-stdin", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle creation failed." -StdinText $Password | Out-Null
+        $validationRaw = Invoke-PythonJsonQuiet -PythonExe $pythonExe -ArgumentList @(".\scripts\restore-kern.py", $bundlePath, "--password-stdin", "--validate-only", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle validation failed." -StdinText $Password
+        $restoreRaw = Invoke-PythonJsonQuiet -PythonExe $pythonExe -ArgumentList @(".\scripts\restore-kern.py", $bundlePath, "--password-stdin", "--restore-root", $restoreRoot, "--force", "--json") -WorkingDirectory $resolvedInstallRoot -FailureMessage "Update bundle restore failed." -StdinText $Password
     }
 }
 finally {
@@ -110,6 +125,7 @@ if (-not $sentinelPresent) {
 
 $report = [ordered]@{
     install_root = $resolvedInstallRoot
+    python = $pythonExe
     bundle_path = $bundlePath
     restore_root = $restoreRoot
     sentinel_source = $sentinelSource

@@ -9,8 +9,7 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
-from app.types import ClipboardSnapshot, CurrentContextSnapshot, ForegroundWindowSnapshot, MediaContextSnapshot
-from app.windows_media import WindowsMediaSessionClient
+from app.types import ClipboardSnapshot, CurrentContextSnapshot, ForegroundWindowSnapshot
 
 
 _USER32 = ctypes.windll.user32 if platform.system() == "Windows" else None
@@ -108,7 +107,7 @@ def _resolve_process_name(process_id: int) -> str:
         if process_handle:
             try:
                 _KERNEL32.CloseHandle(process_handle)
-            except Exception:  # cleanup — best-effort
+            except Exception:  # cleanup â€” best-effort
                 pass
     return ""
 
@@ -119,30 +118,23 @@ class CurrentContextService:
         *,
         window_client=None,
         clipboard_client: WindowsClipboardClient | None = None,
-        media_client: WindowsMediaSessionClient | None = None,
         window_enabled: bool = True,
         clipboard_enabled: bool = False,
-        media_enabled: bool = True,
     ) -> None:
         self.window_client = window_client or WindowsWindowClient()
         self.clipboard_client = clipboard_client or WindowsClipboardClient()
-        self.media_client = media_client or WindowsMediaSessionClient()
         self.window_enabled = window_enabled
         self.clipboard_enabled = clipboard_enabled
-        self.media_enabled = media_enabled
 
     def collect(self) -> CurrentContextSnapshot:
         window = self._read_window() if self.window_enabled else None
         clipboard = self._read_clipboard() if self.clipboard_enabled else None
-        media = self._read_media() if self.media_enabled else None
         return CurrentContextSnapshot(
             window=window,
             clipboard=clipboard,
-            media=media,
             sources={
                 "window": bool(window),
                 "clipboard": bool(clipboard and clipboard.has_text),
-                "media": bool(media and media.title),
             },
         )
 
@@ -155,18 +147,3 @@ class CurrentContextService:
 
     def _read_clipboard(self) -> ClipboardSnapshot | None:
         return self.clipboard_client.snapshot()
-
-    def _read_media(self) -> MediaContextSnapshot | None:
-        if not self.media_client.available:
-            return None
-        snapshot = self.media_client.spotify_session()
-        if snapshot is None:
-            return None
-        return MediaContextSnapshot(
-            source_app=snapshot.source_app,
-            status=snapshot.status,
-            title=snapshot.title,
-            artist=snapshot.artist,
-            album=snapshot.album,
-            captured_at=datetime.now(timezone.utc),
-        )

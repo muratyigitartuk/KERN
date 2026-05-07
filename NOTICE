@@ -1,0 +1,5 @@
+KERN
+
+This product includes software developed by KERN contributors.
+
+KERN depends on third-party open-source packages listed in `pyproject.toml` and `src-tauri/Cargo.toml`.

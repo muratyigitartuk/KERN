@@ -6,14 +6,8 @@
     "min_confidence": 0.6
   },
   {
-    "prompt": "Refresh my email inbox and check if anything urgent arrived today",
-    "available_capabilities": ["sync_mailbox"],
-    "expected_tool": "sync_mailbox",
-    "min_confidence": 0.6
-  },
-  {
     "prompt": "Handle the thing from earlier",
-    "available_capabilities": ["search_documents", "read_mailbox_summary"],
+    "available_capabilities": ["search_documents", "create_backup"],
     "expect_abstain": true
   }
 ]

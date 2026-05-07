@@ -2,27 +2,25 @@ from app.llm import Brain
 from app.persona import KERN_SYSTEM_PROMPT, PersonaEngine
 
 
-def test_brain_uses_local_rule_mode_for_music_requests():
+def test_brain_does_not_route_music_requests_to_tools():
     brain = Brain(None, local_mode_enabled=True)
     parsed = brain.parse_intent("Play some morning jazz")
-    assert parsed.tool_request is not None
-    assert parsed.tool_request.tool_name == "play_spotify"
-    assert parsed.tool_request.arguments["mode"] == "search_and_play"
+    assert parsed.tool_request is None
 
 
 def test_brain_returns_local_help_response():
     brain = Brain(None, local_mode_enabled=True)
     reply = brain.generate_chat_reply("What can you do?", "sir")
-    assert "Spotify" in reply
+    assert "workspace" in reply
     assert "calendar" in reply
 
 
-def test_brain_separates_pause_and_resume_intents():
+def test_brain_does_not_route_media_control_intents():
     brain = Brain(None, local_mode_enabled=True)
-    pause_intent = brain.parse_intent("Pause Spotify")
-    resume_intent = brain.parse_intent("Resume Spotify")
-    assert pause_intent.tool_request.arguments["mode"] == "pause"
-    assert resume_intent.tool_request.arguments["mode"] == "resume"
+    pause_intent = brain.parse_intent("Pause playback")
+    resume_intent = brain.parse_intent("Resume playback")
+    assert pause_intent.tool_request is None
+    assert resume_intent.tool_request is None
 
 
 def test_brain_routes_good_morning_to_local_brief_tool():
@@ -40,21 +38,16 @@ def test_brain_parses_local_reminder_request():
     assert parsed.tool_request.arguments["kind"] == "reminder"
 
 
-def test_brain_uses_dialogue_context_for_media_follow_up():
+def test_brain_does_not_use_media_follow_up_context():
     brain = Brain(None, local_mode_enabled=True)
-    parsed = brain.parse_intent("Play something calmer", dialogue_context={"last_media_query": "morning jazz"})
-    assert parsed.tool_request is not None
-    assert parsed.tool_request.tool_name == "play_spotify"
-    assert "calm" in parsed.tool_request.arguments["query"]
+    parsed = brain.parse_intent("Play something calmer")
+    assert parsed.tool_request is None
 
 
-def test_brain_parses_runtime_mute_request():
+def test_brain_does_not_route_runtime_mute_request_after_voice_removal():
     brain = Brain(None, local_mode_enabled=True)
     parsed = brain.parse_intent("Mute Kern")
-    assert parsed.tool_request is not None
-    assert parsed.tool_request.tool_name == "set_preference"
-    assert parsed.tool_request.arguments["key"] == "muted"
-    assert parsed.tool_request.arguments["value"] == "true"
+    assert parsed.tool_request is None
 
 
 def test_brain_parses_reminder_snooze_request():
@@ -74,11 +67,10 @@ def test_brain_parses_routine_request():
     assert parsed.tool_request.arguments["name"] == "focus"
 
 
-def test_brain_routes_music_status_question_to_status():
+def test_brain_does_not_route_music_status_question():
     brain = Brain(None, local_mode_enabled=True)
     parsed = brain.parse_intent("Do I have music set for the morning?")
-    assert parsed.tool_request is not None
-    assert parsed.tool_request.tool_name == "read_status"
+    assert parsed.tool_request is None
 
 
 def test_brain_generic_memory_recall_lists_all_facts():
@@ -110,11 +102,10 @@ def test_brain_asks_to_disambiguate_open_target():
     assert parsed.missing_slots == ["target_type"]
 
 
-def test_brain_parses_kern_mute_request():
+def test_brain_does_not_route_kern_mute_request_after_voice_removal():
     brain = Brain(None, local_mode_enabled=True)
     parsed = brain.parse_intent("Mute Kern")
-    assert parsed.tool_request is not None
-    assert parsed.tool_request.tool_name == "set_preference"
+    assert parsed.tool_request is None
 
 
 def test_brain_resolves_contextual_reminder_reference():
@@ -132,11 +123,10 @@ def test_brain_parses_natural_document_search_request():
     assert parsed.tool_request.tool_name == "search_documents"
 
 
-def test_brain_parses_mailbox_summary_request():
+def test_brain_does_not_parse_removed_mailbox_summary_request():
     brain = Brain(None, local_mode_enabled=True)
     parsed = brain.parse_intent("Show my recent mailbox messages")
-    assert parsed.tool_request is not None
-    assert parsed.tool_request.tool_name == "read_mailbox_summary"
+    assert parsed.tool_request is None
 
 
 def test_brain_parses_backup_request_with_label():
@@ -154,11 +144,10 @@ def test_brain_parses_draft_angebot_request():
     assert parsed.tool_request.tool_name == "create_angebot"
 
 
-def test_brain_parses_start_meeting_recording_request():
+def test_brain_does_not_parse_removed_meeting_recording_request():
     brain = Brain(None, local_mode_enabled=True)
     parsed = brain.parse_intent("Start a meeting recording for frontend review")
-    assert parsed.tool_request is not None
-    assert parsed.tool_request.tool_name == "start_meeting_recording"
+    assert parsed.tool_request is None
 
 
 def test_brain_parses_runtime_snapshot_request():
@@ -173,6 +162,14 @@ def test_brain_parses_current_context_request():
     parsed = brain.parse_intent("Show my current context")
     assert parsed.tool_request is not None
     assert parsed.tool_request.tool_name == "read_current_context"
+
+
+def test_brain_does_not_route_current_context_generation_prompt_to_status_tool():
+    brain = Brain(None, local_mode_enabled=True)
+    parsed = brain.parse_intent(
+        "Draft a short workplace policy with clear rules, scope, and owner responsibilities."
+    )
+    assert parsed.tool_request is None
 
 
 def test_brain_parses_audit_read_request():
@@ -192,6 +189,8 @@ def test_kern_system_prompt_prefers_drafting_over_sending_for_write_requests():
     assert "produce the draft directly" in KERN_SYSTEM_PROMPT
     assert "explicitly ask you to send it" in KERN_SYSTEM_PROMPT
     assert "Reply in the same language" in KERN_SYSTEM_PROMPT
+    assert "German business environments" in KERN_SYSTEM_PROMPT
+    assert "Do not use honorifics" in KERN_SYSTEM_PROMPT
 
 
 def test_brain_classifier_routes_scoped_operational_prompt():
@@ -213,7 +212,7 @@ def test_brain_classifier_abstains_on_ambiguous_operational_prompt():
     brain = Brain(None, local_mode_enabled=True, cognition_backend="hybrid")
     analysis = brain.analyze_intent(
         "Handle the thing from earlier",
-        available_capabilities=["search_documents", "read_mailbox_summary"],
+        available_capabilities=["search_documents"],
     )
 
     assert analysis.execution_plan.steps == []

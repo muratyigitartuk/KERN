@@ -20,18 +20,18 @@ DEFAULT_CLASSIFICATION = "internal"
 _CONFIDENTIAL_PATTERNS = [
     re.compile(r"\b(?:vertraulich|confidential|geheim|streng\s+vertraulich)", re.IGNORECASE),
     re.compile(r"\b(?:personenbezogen|personal\s+data|datenschutz|DSGVO|GDPR)\b", re.IGNORECASE),
-    re.compile(r"\b(?:gehalt|salary|compensation|vergütung|bonus)", re.IGNORECASE),
-    re.compile(r"\b(?:kündigung|termination|abmahnung|disciplinary)", re.IGNORECASE),
+    re.compile(r"\b(?:gehalt|salary|compensation|vergÃ¼tung|bonus)", re.IGNORECASE),
+    re.compile(r"\b(?:kÃ¼ndigung|termination|abmahnung|disciplinary)", re.IGNORECASE),
 ]
 
 _RESTRICTED_PATTERNS = [
-    re.compile(r"\b(?:streng\s+geheim|top\s+secret|nur\s+für\s+den\s+dienstgebrauch)\b", re.IGNORECASE),
+    re.compile(r"\b(?:streng\s+geheim|top\s+secret|nur\s+fÃ¼r\s+den\s+dienstgebrauch)\b", re.IGNORECASE),
     re.compile(r"\b(?:restricted|classified|verschlusssache)\b", re.IGNORECASE),
 ]
 
 _PUBLIC_PATTERNS = [
-    re.compile(r"\b(?:pressemitteilung|press\s+release|öffentlich|public)\b", re.IGNORECASE),
-    re.compile(r"\b(?:veröffentlichung|publication|newsletter)\b", re.IGNORECASE),
+    re.compile(r"\b(?:pressemitteilung|press\s+release|Ã¶ffentlich|public)\b", re.IGNORECASE),
+    re.compile(r"\b(?:verÃ¶ffentlichung|publication|newsletter)\b", re.IGNORECASE),
 ]
 
 

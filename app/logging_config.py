@@ -1,11 +1,11 @@
 """Structured logging configuration for KERN.
 
-Call ``setup_logging()`` once at process startup — before any other import
+Call ``setup_logging()`` once at process startup â€” before any other import
 that touches ``logging.getLogger``.  The function reads two env-vars
 (already surfaced in ``app.config.Settings``):
 
-* ``KERN_LOG_LEVEL``  – DEBUG / INFO / WARNING / ERROR (default: INFO)
-* ``KERN_LOG_FORMAT`` – ``json`` or ``text`` (default: ``text``)
+* ``KERN_LOG_LEVEL``  â€“ DEBUG / INFO / WARNING / ERROR (default: INFO)
+* ``KERN_LOG_FORMAT`` â€“ ``json`` or ``text`` (default: ``text``)
 """
 
 from __future__ import annotations

@@ -32,9 +32,8 @@ class ComplianceService:
             "workspace_memberships": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": True},
             "sessions": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": True},
             "documents": {"exportable": True, "erasable": True, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": True},
-            "email_drafts": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": False},
-            "mailbox_messages": {"exportable": True, "erasable": True, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": True},
-            "meetings": {"exportable": True, "erasable": True, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": True},
+            "deprecated_legacy_email_data": {"exportable": True, "erasable": True, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": True, "deprecated": True, "active_product_surface": False},
+            "deprecated_legacy_meeting_data": {"exportable": True, "erasable": True, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": True, "deprecated": True, "active_product_surface": False},
             "schedules": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": True},
             "knowledge_graph": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": True},
             "structured_memory": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": False},
@@ -137,8 +136,8 @@ class ComplianceService:
                 for regulated in self.memory.list_regulated_documents(limit=200)
                 for version in self.memory.list_regulated_document_versions(regulated.id)
             ],
-            "email_drafts": [item.model_dump(mode="json") for item in self.memory.list_email_drafts(limit=200)],
-            "meetings": [item.model_dump(mode="json") for item in self.memory.list_meeting_records(limit=200)],
+            "deprecated_legacy_email_data": self._legacy_rows(["email_drafts", "mailbox_messages", "email_accounts"], limit=200),
+            "deprecated_legacy_meeting_data": self._legacy_rows(["meeting_records", "transcript_artifacts", "meeting_action_items"], limit=200),
             "structured_memory": self.memory.list_structured_memory_items(limit=500),
             "feedback_signals": [item.model_dump(mode="json") for item in self.memory.list_feedback_signals(limit=500)],
             "training_examples": [item.model_dump(mode="json") for item in self.memory.list_training_examples(limit=500)],
@@ -176,6 +175,22 @@ class ComplianceService:
         if updated is None:
             raise RuntimeError("Failed to persist workspace export state.")
         return updated, payload
+
+    def _legacy_rows(self, table_names: list[str], *, limit: int) -> dict[str, list[dict[str, Any]]]:
+        rows: dict[str, list[dict[str, Any]]] = {}
+        for table_name in table_names:
+            exists = self.memory.connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (table_name,),
+            ).fetchone()
+            if not exists:
+                continue
+            result = self.memory.connection.execute(
+                f"SELECT * FROM {table_name} WHERE profile_slug = ? LIMIT ?",
+                (self.profile.slug, limit),
+            )
+            rows[table_name] = [dict(row) for row in result.fetchall()]
+        return rows
 
     def execute_erasure(self, request_id: str, *, actor_user_id: str | None) -> dict[str, Any]:
         request = self.platform.get_erasure_request(request_id)

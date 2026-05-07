@@ -11,7 +11,7 @@ DOC_PATHS = [
     ROOT / "docs" / "security-governance.md",
     ROOT / "docs" / "validation-pack.md",
     ROOT / "docs" / "windows-deployment.md",
-    ROOT / "STAGING_VALIDATION_PLAN.md",
+    ROOT / "docs" / "corporate-demo-script.md",
 ]
 HEALTH_SEMANTIC_PATHS = DOC_PATHS + [ROOT / "tests" / "test_e2e_scaffold.py"]
 _KERN_ENV_RE = re.compile(r"KERN_[A-Z0-9_]+")
@@ -46,7 +46,8 @@ def test_public_health_docs_do_not_use_stale_healthy_status() -> None:
     assert offenders == []
 
 
-def test_staging_plan_references_validation_pack_artifacts() -> None:
-    text = (ROOT / "STAGING_VALIDATION_PLAN.md").read_text(encoding="utf-8")
-    assert "validation pack" in text.lower()
-    assert "output/playwright" in text
+def test_corporate_demo_script_references_release_and_acceptance_artifacts() -> None:
+    text = (ROOT / "docs" / "corporate-demo-script.md").read_text(encoding="utf-8").lower()
+    assert "release gate" in text
+    assert "enterprise acceptance" in text
+    assert "support" in text

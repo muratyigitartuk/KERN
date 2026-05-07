@@ -14,7 +14,7 @@ class CreateScheduleTool(Tool):
     name = "create_schedule"
 
     def __init__(self, get_scheduler) -> None:
-        self._get = get_scheduler  # callable → SchedulerService | None
+        self._get = get_scheduler  # callable â†’ SchedulerService | None
 
     def parameter_schema(self) -> dict[str, Any]:
         return {
@@ -27,12 +27,10 @@ class CreateScheduleTool(Tool):
                 },
                 "action_type": {
                     "type": "string",
-                    "enum": ["custom_prompt", "summarize_emails", "generate_report"],
+                    "enum": ["custom_prompt", "generate_report"],
                     "description": "Type of action to run",
                 },
                 "prompt": {"type": "string", "description": "Prompt to run for custom_prompt action type"},
-                "urgent_only": {"type": "boolean", "description": "Only urgent messages for summarize_emails"},
-                "today_only": {"type": "boolean", "description": "Only today for summarize_emails"},
                 "max_retries": {"type": "integer", "description": "Retry budget before the scheduler gives up until the next cron run"},
             },
             "required": ["title", "cron_expression"],
@@ -41,27 +39,21 @@ class CreateScheduleTool(Tool):
     async def run(self, request: ToolRequest) -> ToolResult:
         scheduler = self._get()
         if scheduler is None:
-            return ToolResult(status="failed", display_text="Scheduler is not available.", spoken_text="Scheduling is not enabled.")
+            return ToolResult(status="failed", display_text="Scheduler is not available.")
         title = str(request.arguments.get("title", "")).strip()
         cron = str(request.arguments.get("cron_expression", "0 8 * * *")).strip()
         action_type = str(request.arguments.get("action_type", "custom_prompt") or "custom_prompt")
         prompt = str(request.arguments.get("prompt", "") or "").strip()
         max_retries = int(request.arguments.get("max_retries", 2) or 2)
         if not title:
-            return ToolResult(status="failed", display_text="A title is required.", spoken_text="Please provide a title for the schedule.")
+            return ToolResult(status="failed", display_text="A title is required.")
         action_payload: dict[str, Any]
-        if action_type == "summarize_emails":
-            action_payload = {
-                "urgent_only": bool(request.arguments.get("urgent_only", False)),
-                "today_only": bool(request.arguments.get("today_only", False)),
-            }
-        elif action_type == "generate_report":
+        if action_type == "generate_report":
             action_payload = {"prompt": prompt} if prompt else {}
         elif action_type != "custom_prompt":
             return ToolResult(
                 status="failed",
                 display_text=f"Unsupported action type: {action_type}.",
-                spoken_text="That scheduled action type is not supported.",
             )
         else:
             action_payload = {"prompt": prompt} if prompt else {}
@@ -69,7 +61,6 @@ class CreateScheduleTool(Tool):
         return ToolResult(
             status="observed",
             display_text=f"Schedule created: {title} ({cron})",
-            spoken_text=f"I've scheduled {title}.",
             side_effects=["schedule_created"],
             data={"task": task},
         )
@@ -90,15 +81,14 @@ class ListSchedulesTool(Tool):
     async def run(self, request: ToolRequest) -> ToolResult:
         scheduler = self._get()
         if scheduler is None:
-            return ToolResult(status="failed", display_text="Scheduler is not available.", spoken_text="Scheduling is not enabled.")
+            return ToolResult(status="failed", display_text="Scheduler is not available.")
         tasks = scheduler.list_tasks()
         if not tasks:
-            return ToolResult(status="observed", display_text="No scheduled tasks.", spoken_text="No scheduled tasks yet.", data={"tasks": []})
+            return ToolResult(status="observed", display_text="No scheduled tasks.", data={"tasks": []})
         summary = "; ".join(f"{t['title']} ({t['cron_expression']})" for t in tasks[:5])
         return ToolResult(
             status="observed",
             display_text=f"Schedules: {summary}",
-            spoken_text=f"You have {len(tasks)} scheduled task(s).",
             data={"tasks": tasks},
         )
 
@@ -129,17 +119,16 @@ class ManageScheduleTool(Tool):
     async def run(self, request: ToolRequest) -> ToolResult:
         scheduler = self._get()
         if scheduler is None:
-            return ToolResult(status="failed", display_text="Scheduler is not available.", spoken_text="Scheduling is not enabled.")
+            return ToolResult(status="failed", display_text="Scheduler is not available.")
         action = str(request.arguments.get("action", "")).strip()
         schedule_id = str(request.arguments.get("schedule_id", "")).strip()
         if not action or not schedule_id:
-            return ToolResult(status="failed", display_text="action and schedule_id are required.", spoken_text="I need an action and a schedule ID.")
+            return ToolResult(status="failed", display_text="action and schedule_id are required.")
         if action == "delete":
             ok = scheduler.delete_task(schedule_id)
             return ToolResult(
                 status="observed" if ok else "failed",
                 display_text="Schedule deleted." if ok else "Schedule not found.",
-                spoken_text="Done." if ok else "I couldn't find that schedule.",
                 side_effects=["schedule_deleted"] if ok else [],
             )
         enabled = action == "enable"
@@ -148,7 +137,6 @@ class ManageScheduleTool(Tool):
         return ToolResult(
             status="observed" if ok else "failed",
             display_text=f"Schedule {label}." if ok else "Schedule not found.",
-            spoken_text=f"Schedule {label}." if ok else "I couldn't find that schedule.",
             side_effects=[f"schedule_{label}"] if ok else [],
         )
 
@@ -160,7 +148,7 @@ class WatchFolderTool(Tool):
     name = "watch_folder"
 
     def __init__(self, get_file_watcher) -> None:
-        self._get = get_file_watcher  # callable → FileWatcher | None
+        self._get = get_file_watcher  # callable â†’ FileWatcher | None
 
     def parameter_schema(self) -> dict[str, Any]:
         return {
@@ -175,18 +163,17 @@ class WatchFolderTool(Tool):
         watcher = self._get()
         folder_path = str(request.arguments.get("folder_path", "") or "").strip()
         if not folder_path:
-            return ToolResult(status="failed", display_text="folder_path is required.", spoken_text="Tell me which folder to watch.")
+            return ToolResult(status="failed", display_text="folder_path is required.")
         path = Path(folder_path)
         if not path.is_dir():
-            return ToolResult(status="failed", display_text=f"Not a valid directory: {folder_path}", spoken_text="That directory doesn't exist.")
+            return ToolResult(status="failed", display_text=f"Not a valid directory: {folder_path}")
         if watcher is None:
-            return ToolResult(status="failed", display_text="File watcher is not available.", spoken_text="File watching is not active.")
+            return ToolResult(status="failed", display_text="File watcher is not available.")
         if not watcher.add_directory(path):
-            return ToolResult(status="failed", display_text=f"Unable to watch: {folder_path}", spoken_text="I couldn't add that folder to the watch list.")
+            return ToolResult(status="failed", display_text=f"Unable to watch: {folder_path}")
         return ToolResult(
             status="observed",
             display_text=f"Now watching: {path.name}",
-            spoken_text=f"I'll monitor {path.name} for new files.",
             side_effects=["watch_rule_added"],
             data={"folder": str(path)},
         )

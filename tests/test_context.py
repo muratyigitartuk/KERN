@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from app.context import ContextAssembler
@@ -23,7 +23,7 @@ def test_context_assembler_includes_current_context_sources(tmp_path: Path):
     local_data = LocalDataService(repo, "sir")
     dialogue = DialogueStateStore(repo)
     local_data.create_task("Review contract")
-    local_data.create_reminder("Reply to ACME", datetime.utcnow() + timedelta(hours=2))
+    local_data.create_reminder("Reply to ACME", datetime.now(timezone.utc) + timedelta(hours=2))
 
     assembler = ContextAssembler(repo, local_data, dialogue, current_context=_FakeCurrentContext())
     summary = assembler.build()

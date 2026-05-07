@@ -13,7 +13,7 @@ Use this checklist before every internal managed deployment.
 - [ ] `.env` file created from `.env.example` with all required values set
 - [ ] `KERN_PRODUCT_POSTURE=production` and `KERN_POLICY_MODE=corporate` configured
 - [ ] `KERN_DB_ENCRYPTION_MODE=fernet` remains enabled unless a deliberate plaintext test is required
-- [ ] Profile secret resolution is working for any `_REF`-style secrets in use, for example `KERN_EMAIL_PASSWORD_REF`
+- [ ] Profile secret resolution is working for any `_REF`-style secrets used by deployment-specific integrations
 - [ ] Local LLM endpoint configured (`KERN_LLAMA_SERVER_URL`) and `KERN_LLM_LOCAL_ONLY=true`
 - [ ] `KERN_ALLOW_CLOUD_LLM=false` in production/corporate rollout
 - [ ] Data directories exist and have correct permissions
@@ -27,7 +27,8 @@ Use this checklist before every internal managed deployment.
 
 ## 2. Docker Deployment
 
-- [ ] Treat Docker as a staging/dev smoke target, not the primary release target
+- [ ] For local mode, treat Docker as a staging/dev smoke target
+- [ ] For server mode, configure Docker or orchestration with external PostgreSQL, Redis, OIDC, HTTPS/proxy, and durable object storage
 - [ ] Build image: `docker compose build`
 - [ ] Verify `.env` file is bind-mounted (not baked into image)
 - [ ] Verify data volume is persistent (`kern-data`)
@@ -35,6 +36,20 @@ Use this checklist before every internal managed deployment.
 - [ ] Verify health check passes: `docker inspect --format='{{.State.Health.Status}}' kern-workspace`
 - [ ] Check `requirements.lock` inside container for dependency audit trail
 - [ ] Review `pip-audit` output in build logs for known vulnerabilities
+
+## 2A. Server Mode Deployment
+
+- [ ] Set `KERN_SERVER_MODE=true`
+- [ ] Set `KERN_POSTGRES_DSN`, `KERN_REDIS_URL`, `KERN_OBJECT_STORAGE_ROOT`, `KERN_ENCRYPTION_KEY_PROVIDER`, and `KERN_PUBLIC_BASE_URL`
+- [ ] Set `KERN_OIDC_ENABLED=true` with issuer, client, secret, and redirect URI
+- [ ] Set `KERN_SESSION_SECRET` from a secrets backend
+- [ ] Set allowed hosts/origins and HTTPS/proxy header configuration
+- [ ] Leave `KERN_ADMIN_AUTH_TOKEN` unset
+- [ ] Leave `KERN_DISABLE_AUTH_FOR_LOOPBACK=false`
+- [ ] Enable server break-glass only with `KERN_SERVER_BREAK_GLASS_ENABLED=true`, `KERN_BREAK_GLASS_IP_ALLOWLIST`, and `KERN_BREAK_GLASS_PASSWORD`
+- [ ] Verify `/health/live`, `/health/ready`, `/auth/session`, `/workspaces`, and thread APIs behind SSO
+- [ ] Verify `/upload`, local exports, and other unmigrated local-profile endpoints fail closed in server mode
+- [ ] Verify Redis failure blocks mutating/sensitive rate-limited requests instead of falling back to per-process limits
 
 ## 3. Linux (systemd) Deployment
 
@@ -111,5 +126,5 @@ Use this checklist before every internal managed deployment.
 - Never commit `.env` to version control
 - Rotate profile encryption keys only through the supported key-rotation workflow
 - Run `pip-audit` periodically against installed packages
-- Review `/metrics` output - it is unauthenticated by default
+- Review `/metrics` output only through authenticated admin/auditor access
 - In corporate mode, verify network monitor is active (shield badge = green)

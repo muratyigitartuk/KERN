@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import contextlib
 import json
 import os
@@ -80,11 +79,21 @@ class ArtifactStore:
         if self.enabled:
             try:
                 if source.is_relative_to(root):
-                    return source
+                    if self.is_encrypted_path(source):
+                        return source
+                    encrypted_path = self.write_bytes(source, source.read_bytes())
+                    if encrypted_path.resolve() != source.resolve():
+                        source.unlink(missing_ok=True)
+                    return encrypted_path
             except AttributeError:
                 try:
                     source.relative_to(root)
-                    return source
+                    if self.is_encrypted_path(source):
+                        return source
+                    encrypted_path = self.write_bytes(source, source.read_bytes())
+                    if encrypted_path.resolve() != source.resolve():
+                        source.unlink(missing_ok=True)
+                    return encrypted_path
                 except ValueError:
                     pass
             destination = root / source.name
@@ -174,28 +183,37 @@ class ArtifactStore:
             if updated:
                 connection.execute("UPDATE document_records SET metadata_json = ? WHERE id = ?", (json.dumps(metadata), row["id"]))
 
-        rows = connection.execute(
-            "SELECT id, attachment_paths_json, metadata_json FROM mailbox_messages WHERE profile_slug = ?",
-            (self.profile.slug,),
-        ).fetchall()
-        for row in rows:
-            attachment_paths = json.loads(row["attachment_paths_json"] or "[]")
-            metadata = json.loads(row["metadata_json"] or "{}")
-            changed = False
-            attachment_paths = [migrated.get(path, path) for path in attachment_paths]
-            if attachment_paths != json.loads(row["attachment_paths_json"] or "[]"):
-                changed = True
-            raw_path = metadata.get("raw_path")
-            if isinstance(raw_path, str) and raw_path in migrated:
-                metadata["raw_path"] = migrated[raw_path]
-                changed = True
-            if changed:
-                connection.execute(
-                    "UPDATE mailbox_messages SET attachment_paths_json = ?, metadata_json = ? WHERE id = ?",
-                    (json.dumps(attachment_paths), json.dumps(metadata), row["id"]),
-                )
+        if self._table_exists(connection, "mailbox_messages"):
+            rows = connection.execute(
+                "SELECT id, attachment_paths_json, metadata_json FROM mailbox_messages WHERE profile_slug = ?",
+                (self.profile.slug,),
+            ).fetchall()
+            for row in rows:
+                attachment_paths = json.loads(row["attachment_paths_json"] or "[]")
+                metadata = json.loads(row["metadata_json"] or "{}")
+                changed = False
+                attachment_paths = [migrated.get(path, path) for path in attachment_paths]
+                if attachment_paths != json.loads(row["attachment_paths_json"] or "[]"):
+                    changed = True
+                raw_path = metadata.get("raw_path")
+                if isinstance(raw_path, str) and raw_path in migrated:
+                    metadata["raw_path"] = migrated[raw_path]
+                    changed = True
+                if changed:
+                    connection.execute(
+                        "UPDATE mailbox_messages SET attachment_paths_json = ?, metadata_json = ? WHERE id = ?",
+                        (json.dumps(attachment_paths), json.dumps(metadata), row["id"]),
+                    )
 
         connection.commit()
+
+    def _table_exists(self, connection, table_name: str) -> bool:
+        return bool(
+            connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (table_name,),
+            ).fetchone()
+        )
 
     def _cipher(self):
         if not (self.platform and self.profile):

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import shutil
@@ -224,7 +223,7 @@ class SyncService:
                 try:
                     staging_root.replace(destination_root)
                 except Exception as exc:
-                    logger.error("Sync rollback triggered — staging move failed: %s", exc)
+                    logger.error("Sync rollback triggered â€” staging move failed: %s", exc)
                     if destination_moved and backup_root.exists() and not destination_root.exists():
                         backup_root.replace(destination_root)
                     raise
@@ -369,7 +368,7 @@ class SyncService:
             try:
                 staging_root.replace(destination_root)
             except Exception as exc:
-                logger.error("Restore rollback triggered — staging move failed: %s", exc)
+                logger.error("Restore rollback triggered â€” staging move failed: %s", exc)
                 if destination_moved and backup_root.exists() and not destination_root.exists():
                     backup_root.replace(destination_root)
                 raise

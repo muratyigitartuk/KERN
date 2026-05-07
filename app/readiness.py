@@ -334,30 +334,34 @@ def build_readiness_report(runtime_url: str | None = None) -> dict[str, object]:
         errors.append("Corporate mode requires encrypted artifacts.")
     if settings.policy_mode == "corporate" and not settings.retention_enforcement_enabled:
         warnings.append("Corporate mode is running without automatic retention enforcement.")
+    extras_errors: list[str] = []
     if not extras["pymupdf"]:
+        extras_errors.append("PyMuPDF is not installed; PDF ingestion is unavailable.")
         errors.append("PyMuPDF is not installed; PDF ingestion is unavailable.")
     if not extras["python_docx"]:
         warnings.append("python-docx is not installed; DOCX ingestion is unavailable.")
     if not extras["openpyxl"]:
         warnings.append("openpyxl is not installed; spreadsheet ingestion is unavailable.")
     if settings.scheduler_enabled and not extras["croniter"]:
+        extras_errors.append("Scheduler is enabled but croniter is not installed.")
         errors.append("Scheduler is enabled but croniter is not installed.")
     if settings.file_watch_dirs and not extras["watchdog"]:
         warnings.append("Watch folders are configured but watchdog is not installed.")
     if settings.policy_mode == "corporate" and not extras["psutil"]:
         warnings.append("Corporate mode is running without psutil/system-control support.")
     if importlib.util.find_spec("cryptography") is None and (settings.db_encryption_mode != "off" or settings.artifact_encryption_enabled):
+        extras_errors.append("cryptography is required for the configured encryption posture.")
         errors.append("cryptography is required for the configured encryption posture.")
     if task_status["supported"] and not task_status["registered"] and settings.product_posture == "production":
         warnings.append("Scheduled task supervision is not registered.")
 
-    extras_status = "pass" if not errors else "fail"
+    extras_status = "pass" if not extras_errors else "fail"
     extras_details = ", ".join(f"{key}={'yes' if value else 'no'}" for key, value in extras.items())
     add_check(
         "runtime_extras",
         "Runtime dependencies",
         status=extras_status,
-        severity="error" if errors else "info",
+        severity="error" if extras_errors else "info",
         why_it_matters="Document ingestion, encryption, and operator recovery depend on the runtime extras being present.",
         operator_action="Re-run install with the internal deployment preset if required extras are missing.",
         details=extras_details,

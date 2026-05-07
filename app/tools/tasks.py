@@ -20,7 +20,6 @@ class TaskService:
             success=True,
             status="observed",
             display_text=f"Added local task: {title}",
-            spoken_text="I added that task.",
             evidence=[f"Created task #{task_id}."],
             side_effects=["task_created", "open_loop_created"],
             data={"source": "local", "task_id": task_id},
@@ -33,14 +32,12 @@ class TaskService:
                 success=False,
                 status="failed",
                 display_text=f"I could not find an active task named {title}.",
-                spoken_text=f"I could not find an active task named {title}.",
                 data={"source": "local"},
             )
         return ToolResult(
             success=True,
             status="observed",
             display_text=f"Completed task: {title}",
-            spoken_text=f"I marked {title} as complete.",
             evidence=[f"Marked task {title} complete."],
             side_effects=["task_completed", "open_loop_resolved"],
             data={"source": "local"},
@@ -63,7 +60,6 @@ class PendingTasksTool(Tool):
                 success=True,
                 status="observed",
                 display_text="No pending tasks.",
-                spoken_text="You have no pending tasks.",
                 evidence=["Task list is empty."],
                 data={"tasks": []},
             )
@@ -72,7 +68,6 @@ class PendingTasksTool(Tool):
             success=True,
             status="observed",
             display_text=f"Top tasks: {summary}",
-            spoken_text=f"Your top tasks are {summary}.",
             evidence=[f"Loaded {len(tasks)} active tasks."],
             data={"tasks": [task.model_dump(mode='json') for task in tasks]},
         )
@@ -100,7 +95,6 @@ class CreateTaskTool(Tool):
                 success=False,
                 status="failed",
                 display_text="No task title provided.",
-                spoken_text="I need a task title.",
             )
         return await self.service.create_task(title)
 
@@ -127,6 +121,5 @@ class CompleteTaskTool(Tool):
                 success=False,
                 status="failed",
                 display_text="No task title provided.",
-                spoken_text="Tell me which task to complete.",
             )
         return await self.service.complete_task(title)

@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.backup import BackupService
-from app.email_service import EmailService
 from app.platform import PlatformStore
 from app.tools.base import Tool
 from app.types import BackupTarget, CurrentContextSnapshot, ProfileSummary, RuntimeSnapshot, ToolRequest, ToolResult
@@ -24,7 +23,6 @@ class CreateBackupTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="Backup password is required.",
-                spoken_text="I need a backup password before I can create the encrypted backup.",
                 suggested_follow_up="Repeat the request with a password, for example: create an encrypted backup with password ...",
             )
         label = str(request.arguments.get("label", "") or "Manual backup").strip() or "Manual backup"
@@ -66,7 +64,6 @@ class CreateBackupTool(Tool):
             return ToolResult(
                 status="observed",
                 display_text=f"Created encrypted backup '{backup_path.name}'.",
-                spoken_text="I created the encrypted backup.",
                 side_effects=["backup_created"],
                 data={"path": str(backup_path), "label": label},
             )
@@ -124,7 +121,6 @@ class ListBackupsTool(Tool):
             return ToolResult(
                 status="observed",
                 display_text="No backups are available yet.",
-                spoken_text="There are no backups available yet.",
                 data={"backups": []},
             )
         newest = backups[0]
@@ -134,7 +130,6 @@ class ListBackupsTool(Tool):
         return ToolResult(
             status="observed",
             display_text=f"Available backups: {summary}. Newest is {str(newest.get('path', '')).split(chr(92))[-1]}.",
-            spoken_text="I listed the available backups.",
             evidence=[f"Found {len(backups)} backup(s)."],
             data={"backups": backups, "newest": newest},
         )
@@ -157,14 +152,12 @@ class RestoreBackupTool(Tool):
             return ToolResult(
                 status="failed",
                 display_text="backup_path, password, and restore_root are required.",
-                spoken_text="I need the backup path, password, and restore destination.",
             )
         validation = self.backup_service.validate_backup(backup_path, password)
         if not validation.valid:
             return ToolResult(
                 status="failed",
                 display_text="; ".join(validation.errors) or "Backup validation failed.",
-                spoken_text="The encrypted backup could not be validated.",
                 data={"validation": validation.model_dump(mode="json")},
             )
         restored = self.backup_service.restore_encrypted_profile_backup(
@@ -182,7 +175,6 @@ class RestoreBackupTool(Tool):
         return ToolResult(
             status="observed",
             display_text=f"Backup restored to {restored}.",
-            spoken_text="I restored the encrypted backup.",
             side_effects=["backup_restored"],
             data={"path": str(restored), "validation": validation.model_dump(mode="json")},
         )
@@ -254,14 +246,12 @@ class ReadAuditEventsTool(Tool):
             return ToolResult(
                 status="observed",
                 display_text="No audit events matched that filter.",
-                spoken_text="No audit events matched that filter.",
                 data={"events": []},
             )
         summary = "; ".join(f"[{event.category}] {event.action}: {event.message}" for event in events[:3])
         return ToolResult(
             status="observed",
             display_text=f"Recent audit events: {summary}",
-            spoken_text="I loaded the recent audit events.",
             evidence=[f"Loaded {len(events)} audit event(s)."],
             data={"events": [event.model_dump(mode="json") for event in events]},
         )
@@ -287,7 +277,6 @@ class ExportAuditTrailTool(Tool):
         return ToolResult(
             status="observed",
             display_text="Exported the audit trail for the active profile.",
-            spoken_text="I exported the audit trail.",
             side_effects=["audit_exported"],
             data={"audit_export": payload},
         )
@@ -327,7 +316,6 @@ class ReadRuntimeSnapshotTool(Tool):
         return ToolResult(
             status="observed",
             display_text=text,
-            spoken_text="I loaded the runtime snapshot.",
             data={"snapshot": snapshot.model_dump(mode="json")},
         )
 
@@ -360,7 +348,6 @@ class ReadProfileSecurityTool(Tool):
         return ToolResult(
             status="observed",
             display_text=text,
-            spoken_text="I loaded the current profile and security state.",
             data={"security": security, "profile": self.profile.model_dump(mode="json"), "memory_scope": memory_scope},
         )
 
@@ -383,7 +370,6 @@ class ReadCurrentContextTool(Tool):
             return ToolResult(
                 status="observed",
                 display_text="Current context is not available right now.",
-                spoken_text="Current context is not available right now.",
                 data={"current_context": None},
             )
         lines: list[str] = []
@@ -392,11 +378,8 @@ class ReadCurrentContextTool(Tool):
             lines.append(f"Foreground window: {label} - {context.window.title}")
         if context.clipboard and context.clipboard.has_text:
             lines.append(f"Clipboard: {context.clipboard.excerpt}")
-        if context.media and context.media.title:
-            artist = context.media.artist or "unknown artist"
-            lines.append(f"Media: {context.media.title} by {artist}")
         if not lines:
-            lines.append("No active window, clipboard text, or media context is available.")
+            lines.append("No active window or clipboard text is available.")
         self.platform.record_audit(
             "runtime",
             "read_current_context",
@@ -408,76 +391,5 @@ class ReadCurrentContextTool(Tool):
         return ToolResult(
             status="observed",
             display_text=" | ".join(lines),
-            spoken_text="I loaded the current local context.",
             data={"current_context": context.model_dump(mode="json")},
         )
-
-
-class SyncMailboxTool(Tool):
-    name = "sync_mailbox"
-
-    def __init__(self, service: EmailService) -> None:
-        self.service = service
-
-    def availability(self) -> tuple[bool, str | None]:
-        return self.service.availability()
-
-    async def run(self, request: ToolRequest) -> ToolResult:
-        messages = self.service.sync_mailbox(limit=int(request.arguments.get("limit", 8) or 8))
-        urgent_only = bool(request.arguments.get("urgent_only", False))
-        today_only = bool(request.arguments.get("today_only", False))
-        filtered = _filter_mailbox_messages(messages, urgent_only=urgent_only, today_only=today_only)
-        summary = "; ".join(f"{message.sender}: {message.subject}" for message in filtered[:3]) or "No urgent messages found."
-        return ToolResult(
-            status="observed",
-            display_text=f"Mailbox synchronized. {summary}",
-            spoken_text="I synchronized the mailbox.",
-            side_effects=["mailbox_synced"],
-            data={
-                "messages": [message.model_dump(mode="json") for message in filtered],
-                "synced_count": len(messages),
-            },
-        )
-
-
-class ReadMailboxSummaryTool(Tool):
-    name = "read_mailbox_summary"
-
-    def __init__(self, service: EmailService) -> None:
-        self.service = service
-
-    def availability(self) -> tuple[bool, str | None]:
-        return self.service.availability()
-
-    async def run(self, request: ToolRequest) -> ToolResult:
-        messages = self.service.read_recent_email(limit=int(request.arguments.get("limit", 5) or 5))
-        urgent_only = bool(request.arguments.get("urgent_only", False))
-        today_only = bool(request.arguments.get("today_only", False))
-        filtered = _filter_mailbox_messages(messages, urgent_only=urgent_only, today_only=today_only)
-        if not filtered:
-            return ToolResult(
-                status="observed",
-                display_text="No mailbox messages matched that filter.",
-                spoken_text="No mailbox messages matched that filter.",
-                data={"messages": []},
-            )
-        summary = "; ".join(f"{message.sender}: {message.subject}" for message in filtered[:3])
-        return ToolResult(
-            status="observed",
-            display_text=f"Recent mailbox messages: {summary}",
-            spoken_text="I loaded the recent mailbox messages.",
-            data={"messages": [message.model_dump(mode="json") for message in filtered]},
-        )
-
-
-def _filter_mailbox_messages(messages, *, urgent_only: bool, today_only: bool):
-    now = datetime.now(timezone.utc).date()
-    filtered = []
-    for message in messages:
-        haystack = f"{message.subject} {message.body_preview}".lower()
-        if urgent_only and not any(token in haystack for token in ("urgent", "asap", "important", "deadline", "today")):
-            continue
-        if today_only and message.received_at.date() != now:
-            continue
-        filtered.append(message)
-    return filtered

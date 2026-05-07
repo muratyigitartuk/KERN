@@ -18,6 +18,5 @@ class RunRoutineTool(Tool):
                 success=False,
                 status="failed",
                 display_text="No routine specified.",
-                spoken_text="I need a routine name.",
             )
         return self.service.run(name)

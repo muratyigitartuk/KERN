@@ -32,7 +32,6 @@ class SetPreferenceTool(Tool):
                 success=False,
                 status="failed",
                 display_text="Preference update is missing data.",
-                spoken_text="I need both a preference name and value.",
             )
         self.data.set_preference(key, value)
         if key == "preferred_title":
@@ -40,7 +39,6 @@ class SetPreferenceTool(Tool):
                 success=True,
                 status="observed",
                 display_text=f"Updated preferred title to {value}.",
-                spoken_text=f"Understood. I will call you {value}.",
                 evidence=[f"Preference {key} stored."],
                 side_effects=["preference_updated"],
                 data={"key": key, "value": value},
@@ -50,8 +48,7 @@ class SetPreferenceTool(Tool):
             return ToolResult(
                 success=True,
                 status="observed",
-                display_text="Muted spoken output." if muted else "Restored spoken output.",
-                spoken_text="I will stay quiet until you unmute me." if muted else "Voice restored.",
+                display_text="Paused assistant interruptions." if muted else "Resumed assistant interruptions.",
                 evidence=[f"Muted set to {muted}."],
                 side_effects=["preference_updated"],
                 data={"key": key, "value": value, "runtime_muted": muted},
@@ -60,7 +57,6 @@ class SetPreferenceTool(Tool):
             success=True,
             status="observed",
             display_text=f"Updated {key}.",
-            spoken_text="I updated that preference.",
             evidence=[f"Preference {key} stored."],
             side_effects=["preference_updated"],
             data={"key": key, "value": value},
@@ -82,18 +78,16 @@ class ReadStatusTool(Tool):
         task_count = status["pending_task_count"]
         event_count = status["today_event_count"]
         reminder_count = status["pending_reminder_count"]
-        playlist = status["morning_playlist"]
-        spoken = (
-            f"Status is stable, {title}. You have {task_count} pending tasks, {event_count} events today, "
-            f"{reminder_count} reminders pending, and your default morning music is {playlist}."
+        summary = (
+            f"Status is stable. You have {task_count} pending tasks, {event_count} events today, "
+            f"and {reminder_count} reminders pending."
         )
         if status["muted"]:
-            spoken = f"{spoken} Voice is currently muted."
+            summary = f"{summary} Assistant interruptions are currently paused."
         return ToolResult(
             success=True,
             status="observed",
-            display_text=spoken,
-            spoken_text=spoken,
+            display_text=summary,
             evidence=["Read runtime summary from local memory."],
             data=status,
         )
@@ -110,8 +104,7 @@ class GenerateMorningBriefTool(Tool):
 
     async def run(self, request: ToolRequest) -> ToolResult:
         brief = self.data.build_morning_brief()
-        title = self.data.preferred_title()
-        pieces = [f"Good morning, {title}.", brief.focus_suggestion]
+        pieces = ["Good morning.", brief.focus_suggestion]
         if brief.next_event:
             starts_at = datetime.fromisoformat(brief.next_event["starts_at"])
             pieces.append(f"Your next event is {brief.next_event['title']} at {starts_at.strftime('%H:%M')}.")
@@ -123,14 +116,11 @@ class GenerateMorningBriefTool(Tool):
             pieces.append(f"Your top task is {brief.tasks[0]['title']}.")
         if brief.reminders:
             pieces.append(f"You also have {len(brief.reminders)} reminders pending.")
-        if brief.music_suggestion:
-            pieces.append(f"I can start {brief.music_suggestion} if you'd like.")
         text = " ".join(pieces[:5])
         return ToolResult(
             success=True,
             status="observed",
             display_text=text,
-            spoken_text=text,
             evidence=["Generated morning brief from local reminders, tasks, and calendar."],
             data={"morning_brief": brief.model_dump(mode="json")},
         )

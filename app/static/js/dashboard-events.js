@@ -1,7 +1,9 @@
-import { t, loadLocale, getCurrentLang } from "/static/js/i18n.js";
-import { secureFetch } from "/static/js/utils.js";
+import { t, loadLocale, getCurrentLang } from "/static/js/i18n.js?v=20260422k";
+// H-18: Import shared escapeHTML to avoid divergent copies.
+import { secureFetch, escapeHTML } from "/static/js/utils.js?v=20260422k";
 
 const UPLOAD_MAX_FILE_MB = 50;
+const UPLOAD_MAX_FILES = 10;
 const UPLOAD_ALLOWED_EXTENSIONS = new Set([
   ".txt", ".md", ".pdf", ".csv", ".xlsx", ".xls",
   ".doc", ".docx", ".eml", ".json", ".html", ".htm", ".xml", ".rtf",
@@ -23,6 +25,9 @@ function isFileTransfer(event) {
 }
 
 function validateUploadFiles(files) {
+  if (files.length > UPLOAD_MAX_FILES) {
+    return t("upload.validation.count", { max: UPLOAD_MAX_FILES });
+  }
   for (const file of files) {
     if (!file.name || file.size === 0) {
       return t("upload.validation.empty");
@@ -50,13 +55,50 @@ export function bindDashboardEvents({
   conversationSearchController,
   uploadNoticeController,
   themeController,
+  utilityEnabled = true,
 }) {
   const UPLOAD_NOTICE_STORAGE_PREFIX = "kern.upload.notice.dismissed";
+  const FLYOUT_ANIMATION_MS = 180;
   let dismissedComposerUploadKeys = new Set();
   let composerAssistHideTimer = null;
+  let composerPlusCloseTimer = null;
+  let collapsedSessionsCloseTimer = null;
 
   function currentSnapshot() {
     return renderer.getCurrentSnapshot?.() || null;
+  }
+
+  function openAnimatedPanel(panel, button = null) {
+    if (!panel) return;
+    if (panel === elements.composerPlusMenu && composerPlusCloseTimer) {
+      clearTimeout(composerPlusCloseTimer);
+      composerPlusCloseTimer = null;
+    }
+    if (panel === elements.collapsedSessionsFlyout && collapsedSessionsCloseTimer) {
+      clearTimeout(collapsedSessionsCloseTimer);
+      collapsedSessionsCloseTimer = null;
+    }
+    panel.classList.remove("hidden");
+    requestAnimationFrame(() => panel.classList.add("is-open"));
+    if (button) button.setAttribute("aria-expanded", "true");
+  }
+
+  function closeAnimatedPanel(panel, button = null) {
+    if (!panel || panel.classList.contains("hidden")) return;
+    panel.classList.remove("is-open");
+    const finish = () => {
+      panel.classList.add("hidden");
+      if (button) button.setAttribute("aria-expanded", "false");
+    };
+    const timer = window.setTimeout(finish, FLYOUT_ANIMATION_MS);
+    if (panel === elements.composerPlusMenu) {
+      if (composerPlusCloseTimer) clearTimeout(composerPlusCloseTimer);
+      composerPlusCloseTimer = timer;
+    }
+    if (panel === elements.collapsedSessionsFlyout) {
+      if (collapsedSessionsCloseTimer) clearTimeout(collapsedSessionsCloseTimer);
+      collapsedSessionsCloseTimer = timer;
+    }
   }
 
   function uploadNoticeStorageKey() {
@@ -73,7 +115,16 @@ export function bindDashboardEvents({
   }
 
   function shouldShowUploadNotice() {
-    return false;
+    const snapshot = currentSnapshot();
+    if (!snapshot || snapshot.profile_session?.unlocked === false) {
+      return false;
+    }
+    if (uploadNoticeDismissed()) {
+      return false;
+    }
+    const documents = snapshot.recent_documents || [];
+    const onboardingStep = snapshot.onboarding?.current_step || "";
+    return documents.length === 0 || onboardingStep === "workflow";
   }
 
   function applyUploadNoticeCopy() {
@@ -141,9 +192,7 @@ export function bindDashboardEvents({
 
   function stagePrompt(prompt) {
     elements.commandInput.value = prompt;
-    renderer.setConversationPrimed(true);
     renderer.autoResizeCommandInput();
-    renderer.syncConversationState();
     requestAnimationFrame(() => {
       elements.commandInput.focus();
       elements.commandInput.setSelectionRange(elements.commandInput.value.length, elements.commandInput.value.length);
@@ -169,7 +218,10 @@ export function bindDashboardEvents({
   }
 
   function clearComposerAssist() {
-    setComposerAssist("");
+    if (elements.composerAssist) {
+      elements.composerAssist.classList.add("hidden");
+      elements.composerAssist.setAttribute("aria-hidden", "true");
+    }
   }
 
   function composerAssistLabel(tone = "info") {
@@ -183,6 +235,47 @@ export function bindDashboardEvents({
       return t("composer.status_warning");
     }
     return t("composer.status_info");
+  }
+
+  function getUploadType(fileName = "") {
+    const ext = String(fileName).includes(".") ? `.${String(fileName).split(".").pop().toLowerCase()}` : "";
+    if (ext === ".pdf") return "pdf";
+    if ([".doc", ".docx", ".rtf"].includes(ext)) return "doc";
+    if ([".xls", ".xlsx", ".csv"].includes(ext)) return "sheet";
+    if (ext === ".eml") return "mail";
+    if ([".txt", ".md", ".json", ".html", ".htm", ".xml"].includes(ext)) return "text";
+    return "file";
+  }
+
+  function getUploadTypeLabel(type, extension) {
+    const normalized = String(extension || "").replace(/[^a-z0-9]/gi, "").toUpperCase();
+    if (normalized) {
+      return normalized;
+    }
+    if (type === "doc") return "DOC";
+    if (type === "sheet") return "XLS";
+    if (type === "mail") return "EML";
+    if (type === "text") return "TXT";
+    return "FILE";
+  }
+
+  function getUploadChipIcon(type) {
+    if (type === "pdf") {
+      return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 3H8C6.11438 3 5.17157 3 4.58579 3.58579C4 4.17157 4 5.11438 4 7V17C4 18.8856 4 19.8284 4.58579 20.4142C5.17157 21 6.11438 21 8 21H16C17.8856 21 18.8284 21 19.4142 20.4142C20 19.8284 20 18.8856 20 17V9M14 3L20 9M14 3V7C14 8.10457 14.8954 9 16 9H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    if (type === "doc") {
+      return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 3.5H14.5L19 8V17.5C19 19.1569 17.6569 20.5 16 20.5H8C6.34315 20.5 5 19.1569 5 17.5V6.5C5 4.84315 6.34315 3.5 8 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 11H15M9 14.5H15M9 8H12.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    }
+    if (type === "sheet") {
+      return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 3.5H14.5L19 8V17.5C19 19.1569 17.6569 20.5 16 20.5H8C6.34315 20.5 5 19.1569 5 17.5V6.5C5 4.84315 6.34315 3.5 8 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 10.5H15.5M8.5 14H15.5M11.5 8V17M8.5 17H15.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    }
+    if (type === "mail") {
+      return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 8.5C4 6.84315 5.34315 5.5 7 5.5H17C18.6569 5.5 20 6.84315 20 8.5V15.5C20 17.1569 18.6569 18.5 17 18.5H7C5.34315 18.5 4 17.1569 4 15.5V8.5Z" stroke="currentColor" stroke-width="1.5"/><path d="M5 7L10.94 11.158C11.5752 11.6026 12.4248 11.6026 13.06 11.158L19 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    if (type === "text") {
+      return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 3.5H14.5L19 8V17.5C19 19.1569 17.6569 20.5 16 20.5H8C6.34315 20.5 5 19.1569 5 17.5V6.5C5 4.84315 6.34315 3.5 8 3.5Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 9H15M9 12.5H15M9 16H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    }
+    return '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M14 3H8C6.11438 3 5.17157 3 4.58579 3.58579C4 4.17157 4 5.11438 4 7V17C4 18.8856 4 19.8284 4.58579 20.4142C5.17157 21 6.11438 21 8 21H16C17.8856 21 18.8284 21 19.4142 20.4142C20 19.8284 20 18.8856 20 17V9M14 3L20 9M14 3V7C14 8.10457 14.8954 9 16 9H20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
 
   function optimisticOnboardingState(step, snapshot = currentSnapshot()) {
@@ -235,6 +328,15 @@ export function bindDashboardEvents({
       untilInactive: true,
       override: { active: false },
     });
+  }
+
+  function dismissOnboardingImmediate() {
+    elements.onboardingModal?.classList.add("hidden");
+    elements.onboardingModal?.classList.remove("is-open");
+    elements.onboardingModal?.setAttribute("aria-hidden", "true");
+    elements.onboardingCard?.classList.add("hidden");
+    elements.onboardingCard?.classList.remove("is-pending");
+    elements.onboardingCard?.setAttribute("aria-busy", "false");
   }
 
   let workspaceDragDepth = 0;
@@ -323,14 +425,60 @@ export function bindDashboardEvents({
   }
 
   let lastUploadDocuments = [];
-  function escapeHtml(value) {
-    return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll("\"", "&quot;")
-      .replaceAll("'", "&#39;");
+  let composerDocumentContextIds = new Set();
+  const LOCAL_DOCUMENT_REFERENCE_RE = /\b(?:upload(?:ed)?|document|documents|file|files|pdf|contract|quote|invoice|attachment|offer|rechnung|angebot|beleg|vertrag|dokument|datei|anhang|this|that|it|these|those|dies|diese|dieses|diesem|jenes|es|sie)\b/i;
+
+  function uniqueDocumentIds(ids = []) {
+    return [...new Set((ids || []).map((item) => String(item || "").trim()).filter(Boolean))];
   }
+
+  function setComposerDocumentContext(ids = []) {
+    composerDocumentContextIds = new Set(uniqueDocumentIds(ids));
+  }
+
+  function clearComposerDocumentContext() {
+    composerDocumentContextIds = new Set();
+  }
+
+  function uploadedDocumentIds() {
+    return uniqueDocumentIds(lastUploadDocuments.map((doc) => doc?.id));
+  }
+
+  function collectSelectedDocumentIds(text = "", { preferUploadContext = false } = {}) {
+    const normalizedText = String(text || "").trim();
+    const explicitIds = uniqueDocumentIds([...composerDocumentContextIds]);
+    const recentUploadIds = uploadedDocumentIds();
+    if (preferUploadContext && recentUploadIds.length) {
+      return recentUploadIds;
+    }
+    if (!normalizedText) {
+      return [];
+    }
+    const hasDocumentReference = normalizedText.includes("@") || LOCAL_DOCUMENT_REFERENCE_RE.test(normalizedText);
+    if (hasDocumentReference && explicitIds.length) {
+      return explicitIds;
+    }
+    if (hasDocumentReference && recentUploadIds.length) {
+      return recentUploadIds;
+    }
+    return [];
+  }
+
+  function sendSubmitText(text, { preferUploadContext = false } = {}) {
+    const selectedDocumentIds = collectSelectedDocumentIds(text, { preferUploadContext });
+    const payload = { type: "submit_text", text };
+    if (selectedDocumentIds.length) {
+      payload.settings = { selected_document_ids: selectedDocumentIds };
+    }
+    return send(payload);
+  }
+
+  window.addEventListener("kern:composer-doc-context", (event) => {
+    const ids = Array.isArray(event?.detail?.documentIds) ? event.detail.documentIds : [];
+    setComposerDocumentContext(ids);
+  });
+  // H-18: Removed local escapeHtml — using shared escapeHTML from utils.js.
+  const escapeHtml = escapeHTML;
 
   function summarizeQueue(items = []) {
     return items.reduce((summary, item) => {
@@ -445,14 +593,15 @@ export function bindDashboardEvents({
       const label = escapeHtml(item.label || item.title || item.name || t("docs.untitled"));
       const detail = escapeHtml(item.detail || "");
       const status = escapeHtml(item.status || "indexed");
-      const ext = escapeHtml(String(item.extension || item.label || "")
+      const rawExt = String(item.extension || item.label || "")
         .split(".")
         .pop()
-        .replace(/[^a-z0-9]/gi, "")
-        .toUpperCase() || t(`upload.item_status_${status}`));
+        .replace(/[^a-z0-9]/gi, "");
+      const type = getUploadType(item.extension || item.label || item.name || "");
+      const ext = escapeHtml(getUploadTypeLabel(type, rawExt) || t(`upload.item_status_${status}`));
       return `
-          <span class="composer-upload-chip composer-upload-chip--${status}" title="${detail || label}">
-            <span class="composer-upload-chip__badge" aria-hidden="true"></span>
+          <span class="composer-upload-chip composer-upload-chip--${status} composer-upload-chip--type-${type}" title="${detail || label}">
+            <span class="composer-upload-chip__badge" aria-hidden="true">${getUploadChipIcon(type)}</span>
             <span class="composer-upload-chip__content">
               <span class="composer-upload-chip__label">${label}</span>
               <span class="composer-upload-chip__detail">${ext}</span>
@@ -461,6 +610,11 @@ export function bindDashboardEvents({
           </span>
         `;
       }).join("");
+    }
+
+    function clearComposerUploads() {
+      dismissedComposerUploadKeys = new Set();
+      renderComposerUploads([]);
     }
 
     function renderPendingUploads(files) {
@@ -508,9 +662,19 @@ export function bindDashboardEvents({
     };
   }
 
-    function hideUploadOutcome() {
+  function describeReadMode(doc = {}) {
+    const mode = String(doc.document_read_mode || "").trim().toLowerCase();
+    if (mode === "ocr") return t("upload.item_read_mode_ocr");
+    if (mode === "hybrid") return t("upload.item_read_mode_mixed");
+    if (mode === "vision_assisted") return t("upload.item_read_mode_vision_assisted");
+    if (mode === "vision_primary") return t("upload.item_read_mode_vision");
+    return t("upload.item_read_mode_text");
+  }
+
+  function hideUploadOutcome() {
       if (!elements.uploadOutcomeCard) return;
       elements.uploadOutcomeCard.classList.add("hidden");
+      lastUploadDocuments = [];
       dismissedComposerUploadKeys = new Set();
       renderComposerUploads([]);
     }
@@ -548,7 +712,22 @@ export function bindDashboardEvents({
     stats = null,
   }) {
     if (!elements.uploadOutcomeCard) return;
-    lastUploadDocuments = documents;
+    const effectiveDocuments = [
+      ...documents,
+      ...items
+        .filter((item) => String(item?.status || "") === "duplicate" && item?.document?.id)
+        .map((item) => ({
+          id: item.document.id,
+          title: item.document.title || item.name || t("docs.untitled"),
+          category: item.document.category || "",
+          file_type: item.document.file_type || "",
+          ocr_low_confidence: false,
+          ocr_used: false,
+          document_read_mode: item.document.document_read_mode || "native",
+          vision_used: Boolean(item.document.vision_used),
+        })),
+    ].filter((item, index, arr) => item?.id && arr.findIndex((candidate) => candidate?.id === item.id) === index);
+    lastUploadDocuments = effectiveDocuments;
     elements.uploadOutcomeCard.dataset.tone = tone;
     elements.uploadOutcomePill.textContent = pill;
     elements.uploadOutcomeTitle.textContent = title;
@@ -558,17 +737,18 @@ export function bindDashboardEvents({
     elements.uploadOutcomePrimary.textContent = t("upload.action_summarize");
     elements.uploadOutcomeSecondary.textContent = t("upload.action_ask");
     elements.uploadOutcomeCompare.textContent = t("upload.action_compare");
-    elements.uploadOutcomeCompare.classList.toggle("hidden", documents.length < 2);
+    elements.uploadOutcomeCompare.classList.toggle("hidden", effectiveDocuments.length < 2);
     elements.uploadOutcomeCard.classList.remove("hidden");
     const documentsById = new Map(
-      documents.filter((doc) => doc?.id).map((doc) => [doc.id, doc]),
+      effectiveDocuments.filter((doc) => doc?.id).map((doc) => [doc.id, doc]),
     );
     const queueItems = items.length
       ? items.map((item) => {
           const mappedDocument = item.document?.id ? documentsById.get(item.document.id) : null;
+          const readModeDetail = mappedDocument ? describeReadMode(mappedDocument) : "";
           const ocrWarning = mappedDocument?.ocr_low_confidence
-            ? t("upload.item_ocr_detail")
-            : "";
+            ? `${readModeDetail} ${t("upload.item_ocr_detail")}`.trim()
+            : readModeDetail;
             return {
               label: item.document?.title || item.name || t("docs.untitled"),
               status: item.status || "indexed",
@@ -577,10 +757,12 @@ export function bindDashboardEvents({
               key: item.document?.id ? `doc::${item.document.id}` : `item::${item.name || item.document?.title || ""}::${item.status || "indexed"}`,
             };
           })
-        : documents.map((doc) => ({
+        : effectiveDocuments.map((doc) => ({
             label: doc.title || doc.source_id || doc.category || t("docs.untitled"),
             status: "indexed",
-            detail: doc.ocr_low_confidence ? t("upload.item_ocr_detail") : t("upload.item_indexed_detail"),
+            detail: doc.ocr_low_confidence
+              ? `${describeReadMode(doc)} ${t("upload.item_ocr_detail")}`.trim()
+              : describeReadMode(doc),
             extension: doc.title || doc.source_id || "",
             key: doc.id ? `doc::${doc.id}` : `doc::${doc.title || doc.source_id || ""}`,
           }));
@@ -655,6 +837,7 @@ export function bindDashboardEvents({
       return;
     }
 
+    dismissOnboardingImmediate();
     hideOnboardingLocally();
     saveOnboarding({
       onboarding_selected_path: "real_documents",
@@ -681,6 +864,7 @@ export function bindDashboardEvents({
     const snapshot = currentSnapshot();
     const step = snapshot?.onboarding?.current_step;
     if (step === "sample") {
+      dismissOnboardingImmediate();
       hideOnboardingLocally();
       stagePrompt(buildSampleDraftPrompt());
       return;
@@ -699,6 +883,7 @@ export function bindDashboardEvents({
     clearComposerAssist();
     const step = currentSnapshot()?.onboarding?.current_step;
     if (step === "sample") {
+      dismissOnboardingImmediate();
       setOnboardingPending({
         untilStep: "workflow",
         untilInactive: true,
@@ -707,6 +892,7 @@ export function bindDashboardEvents({
       send({ type: "start_real_workspace" });
       return;
     }
+    dismissOnboardingImmediate();
     hideOnboardingLocally();
     saveOnboarding({
       onboarding_starter_workflow: "document_grounded_draft",
@@ -719,10 +905,13 @@ export function bindDashboardEvents({
   });
 
   function resetConversation() {
+    renderer.archiveCurrentConversation?.();
+    renderer.clearArchivedSelection?.();
     if (!send({ type: "reset_conversation" })) {
       return;
     }
     hideUploadOutcome();
+    clearComposerDocumentContext();
     renderer.setConversationPrimed(false);
     elements.commandInput.value = "";
     renderer.autoResizeCommandInput();
@@ -732,14 +921,17 @@ export function bindDashboardEvents({
     renderer.syncConversationState([]);
   }
 
-    elements.commandForm.addEventListener("submit", (event) => {
+  elements.commandForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const text = elements.commandInput.value.trim();
     if (!text) return;
-    if (!send({ type: "submit_text", text })) {
+    if (!sendSubmitText(text)) {
       return;
     }
+    renderer.clearArchivedSelection?.();
     renderer.setConversationPrimed(true);
+    clearComposerDocumentContext();
+    clearComposerUploads();
     elements.commandInput.value = "";
     renderer.autoResizeCommandInput();
     renderer.syncConversationState();
@@ -755,25 +947,29 @@ export function bindDashboardEvents({
 
   elements.uploadOutcomePrimary?.addEventListener("click", () => {
     const prompt = buildUploadPrompt("summarize");
-    if (!send({ type: "submit_text", text: prompt })) {
+    if (!sendSubmitText(prompt, { preferUploadContext: true })) {
       stagePrompt(prompt);
+      setComposerDocumentContext(uploadedDocumentIds());
       setComposerAssist(t("upload.followup_staged"), "warning");
     } else {
+      clearComposerDocumentContext();
+      clearComposerUploads();
       setComposerAssist(t("upload.followup_sent"), "success");
     }
   });
 
   elements.uploadOutcomeSecondary?.addEventListener("click", () => {
     stagePrompt(buildUploadPrompt("ask"));
+    setComposerDocumentContext(uploadedDocumentIds());
     setComposerAssist(t("upload.followup_ready"), "success");
   });
 
   elements.uploadOutcomeCompare?.addEventListener("click", () => {
-    const ids = lastUploadDocuments.map((doc) => doc?.id).filter(Boolean);
+    const ids = uploadedDocumentIds();
     if (ids.length < 2) {
       return;
     }
-    if (!send({ type: "submit_text", text: `compare_documents ${JSON.stringify(ids)} :: ${t("docs.compare_default_query")}` })) {
+    if (!send({ type: "submit_text", text: `compare_documents ${JSON.stringify(ids)} :: ${t("docs.compare_default_query")}`, settings: { selected_document_ids: ids } })) {
       setComposerAssist(t("upload.compare_offline"), "error");
       return;
     }
@@ -782,7 +978,13 @@ export function bindDashboardEvents({
 
   elements.promptButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      stagePrompt(button.dataset.prompt || button.textContent || "");
+      const promptKey = button.dataset.promptKey;
+      const resolvedPrompt = promptKey ? t(promptKey) : "";
+      const datasetPrompt = button.dataset.prompt || "";
+      const safePrompt = resolvedPrompt && !String(resolvedPrompt).startsWith("prompts.")
+        ? resolvedPrompt
+        : (datasetPrompt && !String(datasetPrompt).startsWith("prompts.") ? datasetPrompt : "");
+      stagePrompt(safePrompt || button.textContent || "");
     });
 
     elements.composerUploadsList?.addEventListener("click", (event) => {
@@ -816,6 +1018,16 @@ export function bindDashboardEvents({
     });
   });
 
+  elements.collapsedSessionsButton?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    const isOpen = !elements.collapsedSessionsFlyout?.classList.contains("hidden");
+    if (isOpen) {
+      closeAnimatedPanel(elements.collapsedSessionsFlyout, elements.collapsedSessionsButton);
+    } else {
+      openAnimatedPanel(elements.collapsedSessionsFlyout, elements.collapsedSessionsButton);
+    }
+  });
+
   elements.conversationSearchInput?.addEventListener("input", () => {
     renderer.renderConversationSearch(elements.conversationSearchInput.value);
   });
@@ -837,6 +1049,9 @@ export function bindDashboardEvents({
   });
 
   elements.openSettings.addEventListener("click", () => {
+    document.getElementById("workspaceSwitcherButton")?.setAttribute("aria-expanded", "false");
+    document.getElementById("workspaceSwitcherMenu")?.classList.add("hidden");
+    document.getElementById("workspaceSwitcherMenu")?.setAttribute("aria-hidden", "true");
     settingsController.open();
     renderer.activateSettingsSection(
       [...elements.settingsSectionNavItems].find((item) => item.classList.contains("is-active"))?.dataset.settingsSectionNav || "appearance",
@@ -857,11 +1072,31 @@ export function bindDashboardEvents({
   });
 
   elements.settingsUnlockProfile.addEventListener("click", () => {
-    const pin = elements.settingsSessionPin.value;
+      const pin = elements.settingsSessionPin.value || elements.profileLockPin?.value || "";
+      if (!send({ type: "unlock_profile", settings: { pin } })) {
+        return;
+      }
+      elements.settingsSessionPin.value = "";
+      if (elements.profileLockPin) elements.profileLockPin.value = "";
+    });
+
+  elements.profileLockUnlock?.addEventListener("click", () => {
+    const pin = elements.profileLockPin?.value || elements.settingsSessionPin?.value || "";
     if (!send({ type: "unlock_profile", settings: { pin } })) {
       return;
     }
-    elements.settingsSessionPin.value = "";
+    if (elements.profileLockPin) elements.profileLockPin.value = "";
+    if (elements.settingsSessionPin) elements.settingsSessionPin.value = "";
+  });
+
+  elements.profileLockPin?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    elements.profileLockUnlock?.click();
+  });
+
+  elements.profileLockOpenSettings?.addEventListener("click", () => {
+    settingsController.open();
   });
 
   elements.settingsCreateBackup.addEventListener("click", () => {
@@ -874,6 +1109,51 @@ export function bindDashboardEvents({
 
   elements.settingsRerunReadiness?.addEventListener("click", () => {
     send({ type: "rerun_readiness" });
+  });
+
+  function saveChatStyle() {
+    const mode = elements.settingsChatStyleMode?.value || "natural";
+    const prompt = elements.settingsChatCustomPrompt?.value || "";
+    const ok = send({
+      type: "update_settings",
+      settings: {
+        chat_style_mode: mode,
+        chat_custom_prompt: prompt,
+      },
+    });
+    if (ok !== false && elements.settingsChatCustomPrompt) {
+      elements.settingsChatCustomPrompt.dataset.dirty = "false";
+    }
+  }
+
+  elements.settingsChatStyleMode?.addEventListener("change", () => {
+    const mode = elements.settingsChatStyleMode.value || "natural";
+    send({ type: "update_settings", settings: { chat_style_mode: mode } });
+    if (mode === "custom") {
+      elements.settingsChatCustomPrompt?.focus();
+    }
+  });
+
+  elements.settingsChatCustomPrompt?.addEventListener("input", () => {
+    elements.settingsChatCustomPrompt.dataset.dirty = "true";
+  });
+
+  elements.settingsSaveChatStyle?.addEventListener("click", () => {
+    saveChatStyle();
+  });
+
+  elements.settingsClearChatStyle?.addEventListener("click", () => {
+    if (elements.settingsChatCustomPrompt) {
+      elements.settingsChatCustomPrompt.value = "";
+      elements.settingsChatCustomPrompt.dataset.dirty = "false";
+    }
+    send({
+      type: "update_settings",
+      settings: {
+        chat_style_mode: elements.settingsChatStyleMode?.value || "natural",
+        chat_custom_prompt: "",
+      },
+    });
   });
 
   elements.settingsRefreshLicense?.addEventListener("click", () => {
@@ -937,19 +1217,17 @@ export function bindDashboardEvents({
     }
   });
 
-  elements.syncMailboxButton?.addEventListener("click", () => {
-    send({ type: "sync_mailbox", settings: { limit: 8 } });
-  });
-
-  elements.utilityToggle.addEventListener("click", () => {
-    utilityController.open();
-  });
-
-  elements.utilityTabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      renderer.activateUtilityTab(tab.dataset.tab);
+  if (utilityEnabled) {
+    elements.utilityToggle?.addEventListener("click", () => {
+      utilityController.open();
     });
-  });
+
+    elements.utilityTabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        renderer.activateUtilityTab(tab.dataset.tab);
+      });
+    });
+  }
 
   elements.settingsSectionNavItems.forEach((item) => {
     item.addEventListener("click", () => {
@@ -1030,7 +1308,7 @@ export function bindDashboardEvents({
     }
   });
 
-  elements.localModeToggle.addEventListener("change", () => {
+  elements.localModeToggle?.addEventListener("change", () => {
     send({ type: "update_settings", settings: { local_mode_enabled: elements.localModeToggle.checked } });
   });
 
@@ -1043,24 +1321,17 @@ export function bindDashboardEvents({
 
   elements.commandInput.addEventListener("input", () => {
     renderer.autoResizeCommandInput();
-    renderer.syncConversationState();
   });
 
   elements.commandInput.addEventListener("focus", () => {
-    renderer.syncConversationState();
     requestAnimationFrame(() => {
       elements.threadList.scrollTo({ top: elements.threadList.scrollHeight, behavior: "smooth" });
     });
   });
 
-  elements.commandInput.addEventListener("blur", () => {
-    renderer.syncConversationState();
-  });
-
   // Composer plus menu
   function closePlusMenu() {
-    elements.composerPlusMenu?.classList.add("hidden");
-    elements.composerPlusButton?.setAttribute("aria-expanded", "false");
+    closeAnimatedPanel(elements.composerPlusMenu, elements.composerPlusButton);
   }
 
   elements.composerPlusButton?.addEventListener("click", (e) => {
@@ -1069,12 +1340,19 @@ export function bindDashboardEvents({
     if (isOpen) {
       closePlusMenu();
     } else {
-      elements.composerPlusMenu?.classList.remove("hidden");
-      elements.composerPlusButton?.setAttribute("aria-expanded", "true");
+      openAnimatedPanel(elements.composerPlusMenu, elements.composerPlusButton);
     }
   });
 
   document.addEventListener("click", (e) => {
+    if (
+      !elements.collapsedSessionsFlyout?.classList.contains("hidden") &&
+      !elements.collapsedSessionsFlyout?.contains(e.target) &&
+      !elements.collapsedSessionsButton?.contains(e.target)
+    ) {
+      closeAnimatedPanel(elements.collapsedSessionsFlyout, elements.collapsedSessionsButton);
+    }
+
     if (
       !elements.composerPlusMenu?.classList.contains("hidden") &&
       !elements.composerPlusMenu?.contains(e.target) &&
@@ -1125,12 +1403,11 @@ export function bindDashboardEvents({
     if (!files.length) return;
     const validationErr = validateUploadFiles(files);
     if (validationErr) {
-      setComposerAssist(validationErr, "error");
+      window.alert(validationErr);
       if (elements.composerFileInput) elements.composerFileInput.value = "";
       return;
     }
     renderPendingUploads(files);
-    setComposerAssist(t("composer.uploading", { count: files.length }), "warning");
     const result = await requestUpload(files);
     if (!result.ok) {
       const payload = result.data || {};
@@ -1138,7 +1415,6 @@ export function bindDashboardEvents({
       const duplicates = Number(payload.duplicates || 0);
       const failed = Number(payload.failed || 0);
       const presentation = describeUploadFailure(payload, result.error);
-      setComposerAssist(presentation.body, "error");
       renderUploadOutcome({
         tone: "error",
         pill: t("upload.pill_error"),
@@ -1160,7 +1436,6 @@ export function bindDashboardEvents({
     const duplicateOnly = indexedCount === 0 && duplicatesCount > 0 && rejectedCount === 0 && failedCount === 0;
     const mixedBatch = rejectedCount > 0 || failedCount > 0 || duplicatesCount > 0;
     const reviewCount = rejectedCount + failedCount;
-    clearComposerAssist();
     renderUploadOutcome({
       tone: duplicateOnly || data.rejected || data.failed ? "warning" : "success",
       pill: t("upload.pill_indexed"),
@@ -1222,58 +1497,6 @@ export function bindDashboardEvents({
   document.getElementById("auditCategoryFilter")?.addEventListener("change", (e) => {
     const category = e.target.value;
     renderer.setAuditCategoryFilter(category);
-  });
-
-  // Schedule management
-  const addScheduleButton = document.getElementById("addScheduleButton");
-  const addScheduleForm = document.getElementById("addScheduleForm");
-  const cancelScheduleButton = document.getElementById("cancelScheduleButton");
-  const saveScheduleButton = document.getElementById("saveScheduleButton");
-  const scheduleFrequency = document.getElementById("scheduleFrequency");
-  const scheduleCron = document.getElementById("scheduleCron");
-
-  addScheduleButton?.addEventListener("click", () => {
-    addScheduleForm?.classList.remove("hidden");
-    addScheduleButton.classList.add("hidden");
-  });
-
-  cancelScheduleButton?.addEventListener("click", () => {
-    addScheduleForm?.classList.add("hidden");
-    addScheduleButton?.classList.remove("hidden");
-  });
-
-  scheduleFrequency?.addEventListener("change", () => {
-    if (scheduleCron) {
-      if (scheduleFrequency.value === "custom") {
-        scheduleCron.classList.remove("hidden");
-      } else {
-        scheduleCron.classList.add("hidden");
-        scheduleCron.value = scheduleFrequency.value;
-      }
-    }
-  });
-
-  saveScheduleButton?.addEventListener("click", () => {
-    const title = document.getElementById("scheduleTitle")?.value.trim();
-    const cronValue = scheduleFrequency?.value === "custom"
-      ? scheduleCron?.value.trim()
-      : scheduleFrequency?.value;
-    const actionType = document.getElementById("scheduleActionType")?.value;
-    const actionText = document.getElementById("scheduleActionPayload")?.value.trim();
-    if (!title || !cronValue) return;
-    send({
-      type: "create_schedule",
-      settings: {
-        title,
-        cron_expression: cronValue,
-        action_type: actionType || "custom_prompt",
-        action_payload: { prompt: actionText },
-      },
-    });
-    addScheduleForm?.classList.add("hidden");
-    addScheduleButton?.classList.remove("hidden");
-    if (document.getElementById("scheduleTitle")) document.getElementById("scheduleTitle").value = "";
-    if (document.getElementById("scheduleActionPayload")) document.getElementById("scheduleActionPayload").value = "";
   });
 
   // --- Drag-drop / bulk file upload ---

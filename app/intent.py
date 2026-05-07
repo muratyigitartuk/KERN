@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import json
 import re
 
@@ -9,7 +9,6 @@ from app.types import IntentType, ToolRequest
 
 
 KNOWN_APPS = {
-    "spotify",
     "notepad",
     "calculator",
     "chrome",
@@ -40,22 +39,6 @@ class RuleBasedIntentEngine:
         lowered = text.lower().strip()
         normalized = self._normalize_text(text)
         dialogue_context = dialogue_context or {}
-
-        if any(token in lowered for token in ["play something calmer", "something calmer", "not that"]):
-            fallback_query = dialogue_context.get("last_media_query") or "morning jazz"
-            query = "calm instrumental focus" if "calmer" in lowered else fallback_query
-            return self._parsed(
-                "action",
-                "media_refine",
-                "Refine the last media request.",
-                0.82,
-                ToolRequest(
-                    tool_name="play_spotify",
-                    arguments={"query": query, "mode": "search_and_play"},
-                    user_utterance=text,
-                    reason="The user refined the last media request.",
-                ),
-            )
 
         if lowered.startswith("set memory scope"):
             scope = lowered.replace("set memory scope", "", 1).strip(" :.")
@@ -208,14 +191,14 @@ class RuleBasedIntentEngine:
 
         if (
             "watch folder" in lowered or "monitor folder" in lowered
-            or "ordner beobachten" in lowered or "ordner überwachen" in lowered or "verzeichnis überwachen" in lowered
+            or "ordner beobachten" in lowered or "ordner Ã¼berwachen" in lowered or "verzeichnis Ã¼berwachen" in lowered
         ):
             if "folder" in lowered:
                 folder = text.split("folder", 1)[-1].strip(" :.")
             elif "ordner" in lowered:
-                folder = text.split("ordner", 1)[-1].replace("beobachten", "").replace("überwachen", "").strip(" :.")
+                folder = text.split("ordner", 1)[-1].replace("beobachten", "").replace("Ã¼berwachen", "").strip(" :.")
             elif "verzeichnis" in lowered:
-                folder = text.split("verzeichnis", 1)[-1].replace("überwachen", "").strip(" :.")
+                folder = text.split("verzeichnis", 1)[-1].replace("Ã¼berwachen", "").strip(" :.")
             else:
                 folder = ""
             return self._parsed(
@@ -346,7 +329,7 @@ class RuleBasedIntentEngine:
 
         if (
             "knowledge graph" in lowered or "entity graph" in lowered
-            or "wissensgraph" in lowered or "entitäten suchen" in lowered or "wissenssuche" in lowered
+            or "wissensgraph" in lowered or "entitÃ¤ten suchen" in lowered or "wissenssuche" in lowered
         ):
             if "build" in lowered or "create" in lowered or "generate" in lowered:
                 return self._parsed(
@@ -375,10 +358,15 @@ class RuleBasedIntentEngine:
                 ),
             )
 
-        if any(token in normalized for token in [
+        context_tokens = [
             "current context", "foreground window", "active window", "current app", "clipboard",
             "aktueller kontext", "aktives fenster", "was mache ich gerade",
-        ]):
+        ]
+        generation_tokens = [
+            "draft", "write", "create", "compose", "policy", "summarize", "analyze", "review",
+            "entwirf", "schreib", "erstelle", "richtlinie", "zusammenfassen", "analysiere", "prÃ¼fe",
+        ]
+        if any(token in normalized for token in context_tokens) and not any(token in normalized for token in generation_tokens):
             return self._parsed(
                 "query",
                 "read_current_context",
@@ -389,131 +377,6 @@ class RuleBasedIntentEngine:
                     arguments={},
                     user_utterance=text,
                     reason="The user asked to read the current local context.",
-                ),
-            )
-
-        if self._is_mailbox_sync_request(normalized):
-            urgent_only = "urgent" in normalized or "today" in normalized
-            return self._parsed(
-                "action",
-                "sync_mailbox",
-                "Synchronize the mailbox.",
-                0.84,
-                ToolRequest(
-                    tool_name="sync_mailbox",
-                    arguments={"limit": 8, "urgent_only": urgent_only, "today_only": "today" in normalized},
-                    user_utterance=text,
-                    reason="The user asked to synchronize mailbox state.",
-                ),
-            )
-
-        if self._is_mailbox_read_request(normalized):
-            return self._parsed(
-                "query",
-                "read_mailbox_summary",
-                "Read recent email.",
-                0.82,
-                ToolRequest(
-                    tool_name="read_mailbox_summary",
-                    arguments={
-                        "limit": 5,
-                        "urgent_only": "urgent" in normalized,
-                        "today_only": "today" in normalized,
-                    },
-                    user_utterance=text,
-                    reason="The user asked to read recent email.",
-                ),
-            )
-
-        send_email = re.match(r"send email to (?P<to>[^ ]+) about (?P<subject>.+)", lowered)
-        if send_email:
-            return self._parsed(
-                "action",
-                "compose_email",
-                "Send an email after confirmation.",
-                0.78,
-                ToolRequest(
-                    tool_name="compose_email",
-                    arguments={
-                        "to": [send_email.group("to")],
-                        "subject": send_email.group("subject").strip().title(),
-                        "body": text,
-                    },
-                    user_utterance=text,
-                    reason="The user asked to send an email.",
-                ),
-            )
-
-        if any(token in lowered for token in ["create reminder from email", "email reminder"]):
-            return self._parsed(
-                "action",
-                "create_email_reminder",
-                "Create a reminder from the latest indexed email.",
-                0.76,
-                ToolRequest(
-                    tool_name="create_email_reminder",
-                    arguments={},
-                    user_utterance=text,
-                    reason="The user asked to derive a reminder from email.",
-                ),
-            )
-
-        if lowered.startswith("schedule meeting"):
-            title = text.split("meeting", 1)[-1].strip(" :.") or "Meeting"
-            return self._parsed(
-                "action",
-                "schedule_meeting_and_invite",
-                "Schedule a meeting and send an invite.",
-                0.74,
-                ToolRequest(
-                    tool_name="schedule_meeting_and_invite",
-                    arguments={"title": title},
-                    user_utterance=text,
-                    reason="The user asked to schedule a meeting invite workflow.",
-                ),
-            )
-
-        if lowered.startswith("notify phone") or lowered.startswith("send ntfy"):
-            message = text.split(" ", 2)[-1].strip()
-            return self._parsed(
-                "action",
-                "send_ntfy_notification",
-                "Send a mobile notification.",
-                0.75,
-                ToolRequest(
-                    tool_name="send_ntfy_notification",
-                    arguments={"title": "KERN", "message": message},
-                    user_utterance=text,
-                    reason="The user asked to send an ntfy notification.",
-                ),
-            )
-
-        if self._is_start_meeting_request(normalized):
-            title = self._extract_meeting_title(text) or "Meeting"
-            return self._parsed(
-                "action",
-                "start_meeting_recording",
-                "Start local meeting recording.",
-                0.88,
-                ToolRequest(
-                    tool_name="start_meeting_recording",
-                    arguments={"title": title},
-                    user_utterance=text,
-                    reason="The user asked to start meeting recording.",
-                ),
-            )
-
-        if self._is_stop_meeting_request(normalized):
-            return self._parsed(
-                "action",
-                "stop_meeting_recording",
-                "Stop local meeting recording.",
-                0.88,
-                ToolRequest(
-                    tool_name="stop_meeting_recording",
-                    arguments={},
-                    user_utterance=text,
-                    reason="The user asked to stop meeting recording.",
                 ),
             )
 
@@ -548,20 +411,20 @@ class RuleBasedIntentEngine:
             )
 
         if (
-            lowered.startswith("draft behorde letter") or lowered.startswith("draft behörde letter")
-            or "behördenbrief erstellen" in lowered or "brief an behörde" in lowered
+            lowered.startswith("draft behorde letter") or lowered.startswith("draft behÃ¶rde letter")
+            or "behÃ¶rdenbrief erstellen" in lowered or "brief an behÃ¶rde" in lowered
         ):
             subject = text.split("letter", 1)[-1].strip(" :.") or "Anliegen"
             return self._parsed(
                 "action",
                 "draft_behoerde_letter",
-                "Create a formal Behörde draft.",
+                "Create a formal BehÃ¶rde draft.",
                 0.8,
                 ToolRequest(
                     tool_name="draft_behoerde_letter",
                     arguments={"subject": subject, "body_points": [subject]},
                     user_utterance=text,
-                    reason="The user asked for a Behörde correspondence draft.",
+                    reason="The user asked for a BehÃ¶rde correspondence draft.",
                 ),
             )
 
@@ -621,34 +484,6 @@ class RuleBasedIntentEngine:
                     arguments={"key": "preferred_title", "value": preferred_title},
                     user_utterance=text,
                     reason="The user explicitly asked to change their title.",
-                ),
-            )
-
-        if any(token in lowered for token in ["mute kern", "be quiet", "stop talking"]):
-            return self._parsed(
-                "action",
-                "mute_kern",
-                "Mute Kern voice output.",
-                0.95,
-                ToolRequest(
-                    tool_name="set_preference",
-                    arguments={"key": "muted", "value": "true"},
-                    user_utterance=text,
-                    reason="The user explicitly asked Kern to mute itself.",
-                ),
-            )
-
-        if any(token in lowered for token in ["unmute kern", "you can speak", "start talking again"]):
-            return self._parsed(
-                "action",
-                "unmute_kern",
-                "Restore Kern voice output.",
-                0.95,
-                ToolRequest(
-                    tool_name="set_preference",
-                    arguments={"key": "muted", "value": "false"},
-                    user_utterance=text,
-                    reason="The user explicitly asked Kern to restore voice output.",
                 ),
             )
 
@@ -841,20 +676,6 @@ class RuleBasedIntentEngine:
                 ),
             )
 
-        if self._is_music_status_question(lowered):
-            return self._parsed(
-                "query",
-                "status",
-                "Read local status.",
-                0.78,
-                ToolRequest(
-                    tool_name="read_status",
-                    arguments={},
-                    user_utterance=text,
-                    reason="The user asked about configured music, not playback.",
-                ),
-            )
-
         if self._is_calendar_query(lowered):
             return self._parsed(
                 "query",
@@ -935,30 +756,6 @@ class RuleBasedIntentEngine:
         if lowered.startswith("dismiss reminder"):
             reminder_id, _ = self._parse_reminder_control(lowered, default_minutes=0)
             return self._contextual_reminder_intent(text, reminder_id if reminder_id > 0 else None, "dismiss_reminder", "Dismiss a reminder.")
-
-        if any(token in lowered for token in ["pause music", "pause spotify", "hold the music"]):
-            return self._media_intent(text, "pause", "Pause media playback.")
-
-        if any(token in lowered for token in ["resume spotify", "resume music", "continue spotify", "continue music", "bring the music back"]):
-            return self._media_intent(text, "resume", "Resume media playback.")
-
-        if any(token in lowered for token in ["next song", "skip song", "next track", "skip track"]):
-            return self._media_intent(text, "next", "Skip to the next track.")
-
-        if lowered.startswith("play ") or lowered.startswith("put on ") or lowered.startswith("start ") and ("music" in lowered or "spotify" in lowered):
-            query = text.replace("play", "", 1).strip() if lowered.startswith("play ") else text.strip()
-            return self._parsed(
-                "action",
-                "media",
-                "Play media.",
-                0.87,
-                ToolRequest(
-                    tool_name="play_spotify",
-                    arguments={"query": query or "morning jazz", "mode": "search_and_play"},
-                    user_utterance=text,
-                    reason="The user asked for media playback.",
-                ),
-            )
 
         if any(token in lowered for token in ["focus mode", "start focus", "begin focus", "deep work mode"]):
             return self._parsed(
@@ -1245,20 +1042,6 @@ class RuleBasedIntentEngine:
             ),
         )
 
-    def _media_intent(self, text: str, mode: str, hint: str) -> ParsedIntent:
-        return self._parsed(
-            "action",
-            f"media_{mode}",
-            hint,
-            0.91,
-            ToolRequest(
-                tool_name="play_spotify",
-                arguments={"query": "", "mode": mode},
-                user_utterance=text,
-                reason="The user issued a media playback command.",
-            ),
-        )
-
     def _parse_reminder_phrase(self, text: str) -> tuple[str, datetime, str, str] | None:
         lowered = text.lower().strip()
         kind = "timer" if "timer" in lowered else "reminder"
@@ -1284,8 +1067,8 @@ class RuleBasedIntentEngine:
             cleaned = lowered
             for marker in [
                 "remind me to", "remind me", "set a timer for", "set timer for",
-                "erstelle eine erinnerung für", "erstelle erinnerung für",
-                "erinnere mich an", "erinnere mich", "neue erinnerung für",
+                "erstelle eine erinnerung fÃ¼r", "erstelle erinnerung fÃ¼r",
+                "erinnere mich an", "erinnere mich", "neue erinnerung fÃ¼r",
                 "erstelle eine erinnerung", "erstelle erinnerung", "neue erinnerung",
             ]:
                 cleaned = cleaned.replace(marker, "")
@@ -1313,7 +1096,7 @@ class RuleBasedIntentEngine:
         patterns = [
             r"(?:remind me to|remind me about|remind me)\s+(?P<title>[^;,.]+)",
             r"(?:erinnere mich an|erinnere mich)\s+(?P<title>[^;,.]+)",
-            r"(?:erstelle eine erinnerung für|erstelle erinnerung für|neue erinnerung für)\s+(?P<title>[^;,.]+)",
+            r"(?:erstelle eine erinnerung fÃ¼r|erstelle erinnerung fÃ¼r|neue erinnerung fÃ¼r)\s+(?P<title>[^;,.]+)",
         ]
         for pattern in patterns:
             match = re.search(pattern, text, flags=re.IGNORECASE)
@@ -1444,8 +1227,8 @@ class RuleBasedIntentEngine:
             r"^suche in meinen dokumenten(?: nach)? (?P<query>.+)$",
             r"^dokumente durchsuchen(?: nach)? (?P<query>.+)$",
             r"^finde in dokumenten(?: nach)? (?P<query>.+)$",
-            r"^zeig mir dokumente(?: zu| über| für)? (?P<query>.+)$",
-            r"^zeig mir meine dokumente(?: zu| über| für)? (?P<query>.+)$",
+            r"^zeig mir dokumente(?: zu| Ã¼ber| fÃ¼r)? (?P<query>.+)$",
+            r"^zeig mir meine dokumente(?: zu| Ã¼ber| fÃ¼r)? (?P<query>.+)$",
         ]
         for pattern in patterns:
             match = re.match(pattern, normalized)
@@ -1465,61 +1248,6 @@ class RuleBasedIntentEngine:
                 return remainder if remainder else text.strip()
         return None
 
-    def _is_mailbox_read_request(self, normalized: str) -> bool:
-        return any(
-            phrase in normalized
-            for phrase in [
-                "read my email",
-                "check my email",
-                "read recent email",
-                "show recent email",
-                "show my recent mailbox messages",
-                "show my mailbox messages",
-                "show my recent email messages",
-                "e mail lesen",
-                "mails prüfen",
-                "e mails lesen",
-                "posteingang",
-                "postfach prüfen",
-            ]
-        ) or ("mailbox" in normalized and any(token in normalized for token in ["show", "read", "recent"]))
-
-    def _is_mailbox_sync_request(self, normalized: str) -> bool:
-        return any(
-            phrase in normalized
-            for phrase in [
-                "sync email",
-                "sync my mailbox",
-                "sync mailbox",
-                "check if anything urgent arrived",
-                "e mail synchronisieren",
-            ]
-        )
-
-    def _is_start_meeting_request(self, normalized: str) -> bool:
-        return any(
-            phrase in normalized
-            for phrase in ["start meeting recording", "start a meeting recording", "record this meeting"]
-        )
-
-    def _is_stop_meeting_request(self, normalized: str) -> bool:
-        return any(phrase in normalized for phrase in ["stop meeting recording", "end meeting recording"])
-
-    def _extract_meeting_title(self, text: str) -> str | None:
-        match = re.search(r"(?:recording|meeting)\s+(?:for|called|named)\s+(.+)$", text, flags=re.IGNORECASE)
-        return match.group(1).strip(" :.?!") if match else None
-
-    def _extract_angebot_customer(self, text: str) -> str | None:
-        normalized = self._normalize_text(text)
-        if not any(phrase in normalized for phrase in [
-            "create angebot", "create a draft angebot", "make an angebot",
-            "erstelle angebot", "angebot erstellen", "neues angebot",
-        ]):
-            return None
-        parts = re.split(r"angebot", text, maxsplit=1, flags=re.IGNORECASE)
-        customer_name = parts[-1].strip(" :.?!") if len(parts) > 1 else ""
-        return customer_name or "Kunde"
-
     def _extract_rechnung_customer(self, text: str) -> str | None:
         normalized = self._normalize_text(text)
         if not any(
@@ -1533,6 +1261,32 @@ class RuleBasedIntentEngine:
             customer_name = re.split(r"(?:invoice|rechnung)", text, maxsplit=1, flags=re.IGNORECASE)[-1].strip(" :.?!")
         else:
             customer_name = ""
+        return customer_name or "Kunde"
+
+    def _extract_angebot_customer(self, text: str) -> str | None:
+        normalized = self._normalize_text(text)
+        if not any(
+            phrase in normalized
+            for phrase in [
+                "create angebot",
+                "create a draft angebot",
+                "create an angebot",
+                "make an offer",
+                "create an offer",
+                "erstelle angebot",
+                "angebot erstellen",
+                "neues angebot",
+            ]
+        ):
+            return None
+        if re.search(r"(?:angebot|offer)", text, flags=re.IGNORECASE):
+            customer_name = re.split(r"(?:angebot|offer)", text, maxsplit=1, flags=re.IGNORECASE)[-1].strip(" :.?!")
+        else:
+            customer_name = ""
+        if customer_name.lower().startswith("for "):
+            customer_name = customer_name[4:].strip(" :.?!")
+        if customer_name.lower().startswith("für "):
+            customer_name = customer_name[4:].strip(" :.?!")
         return customer_name or "Kunde"
 
     def _extract_backup_request(self, text: str) -> dict[str, object] | None:
@@ -1574,13 +1328,6 @@ class RuleBasedIntentEngine:
                 "security state",
                 "current profile",
             ]
-        )
-
-    def _is_music_status_question(self, lowered: str) -> bool:
-        return (
-            ("music" in lowered or "playlist" in lowered)
-            and any(token in lowered for token in ["what", "which", "set", "configured", "default"])
-            and "play " not in lowered
         )
 
     def _is_calendar_query(self, lowered: str) -> bool:

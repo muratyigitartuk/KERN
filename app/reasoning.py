@@ -45,7 +45,7 @@ from app.types import (
 
 
 class ReasoningService:
-    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÄÖÜäöüß_-]+")
+    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ_-]+")
     _ADVISORY_MARKERS = (
         "what should",
         "what now",
@@ -63,7 +63,7 @@ class ReasoningService:
         "draft",
         "write",
         "send",
-        "email",
+        "message",
         "message",
         "review",
         "export",
@@ -75,9 +75,9 @@ class ReasoningService:
         "overdue",
     )
     _ACTION_KEYWORDS: dict[str, tuple[str, ...]] = {
-        "draft_reply": ("reply", "draft", "follow up", "follow-up", "email", "respond", "message"),
-        "suggested_draft": ("reply", "draft", "follow up", "follow-up", "email", "respond", "message"),
-        "follow_up_candidate": ("follow up", "follow-up", "reply", "customer", "client", "email"),
+        "draft_reply": ("reply", "draft", "follow up", "follow-up", "message", "respond", "message"),
+        "suggested_draft": ("reply", "draft", "follow up", "follow-up", "message", "respond", "message"),
+        "follow_up_candidate": ("follow up", "follow-up", "reply", "customer", "client", "message"),
         "missing_context": ("missing", "need", "context", "attachment", "information", "input"),
         "blocked_item": ("blocked", "hold", "missing", "waiting", "approval"),
         "ready_to_finalize": ("finalize", "invoice", "offer", "document", "regulated", "gobd"),
@@ -94,7 +94,7 @@ class ReasoningService:
         "compliance_export_erasure": ("compliance", "export", "erasure", "hold", "privacy"),
         "regulated_document_lifecycle": ("invoice", "offer", "regulated", "document", "finalize"),
         "scheduling_follow_through": ("schedule", "reminder", "task", "retry", "failed"),
-        "correspondence_follow_up": ("reply", "email", "draft", "follow up", "client"),
+        "local_follow_up": ("reply", "message", "draft", "follow up", "client"),
     }
 
     def __init__(
@@ -167,7 +167,6 @@ class ReasoningService:
             if item.workspace_slug in {None, workspace}
         ] if organization_id else []
         scheduler_tasks = self.scheduler_service.list_tasks() if self.scheduler_service else []
-        email_drafts = self.memory.list_email_drafts(limit=50)
         promotion_candidates = [
             item
             for item in memory_items
@@ -241,18 +240,6 @@ class ReasoningService:
             workflow_events.append(event)
             obligations.extend(schedule_obligations)
 
-        if email_drafts:
-            workflow, event, correspondence_obligations = self._correspondence_workflow(
-                organization_id=organization_id,
-                workspace_slug=workspace,
-                actor_user_id=actor_user_id,
-                now=now,
-                email_drafts=email_drafts,
-            )
-            workflows.append(workflow)
-            workflow_events.append(event)
-            obligations.extend(correspondence_obligations)
-
         self.memory.replace_reasoning_snapshot(
             workspace_slug=workspace,
             workflows=workflows,
@@ -294,7 +281,6 @@ class ReasoningService:
                 "regulated_candidates": len(regulated_candidates),
                 "promotion_candidates": len(promotion_candidates),
                 "training_candidates": len([item for item in training_examples if item.status == "candidate"]),
-                "drafts_ready": len(email_drafts),
                 "domain_events": sum(int(item.metadata.get("domain_event_count", 0) or 0) for item in hydrated_workflows),
             },
         )
@@ -1316,70 +1302,6 @@ class ReasoningService:
         ]
         return workflow, event, obligations
 
-    def _correspondence_workflow(self, *, organization_id, workspace_slug, actor_user_id, now, email_drafts):
-        workflow_id = self._stable_id("workflow", workspace_slug, "correspondence")
-        actionable_drafts = [item for item in email_drafts if item.status in {"draft", "ready", "failed"}]
-        workflow = WorkflowRecord(
-            id=workflow_id,
-            profile_slug=self.profile.slug,
-            organization_id=organization_id,
-            workspace_slug=workspace_slug,
-            actor_user_id=actor_user_id,
-            workflow_type="correspondence_follow_up",
-            subject_refs={"draft_count": len(actionable_drafts)},
-            status="open",
-            last_event="drafts_detected",
-            next_expected_step="prepare_draft_packet",
-            evidence_refs=[str(item.id or f"draft-{index}") for index, item in enumerate(actionable_drafts[:8], start=1)],
-            confidence=0.67,
-            metadata={
-                "drafts": [
-                    {
-                        "id": item.id,
-                        "subject": item.subject,
-                        "status": item.status,
-                        "to": item.to,
-                        "created_at": item.created_at.isoformat() if item.created_at else None,
-                    }
-                    for item in actionable_drafts[:8]
-                ]
-            },
-            created_at=now,
-            updated_at=now,
-        )
-        event = WorkflowEvent(
-            id=self._stable_id("event", workflow_id, "drafts", len(actionable_drafts)),
-            profile_slug=self.profile.slug,
-            organization_id=organization_id,
-            workspace_slug=workspace_slug,
-            actor_user_id=actor_user_id,
-            workflow_id=workflow_id,
-            event_type="drafts_pending",
-            detail=f"{len(actionable_drafts)} draft messages can be reviewed or turned into follow-up actions.",
-            metadata={"draft_count": len(actionable_drafts)},
-            created_at=now,
-        )
-        obligations = [
-            ObligationRecord(
-                id=self._stable_id("obligation", workflow_id, str(item.id or index)),
-                profile_slug=self.profile.slug,
-                organization_id=organization_id,
-                workspace_slug=workspace_slug,
-                actor_user_id=actor_user_id,
-                workflow_id=workflow_id,
-                title=f"Review draft: {item.subject or 'Untitled draft'}",
-                reason="The workspace already has draft state that can be completed with deterministic context.",
-                priority=2,
-                due_at=item.created_at,
-                evidence_refs=[str(item.id or f"draft-{index}")],
-                metadata={"to": item.to, "status": item.status, "subject": item.subject},
-                created_at=now,
-                updated_at=now,
-            )
-            for index, item in enumerate(actionable_drafts[:6], start=1)
-        ]
-        return workflow, event, obligations
-
     def _decision_records(self, *, organization_id, workspace_slug, feedback_signals, training_examples) -> list[DecisionRecord]:
         decisions: list[DecisionRecord] = []
         for signal in feedback_signals[:40]:
@@ -1467,7 +1389,7 @@ class ReasoningService:
             title = "Prepared follow-up packet for scheduled work"
             reason = "The scheduler has due or previously failed work that should be checked with local context before more automation runs."
             risk_level = "medium"
-        elif workflow.workflow_type == "correspondence_follow_up":
+        elif workflow.workflow_type == "local_follow_up":
             action_type = "suggested_draft"
             title = "Prepared draft from existing workspace context"
             reason = f"{workflow.subject_refs.get('draft_count', 0)} workspace drafts already contain enough context for a worker-ready follow-up."
@@ -1570,7 +1492,7 @@ class ReasoningService:
         readiness_status: str,
     ) -> list[str]:
         reasons = list(evidence_bundle.why_selected[:3])
-        if workflow.workflow_type == "correspondence_follow_up":
+        if workflow.workflow_type == "local_follow_up":
             reasons.insert(0, "An existing draft and prior workspace context are already available.")
         elif workflow.workflow_type == "regulated_document_lifecycle":
             reasons.insert(0, "The document has enough retained metadata to prepare a finalization review.")
@@ -1612,7 +1534,7 @@ class ReasoningService:
                     severity="warning",
                 )
             )
-        if workflow.workflow_type == "correspondence_follow_up" and int(workflow.subject_refs.get("draft_count", 0) or 0) <= 0:
+        if workflow.workflow_type == "local_follow_up" and int(workflow.subject_refs.get("draft_count", 0) or 0) <= 0:
             items.append(
                 MissingInputRecord(
                     id=self._stable_id("missing", workflow.id, action_type, "draft"),
@@ -1760,7 +1682,7 @@ class ReasoningService:
         correspondence_items = list((workflow.metadata or {}).get("drafts", []))[:6]
         same_contact_history = bool(correspondence_items or archive_hits)
         negative_evidence: list[NegativeEvidenceRecord] = []
-        if workflow.workflow_type == "correspondence_follow_up" and not correspondence_items:
+        if workflow.workflow_type == "local_follow_up" and not correspondence_items:
             negative_evidence.append(
                 NegativeEvidenceRecord(
                     id=self._stable_id("neg", workflow.id, "draft-history"),
@@ -1911,7 +1833,7 @@ class ReasoningService:
                 derived_from=["workflow_projection"],
             )
         )
-        if workflow.workflow_type == "correspondence_follow_up":
+        if workflow.workflow_type == "local_follow_up":
             drafts = retrieval_context.get("correspondence_items", [])
             claims.append(
                 ClaimRecord(

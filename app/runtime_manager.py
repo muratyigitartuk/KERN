@@ -5,6 +5,7 @@ from collections.abc import Iterable
 
 from app.config import settings
 from app.identity import IdentityService
+from app.path_safety import validate_workspace_slug
 from app.platform import PlatformStore, connect_platform_db
 from app.runtime import KernRuntime
 from app.types import ProfileSummary
@@ -37,13 +38,15 @@ class RuntimeManager:
         self.platform.connection.close()
 
     async def get_runtime(self, workspace_slug: str | None = None) -> KernRuntime:
-        slug = (workspace_slug or self.default_workspace_slug).strip() or self.default_workspace_slug
+        slug = validate_workspace_slug((workspace_slug or self.default_workspace_slug).strip() or self.default_workspace_slug)
         async with self._lock:
             runtime = self._runtimes.get(slug)
             if runtime is None:
                 runtime = KernRuntime(profile_slug=slug)
                 await runtime.start()
                 self._runtimes[slug] = runtime
+            elif not getattr(runtime, "_started", False):
+                await runtime.start()
             return runtime
 
     async def stop_runtime(self, workspace_slug: str) -> None:
@@ -58,6 +61,7 @@ class RuntimeManager:
     def resolve_workspace_slug(self, preferred_slug: str | None = None) -> str:
         slug = (preferred_slug or "").strip()
         if slug:
+            slug = validate_workspace_slug(slug)
             profile = self.platform.get_profile(slug)
             if profile is not None:
                 return profile.slug

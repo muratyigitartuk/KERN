@@ -153,12 +153,12 @@ class SpreadsheetParser:
             clause = query_lower.split(" where ", 1)[1]
         else:
             clause = query_lower.split(" wo ", 1)[1]
-        for operator in (" contains ", " enthält ", "=", " is "):
+        for operator in (" contains ", " enthÃ¤lt ", "=", " is "):
             if operator in clause:
                 left, right = clause.split(operator, 1)
                 column_hint = left.strip()
                 raw_value = right.split(" and ", 1)[0].strip().strip("'\"")
-                contains_mode = operator.strip() in ("contains", "enthält")
+                contains_mode = operator.strip() in ("contains", "enthÃ¤lt")
                 break
         else:
             return data
@@ -177,9 +177,9 @@ class SpreadsheetParser:
     def _detect_group_by(headers: list[str], query_lower: str) -> str | None:
         match = re.search(r"group by ([a-z0-9_ ]+)", query_lower)
         if not match:
-            match = re.search(r"gruppiert nach ([a-z0-9_ äöü]+)", query_lower)
+            match = re.search(r"gruppiert nach ([a-z0-9_ Ã¤Ã¶Ã¼]+)", query_lower)
         if not match:
-            match = re.search(r"pro ([a-z0-9_ äöü]+)", query_lower)
+            match = re.search(r"pro ([a-z0-9_ Ã¤Ã¶Ã¼]+)", query_lower)
         if not match:
             return None
         column_hint = match.group(1).strip().split(" where ", 1)[0].split(" wo ", 1)[0].strip()
@@ -229,7 +229,7 @@ class SpreadsheetParser:
         text = str(value).strip()
         if not text:
             return None
-        text = text.replace("€", "").replace("$", "").replace("£", "").replace("EUR", "").replace("USD", "").replace("GBP", "")
+        text = text.replace("â‚¬", "").replace("$", "").replace("Â£", "").replace("EUR", "").replace("USD", "").replace("GBP", "")
         text = text.replace(" ", "")
         if text.count(",") == 1 and text.count(".") == 0:
             text = text.replace(",", ".")

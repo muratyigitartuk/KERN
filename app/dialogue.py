@@ -9,12 +9,6 @@ class DialogueStateStore:
     def __init__(self, memory: MemoryRepository) -> None:
         self.memory = memory
 
-    def set_last_media_query(self, query: str) -> None:
-        self.memory.set_value("dialogue_state", "last_media_query", query)
-
-    def get_last_media_query(self) -> str | None:
-        return self.memory.get_value("dialogue_state", "last_media_query")
-
     def set_last_response(self, text: str) -> None:
         self.memory.set_value("dialogue_state", "last_response", text)
 

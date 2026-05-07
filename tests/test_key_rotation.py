@@ -153,7 +153,8 @@ def test_hydrate_new_db(tmp_path):
     conn.close()
 
 
-def test_hydrate_plaintext_migration(tmp_path):
+def test_hydrate_plaintext_migration(tmp_path, monkeypatch):
+    monkeypatch.setenv("KERN_ALLOW_PLAINTEXT_DB_MIGRATION", "1")
     key = _make_key()
     enc_path = tmp_path / "plain.db"
     # Write a real SQLite file (plaintext)

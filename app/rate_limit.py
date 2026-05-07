@@ -7,6 +7,8 @@ from threading import Lock
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
+from app.config import settings
+
 # Per-path rate limits: (max_requests, window_seconds)
 _PATH_LIMITS: dict[str, tuple[int, int]] = {
     "/upload": (10, 60),
@@ -62,6 +64,27 @@ _EXEMPT_PATHS = frozenset({
 })
 _bucket_housekeeping_lock = Lock()
 _bucket_uses = 0
+_redis_client = None
+
+
+def _redis_rate_check(key: str, max_requests: int, window: int) -> tuple[bool, int] | None:
+    global _redis_client
+    if not settings.server_mode or not settings.redis_url:
+        return None
+    try:
+        if _redis_client is None:
+            import redis
+
+            _redis_client = redis.Redis.from_url(settings.redis_url, decode_responses=True)
+        current = int(_redis_client.incr(key))
+        if current == 1:
+            _redis_client.expire(key, window)
+        if current > max_requests:
+            ttl = int(_redis_client.ttl(key) or window)
+            return False, max(1, ttl)
+        return True, 0
+    except Exception:
+        return None
 
 
 def _prune_buckets(now: float) -> None:
@@ -87,6 +110,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = request.client.host if request.client else "unknown"
         bucket_key = f"{client_ip}:{path}"
         max_requests, window = _PATH_LIMITS.get(path, _DEFAULT_LIMIT)
+        redis_result = _redis_rate_check(f"kern:rate:{bucket_key}", max_requests, window)
+        if redis_result is not None:
+            allowed, retry_after = redis_result
+            if not allowed:
+                return Response(
+                    content=f'{{"detail":"Rate limit exceeded. Try again in {retry_after}s."}}',
+                    status_code=429,
+                    media_type="application/json",
+                    headers={"Retry-After": str(retry_after)},
+                )
+            return await call_next(request)
+        if settings.server_mode and settings.redis_url:
+            return Response(
+                content='{"detail":"Rate limiting backend is unavailable."}',
+                status_code=503,
+                media_type="application/json",
+            )
         bucket = _buckets[bucket_key]
         allowed, retry_after = bucket.check(max_requests, window)
 

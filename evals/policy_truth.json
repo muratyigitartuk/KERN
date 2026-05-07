@@ -1,10 +1,5 @@
 [
   {
-    "tool_name": "sync_mailbox",
-    "expected_verdict": "confirm",
-    "risk_level": "medium"
-  },
-  {
     "tool_name": "search_documents",
     "expected_verdict": "confirm",
     "risk_level": "medium",

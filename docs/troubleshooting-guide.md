@@ -2,6 +2,58 @@
 
 Use this guide when the pilot install does not behave like the normal first-run path.
 
+## One-command start fails
+
+Run from the repository root:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1
+```
+
+For LLM mode:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1 -EnableLlm
+```
+
+## No GGUF model found
+
+Put a model in `models\`, `%USERPROFILE%\Models`, or `%USERPROFILE%\.cache\kern\models`, or pass:
+
+```powershell
+-LlmModelPath "C:\path\to\model.gguf"
+```
+
+## Port is busy
+
+The Tauri backend chooses a free loopback port. The LLM launcher checks the requested LLM port; if it is busy and not already serving llama.cpp, it chooses a free port and passes that to KERN.
+
+## GPU is not used
+
+Build a fresh Vulkan llama.cpp server:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-llama-cpp.ps1 -Vulkan
+```
+
+Then start:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1 -EnableLlm
+```
+
+Check `llama-server.err.log` or `llama-server.out.log` under the desktop log root. The log should mention Vulkan devices and offloaded layers.
+
+## Publishing hygiene fails
+
+Run:
+
+```powershell
+python .\scripts\validate-publish-hygiene.py --json
+```
+
+Remove or ignore the reported file. Release packages must not contain `.env`, keys, databases, logs, model files, virtual environments, build outputs, or local user data.
+
 ## 1. Readiness is not clean
 
 Run:

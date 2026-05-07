@@ -15,7 +15,6 @@ from app.types import (
     ClipboardSnapshot,
     CurrentContextSnapshot,
     ForegroundWindowSnapshot,
-    MediaContextSnapshot,
     ProfileSummary,
     RuntimeSnapshot,
     ToolRequest,
@@ -30,22 +29,6 @@ class _FakeWindowClient:
 class _FakeClipboardClient:
     def snapshot(self):
         return ClipboardSnapshot(has_text=True, excerpt="Finish the enterprise rollout checklist.", char_count=39)
-
-
-class _FakeMediaClient:
-    @property
-    def available(self):
-        return True
-
-    def spotify_session(self):
-        class _Session:
-            source_app = "Spotify.exe"
-            status = "Playing"
-            title = "Morning Jazz"
-            artist = "KERN Trio"
-            album = "Daily Focus"
-
-        return _Session()
 
 
 class _FakePlatform:
@@ -63,10 +46,8 @@ def test_context_assembler_includes_current_context_summary(tmp_path: Path):
     service = CurrentContextService(
         window_client=_FakeWindowClient(),
         clipboard_client=_FakeClipboardClient(),
-        media_client=_FakeMediaClient(),
         window_enabled=True,
         clipboard_enabled=True,
-        media_enabled=True,
     )
     assembler = ContextAssembler(memory, local_data, dialogue, current_context=service)
 
@@ -79,13 +60,12 @@ def test_context_assembler_includes_current_context_summary(tmp_path: Path):
     assert summary.system_signals["clipboard_present"] is True
 
 
-def test_read_current_context_tool_reports_window_clipboard_and_media():
+def test_read_current_context_tool_reports_window_and_clipboard():
     snapshot = RuntimeSnapshot(
         current_context=CurrentContextSnapshot(
             window=ForegroundWindowSnapshot(title="Inbox - Outlook", process_id=77, process_name="OUTLOOK.EXE"),
             clipboard=ClipboardSnapshot(has_text=True, excerpt="Call ACME back tomorrow.", char_count=24),
-            media=MediaContextSnapshot(title="Morning Jazz", artist="KERN Trio", status="Playing", source_app="Spotify.exe"),
-            sources={"window": True, "clipboard": True, "media": True},
+            sources={"window": True, "clipboard": True},
         )
     )
     profile = ProfileSummary(
@@ -115,7 +95,7 @@ def test_read_current_context_tool_reports_window_clipboard_and_media():
 
     assert "Foreground window" in result.display_text
     assert "Clipboard" in result.display_text
-    assert "Morning Jazz" in result.display_text
+    assert "Morning Jazz" not in result.display_text
 
 
 def test_model_router_prefers_deep_for_complex_rag_queries():

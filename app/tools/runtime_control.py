@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import webbrowser
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 from app.local_data import LocalDataService
@@ -34,14 +34,12 @@ class BrowserSearchTool(Tool):
                 success=False,
                 status="failed",
                 display_text="I need a search query.",
-                spoken_text="Tell me what to search for.",
             )
         opened = webbrowser.open(build_browser_search_url(query))
         return ToolResult(
             success=bool(opened),
             status="attempted" if opened else "failed",
             display_text=f"Opened a browser search for {query}." if opened else f"Failed to open a browser search for {query}.",
-            spoken_text=f"I opened a browser search for {query}." if opened else "I could not open the browser search.",
             evidence=["Sent request to default browser."] if opened else [],
             side_effects=["browser_open_request"] if opened else [],
             data={"query": query, "attempted": bool(opened)},
@@ -74,7 +72,6 @@ class FocusModeTool(Tool):
             success=True,
             status="observed",
             display_text=f"Focus mode started for {minutes} minutes.",
-            spoken_text=f"Focus mode is active for {minutes} minutes.",
             evidence=[f"Timer #{reminder_id} set for {due_at.strftime('%H:%M')}."],
             side_effects=["focus_mode_started", "timer_created"],
             data={"minutes": minutes, "reminder_id": reminder_id, "focus_until": due_at.isoformat()},
@@ -106,19 +103,18 @@ class SystemStatusTool(Tool):
         else:
             evidence.append("psutil not installed; limited status only.")
 
-        spoken_bits = []
+        summary_bits = []
         if "cpu_percent" in status:
-            spoken_bits.append(f"CPU is at {status['cpu_percent']} percent")
+            summary_bits.append(f"CPU is at {status['cpu_percent']} percent")
         if "memory_percent" in status:
-            spoken_bits.append(f"memory is at {status['memory_percent']} percent")
+            summary_bits.append(f"memory is at {status['memory_percent']} percent")
         if "battery_percent" in status:
-            spoken_bits.append(f"battery is at {status['battery_percent']} percent")
-        spoken = ", ".join(spoken_bits) if spoken_bits else "Only the base runtime status is available right now."
+            summary_bits.append(f"battery is at {status['battery_percent']} percent")
+        summary = ", ".join(summary_bits) if summary_bits else "Only the base runtime status is available right now."
         return ToolResult(
             success=True,
             status="observed",
-            display_text=spoken,
-            spoken_text=spoken,
+            display_text=summary,
             evidence=evidence,
             data=status,
         )

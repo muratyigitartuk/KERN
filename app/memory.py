@@ -20,37 +20,23 @@ from app.types import (
     ContextLinkRecord,
     DocumentAnswerPacket,
     CalendarEventSummary,
-    ClaimRecord,
-    ClaimEvidenceRef,
     ComplianceReminderRule,
     ContextFact,
     DecisionRecord,
-    EvidenceBundle,
     FeedbackSignal,
-    GenerationContract,
     InteractionOutcomeRecord,
     ConversationArchiveRecord,
-    DataClass,
     DocumentChunk,
     DocumentRecord,
-    EmailAccount,
-    EmailDraft,
-    EmailMessage,
     ExecutionReceipt,
     GermanBusinessDocument,
     MeetingRecord,
-    NegativeEvidenceRecord,
     RegulatedDocumentRecord,
     RegulatedDocumentVersion,
     ObligationRecord,
     OpenLoop,
-    RecommendationRecord,
     RecoveryCheckpoint,
     ReminderSummary,
-    RankingExplanation,
-    RankingFeatureVector,
-    ReadinessEdge,
-    ReadinessNode,
     RetrievalHit,
     ShadowRankingRecord,
     SyncTarget,
@@ -69,7 +55,6 @@ class MemoryRepository:
     CONVERSATION_RETENTION = 200
     RUNTIME_LOG_RETENTION = 1000
     RECEIPT_RETENTION = 200
-    MESSAGE_RETENTION = 2000
     ARTIFACT_RETENTION = 500
 
     def __init__(self, connection: sqlite3.Connection, profile_slug: str = "default", *, llm_client=None) -> None:
@@ -491,10 +476,8 @@ class MemoryRepository:
     def seed_defaults(self, include_demo_data: bool = False) -> None:
         if not self.get_value("user_profile", "name"):
             self.set_value("user_profile", "name", "Murat")
-        if not self.get_value("preferences", "morning_playlist"):
-            self.set_value("preferences", "morning_playlist", "morning jazz")
         if not self.get_value("preferences", "preferred_title"):
-            self.set_value("preferences", "preferred_title", "sir")
+            self.set_value("preferences", "preferred_title", "")
         if not self.get_value("preferences", "muted"):
             self.set_value("preferences", "muted", "false")
         if not self.get_value("preferences", "quiet_hours_start"):
@@ -1193,8 +1176,10 @@ class MemoryRepository:
                 """,
                 (self.profile_slug, limit),
             ).fetchall()
-        return [
-            DocumentRecord(
+        records: list[DocumentRecord] = []
+        for row in rows:
+            metadata = json.loads(row["metadata_json"] or "{}")
+            records.append(DocumentRecord(
                 id=row["id"],
                 profile_slug=row["profile_slug"],
                 organization_id=row["organization_id"] if "organization_id" in row.keys() else None,
@@ -1206,17 +1191,17 @@ class MemoryRepository:
                 file_path=row["file_path"],
                 file_hash=row["file_hash"] if "file_hash" in row.keys() else None,
                 category=row["category"],
-                classification=str(json.loads(row["metadata_json"] or "{}").get("classification") or "internal"),
-                data_class=str(json.loads(row["metadata_json"] or "{}").get("data_class") or "operational"),
-                retention_state=json.loads(row["metadata_json"] or "{}").get("retention_state"),
-                provenance=dict(json.loads(row["metadata_json"] or "{}").get("provenance") or {}),
+                classification=str(metadata.get("classification") or "internal"),
+                data_class=str(metadata.get("data_class") or "operational"),
+                retention_state=metadata.get("retention_state"),
+                metadata=metadata,
+                provenance=dict(metadata.get("provenance") or {}),
                 tags=json.loads(row["tags_json"]),
                 archived=bool(row["archived"]),
                 created_at=datetime.fromisoformat(row["created_at"]),
                 imported_at=datetime.fromisoformat(row["imported_at"]),
-            )
-            for row in rows
-        ]
+            ))
+        return records
 
     def get_document_details(self, document_ids: list[str]) -> dict[str, dict[str, object]]:
         ids = [str(item) for item in document_ids if str(item).strip()]
@@ -1299,7 +1284,7 @@ class MemoryRepository:
         return scored_hits[:limit]
 
     def _document_search_terms(self, query: str) -> list[str]:
-        tokens = [token.lower() for token in re.findall(r"[0-9A-Za-zÄÖÜäöüß_-]+", query)]
+        tokens = [token.lower() for token in re.findall(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ_-]+", query)]
         synonyms = {
             "angebot": ("offer",),
             "rechnung": ("invoice",),
@@ -1307,9 +1292,9 @@ class MemoryRepository:
             "betrag": ("amount", "total"),
             "summe": ("amount", "total"),
             "faellig": ("due",),
-            "fällig": ("due",),
+            "fÃ¤llig": ("due",),
             "faelligkeit": ("due", "date"),
-            "fälligkeit": ("due", "date"),
+            "fÃ¤lligkeit": ("due", "date"),
             "ust": ("vat",),
             "ustid": ("vat", "id"),
             "ustidnr": ("vat", "id"),
@@ -1482,20 +1467,6 @@ class MemoryRepository:
         self.connection.commit()
         return int(cursor.rowcount or 0)
 
-    def count_email_accounts(self) -> int:
-        row = self.connection.execute(
-            "SELECT COUNT(*) AS count FROM email_accounts WHERE profile_slug = ?",
-            (self.profile_slug,),
-        ).fetchone()
-        return int(row["count"] or 0) if row else 0
-
-    def count_mailbox_messages(self) -> int:
-        row = self.connection.execute(
-            "SELECT COUNT(*) AS count FROM mailbox_messages WHERE profile_slug = ?",
-            (self.profile_slug,),
-        ).fetchone()
-        return int(row["count"] or 0) if row else 0
-
     def count_meetings(self) -> int:
         row = self.connection.execute(
             "SELECT COUNT(*) AS count FROM meeting_records WHERE profile_slug = ?",
@@ -1568,12 +1539,6 @@ class MemoryRepository:
                 dict(row)
                 for row in self.connection.execute(
                     "SELECT id, imported_at FROM document_records ORDER BY imported_at DESC LIMIT 50"
-                ).fetchall()
-            ],
-            "mailbox": [
-                dict(row)
-                for row in self.connection.execute(
-                    "SELECT id, received_at FROM mailbox_messages ORDER BY received_at DESC LIMIT 50"
                 ).fetchall()
             ],
             "meetings": [
@@ -1686,321 +1651,6 @@ class MemoryRepository:
             }
             for row in rows
         ]
-
-    def upsert_email_account(self, account: EmailAccount, username: str | None = None, password_ref: str | None = None) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        self.connection.execute(
-            """
-            INSERT INTO email_accounts (id, profile_slug, label, email_address, imap_host, smtp_host, username, password_ref, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                profile_slug = excluded.profile_slug,
-                label = excluded.label,
-                email_address = excluded.email_address,
-                imap_host = excluded.imap_host,
-                smtp_host = excluded.smtp_host,
-                username = excluded.username,
-                password_ref = excluded.password_ref,
-                updated_at = excluded.updated_at
-            """,
-            (
-                account.id,
-                account.profile_slug,
-                account.label,
-                account.email_address,
-                account.imap_host,
-                account.smtp_host,
-                username,
-                password_ref,
-                now,
-                now,
-            ),
-        )
-        self.connection.commit()
-
-    def list_email_accounts(self) -> list[EmailAccount]:
-        rows = self.connection.execute(
-            """
-            SELECT id, profile_slug, label, email_address, imap_host, smtp_host
-            FROM email_accounts
-            WHERE profile_slug = ?
-            ORDER BY updated_at DESC, id DESC
-            """,
-            (self.profile_slug,),
-        ).fetchall()
-        return [
-            EmailAccount(
-                id=row["id"],
-                profile_slug=row["profile_slug"],
-                label=row["label"],
-                email_address=row["email_address"],
-                imap_host=row["imap_host"],
-                smtp_host=row["smtp_host"],
-            )
-            for row in rows
-        ]
-
-    def count_email_drafts(self, status: str | None = None) -> int:
-        if status:
-            row = self.connection.execute(
-                "SELECT COUNT(*) AS count FROM email_drafts WHERE profile_slug = ? AND status = ?",
-                (self.profile_slug, status),
-            ).fetchone()
-        else:
-            row = self.connection.execute(
-                "SELECT COUNT(*) AS count FROM email_drafts WHERE profile_slug = ?",
-                (self.profile_slug,),
-            ).fetchone()
-        return int(row["count"]) if row else 0
-
-    def get_email_account_details(self, account_id: str) -> dict[str, str | None] | None:
-        row = self.connection.execute(
-            """
-            SELECT id, profile_slug, label, email_address, imap_host, smtp_host, username, password_ref
-            FROM email_accounts
-            WHERE id = ? AND profile_slug = ?
-            """,
-            (account_id, self.profile_slug),
-        ).fetchone()
-        if not row:
-            return None
-        return {
-            "id": row["id"],
-            "profile_slug": row["profile_slug"],
-            "label": row["label"],
-            "email_address": row["email_address"],
-            "imap_host": row["imap_host"],
-            "smtp_host": row["smtp_host"],
-            "username": row["username"],
-            "password_ref": row["password_ref"],
-        }
-
-    def remove_email_account(self, account_id: str) -> None:
-        self.connection.execute("DELETE FROM email_accounts WHERE id = ? AND profile_slug = ?", (account_id, self.profile_slug))
-        self.connection.commit()
-
-    def save_email_draft(self, draft: EmailDraft) -> EmailDraft:
-        draft_id = draft.id or f"draft-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
-        created_at = draft.created_at or datetime.now(timezone.utc)
-        self.connection.execute(
-            """
-            INSERT INTO email_drafts (id, profile_slug, to_json, cc_json, subject, body, attachments_json, status, created_at, sent_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                profile_slug = excluded.profile_slug,
-                to_json = excluded.to_json,
-                cc_json = excluded.cc_json,
-                subject = excluded.subject,
-                body = excluded.body,
-                attachments_json = excluded.attachments_json,
-                status = excluded.status,
-                sent_at = excluded.sent_at
-            """,
-            (
-                draft_id,
-                self.profile_slug,
-                json.dumps(draft.to),
-                json.dumps(draft.cc),
-                draft.subject,
-                draft.body,
-                json.dumps(draft.attachments),
-                draft.status,
-                created_at.isoformat(),
-                draft.sent_at.isoformat() if draft.sent_at else None,
-            ),
-        )
-        self.connection.commit()
-        return self.get_email_draft(draft_id) or draft.model_copy(update={"id": draft_id, "created_at": created_at})
-
-    def get_email_draft(self, draft_id: str) -> EmailDraft | None:
-        row = self.connection.execute(
-            """
-            SELECT id, to_json, cc_json, subject, body, attachments_json, status, created_at, sent_at
-            FROM email_drafts
-            WHERE id = ? AND profile_slug = ?
-            """,
-            (draft_id, self.profile_slug),
-        ).fetchone()
-        if not row:
-            return None
-        return EmailDraft(
-            id=row["id"],
-            to=json.loads(row["to_json"]),
-            cc=json.loads(row["cc_json"]),
-            subject=row["subject"],
-            body=row["body"],
-            attachments=json.loads(row["attachments_json"]),
-            status=row["status"],
-            created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
-            sent_at=datetime.fromisoformat(row["sent_at"]) if row["sent_at"] else None,
-        )
-
-    def list_email_drafts(self, limit: int = 20, status: str | None = None) -> list[EmailDraft]:
-        if status:
-            rows = self.connection.execute(
-                """
-                SELECT id, to_json, cc_json, subject, body, attachments_json, status, created_at, sent_at
-                FROM email_drafts
-                WHERE profile_slug = ? AND status = ?
-                ORDER BY created_at DESC, id DESC
-                LIMIT ?
-                """,
-                (self.profile_slug, status, limit),
-            ).fetchall()
-        else:
-            rows = self.connection.execute(
-                """
-                SELECT id, to_json, cc_json, subject, body, attachments_json, status, created_at, sent_at
-                FROM email_drafts
-                WHERE profile_slug = ?
-                ORDER BY created_at DESC, id DESC
-                LIMIT ?
-                """,
-                (self.profile_slug, limit),
-            ).fetchall()
-        return [
-            EmailDraft(
-                id=row["id"],
-                to=json.loads(row["to_json"]),
-                cc=json.loads(row["cc_json"]),
-                subject=row["subject"],
-                body=row["body"],
-                attachments=json.loads(row["attachments_json"]),
-                status=row["status"],
-                created_at=datetime.fromisoformat(row["created_at"]) if row["created_at"] else None,
-                sent_at=datetime.fromisoformat(row["sent_at"]) if row["sent_at"] else None,
-            )
-            for row in rows
-        ]
-
-    def mark_email_draft_status(self, draft_id: str, status: str, sent_at: datetime | None = None) -> None:
-        self.connection.execute(
-            "UPDATE email_drafts SET status = ?, sent_at = ? WHERE id = ? AND profile_slug = ?",
-            (status, sent_at.isoformat() if sent_at else None, draft_id, self.profile_slug),
-        )
-        self.connection.commit()
-
-    def delete_email_draft(self, draft_id: str) -> bool:
-        cursor = self.connection.execute(
-            "DELETE FROM email_drafts WHERE id = ? AND profile_slug = ?",
-            (draft_id, self.profile_slug),
-        )
-        self.connection.commit()
-        return cursor.rowcount > 0
-
-    def append_mailbox_message(
-        self,
-        message: EmailMessage,
-        account_id: str | None = None,
-        folder: str = "INBOX",
-        body_text: str = "",
-        attachment_paths: list[str] | None = None,
-        metadata: dict[str, object] | None = None,
-        message_id: str | None = None,
-    ) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        self.connection.execute(
-            """
-            INSERT OR REPLACE INTO mailbox_messages (
-                id, profile_slug, account_id, message_id, folder, subject, sender, recipients_json, received_at,
-                body_text, has_attachments, attachment_paths_json, metadata_json, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                message.id,
-                self.profile_slug,
-                account_id,
-                message_id,
-                folder,
-                message.subject,
-                message.sender,
-                json.dumps(message.recipients),
-                message.received_at.isoformat(),
-                body_text,
-                1 if message.has_attachments else 0,
-                json.dumps(attachment_paths or []),
-                json.dumps(metadata or {}),
-                now,
-            ),
-        )
-        self._trim_table("mailbox_messages", self.MESSAGE_RETENTION, order_column="received_at")
-        self.connection.commit()
-
-    def list_mailbox_messages(self, limit: int = 20, account_id: str | None = None) -> list[EmailMessage]:
-        if account_id:
-            rows = self.connection.execute(
-                """
-                SELECT id, account_id, folder, subject, sender, recipients_json, received_at, has_attachments
-                FROM mailbox_messages
-                WHERE profile_slug = ? AND account_id = ?
-                ORDER BY received_at DESC, id DESC
-                LIMIT ?
-                """,
-                (self.profile_slug, account_id, limit),
-            ).fetchall()
-        else:
-            rows = self.connection.execute(
-                """
-                SELECT id, account_id, folder, subject, sender, recipients_json, received_at, has_attachments
-                FROM mailbox_messages
-                WHERE profile_slug = ?
-                ORDER BY received_at DESC, id DESC
-                LIMIT ?
-                """,
-                (self.profile_slug, limit),
-            ).fetchall()
-        return [
-            EmailMessage(
-                id=row["id"],
-                account_id=row["account_id"],
-                subject=row["subject"],
-                sender=row["sender"],
-                recipients=json.loads(row["recipients_json"]),
-                received_at=datetime.fromisoformat(row["received_at"]),
-                has_attachments=bool(row["has_attachments"]),
-                folder=row["folder"],
-            )
-            for row in rows
-        ]
-
-    def find_mailbox_message_by_external_id(self, external_message_id: str, account_id: str | None = None) -> str | None:
-        row = self.connection.execute(
-            """
-            SELECT id
-            FROM mailbox_messages
-            WHERE profile_slug = ? AND message_id = ? AND (? IS NULL OR account_id = ?)
-            ORDER BY received_at DESC, id DESC
-            LIMIT 1
-            """,
-            (self.profile_slug, external_message_id, account_id, account_id),
-        ).fetchone()
-        return row["id"] if row else None
-
-    def get_mailbox_message_details(self, message_id: str) -> dict[str, object] | None:
-        row = self.connection.execute(
-            """
-            SELECT id, account_id, message_id, folder, subject, sender, recipients_json, received_at, body_text, has_attachments, attachment_paths_json, metadata_json
-            FROM mailbox_messages
-            WHERE id = ? AND profile_slug = ?
-            """,
-            (message_id, self.profile_slug),
-        ).fetchone()
-        if not row:
-            return None
-        return {
-            "id": row["id"],
-            "account_id": row["account_id"],
-            "message_id": row["message_id"],
-            "folder": row["folder"],
-            "subject": row["subject"],
-            "sender": row["sender"],
-            "recipients": json.loads(row["recipients_json"]),
-            "received_at": row["received_at"],
-            "body_text": row["body_text"],
-            "has_attachments": bool(row["has_attachments"]),
-            "attachment_paths": json.loads(row["attachment_paths_json"]),
-            "metadata": json.loads(row["metadata_json"]),
-        }
 
     def upsert_meeting_record(
         self,
@@ -3800,7 +3450,6 @@ class MemoryRepository:
         self._trim_table("conversation_log", self.CONVERSATION_RETENTION)
         self._trim_table("runtime_logs", self.RUNTIME_LOG_RETENTION)
         self._trim_table("execution_receipts", self.RECEIPT_RETENTION)
-        self._trim_table("mailbox_messages", self.MESSAGE_RETENTION, order_column="received_at")
         self._trim_table("transcript_artifacts", self.ARTIFACT_RETENTION)
         self.connection.execute("PRAGMA optimize")
         self.connection.commit()

@@ -57,7 +57,6 @@ class SearchFilesTool(Tool):
                 success=False,
                 status="failed",
                 display_text="I need a search phrase.",
-                spoken_text="Tell me what to search for in the workspace.",
             )
         matches: list[str] = []
         for path in self.root.rglob("*"):
@@ -70,7 +69,6 @@ class SearchFilesTool(Tool):
                 success=True,
                 status="observed",
                 display_text=f"No files matched {query}.",
-                spoken_text=f"I did not find files matching {query}.",
                 evidence=[f"Searched under {self.root}."],
                 data={"matches": []},
             )
@@ -78,7 +76,6 @@ class SearchFilesTool(Tool):
             success=True,
             status="observed",
             display_text=f"Found {len(matches)} matching file(s).",
-            spoken_text=f"I found {len(matches)} matching files.",
             evidence=[f"Searched under {self.root}."],
             data={"matches": matches},
             suggested_follow_up="Ask me to inspect one of those files.",
@@ -112,7 +109,6 @@ class ReadFileExcerptTool(Tool):
                 success=False,
                 status="failed",
                 display_text="I need a file path.",
-                spoken_text="Tell me which file to inspect.",
             )
         path = Path(raw_path)
         if not path.is_absolute():
@@ -124,14 +120,12 @@ class ReadFileExcerptTool(Tool):
                 success=False,
                 status="failed",
                 display_text="That file is outside the workspace safety boundary.",
-                spoken_text="That file is outside the workspace safety boundary.",
             )
         if not path.exists() or not path.is_file():
             return ToolResult(
                 success=False,
                 status="failed",
                 display_text=f"I could not find {path}.",
-                spoken_text="I could not find that file.",
             )
         content = path.read_text(encoding="utf-8", errors="ignore").splitlines()
         excerpt = "\n".join(content[:20]).strip()
@@ -139,7 +133,6 @@ class ReadFileExcerptTool(Tool):
             success=True,
             status="observed",
             display_text=f"Read {path.name}.",
-            spoken_text=f"I inspected {path.name}.",
             evidence=[str(path)],
             data={"path": str(path), "excerpt": excerpt},
         )

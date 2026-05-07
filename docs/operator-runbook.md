@@ -235,7 +235,7 @@ Default uninstall preserves `.kern` unless the operator explicitly removes data.
 ## 12. Known Current Boundaries
 
 - OCR fallback is implemented in code but not validated as a Windows production path
-- the blessed deployment path is one controlled internal machine, not multi-user server rollout
+- this runbook covers the local Windows deployment path; shared multi-user deployments use server mode
 - local LLM/model runtime remains your responsibility on the target machine
 - HF adapter serving is the current reference-quality tuned-model path; merged GGUF remains the later deployment optimization
 - the Windows service wrapper is optional, not the primary internal deployment path
@@ -243,13 +243,13 @@ Default uninstall preserves `.kern` unless the operator explicitly removes data.
 
 Related guides:
 
-- [backup-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/backup-guide.md)
-- [restore-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/restore-guide.md)
-- [uninstall-data-deletion.md](/Users/mur4t/Desktop/claudes/skillstests/docs/uninstall-data-deletion.md)
-- [troubleshooting-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/troubleshooting-guide.md)
-- [activation-renewal-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/activation-renewal-guide.md)
-- [update-rollback-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/update-rollback-guide.md)
-- [sample-workspace-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/sample-workspace-guide.md)
-- [pilot-acceptance-checklist.md](/Users/mur4t/Desktop/claudes/skillstests/docs/pilot-acceptance-checklist.md)
-- [pilot-troubleshooting-matrix.md](/Users/mur4t/Desktop/claudes/skillstests/docs/pilot-troubleshooting-matrix.md)
-- [release-checklist.md](/Users/mur4t/Desktop/claudes/skillstests/docs/release-checklist.md)
+- [backup-guide.md](backup-guide.md)
+- [restore-guide.md](restore-guide.md)
+- [uninstall-data-deletion.md](uninstall-data-deletion.md)
+- [troubleshooting-guide.md](troubleshooting-guide.md)
+- [activation-renewal-guide.md](activation-renewal-guide.md)
+- [update-rollback-guide.md](update-rollback-guide.md)
+- [sample-workspace-guide.md](sample-workspace-guide.md)
+- [pilot-acceptance-checklist.md](pilot-acceptance-checklist.md)
+- [pilot-troubleshooting-matrix.md](pilot-troubleshooting-matrix.md)
+- [release-checklist.md](release-checklist.md)

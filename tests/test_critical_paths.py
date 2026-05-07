@@ -3,11 +3,10 @@ from __future__ import annotations
 
 import os
 import sqlite3
-import time
 
 os.environ.setdefault("KERN_PRODUCT_POSTURE", "personal")
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

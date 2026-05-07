@@ -228,37 +228,6 @@ MIGRATIONS: list[tuple[int, str]] = [
         );
         CREATE INDEX IF NOT EXISTS idx_conversation_archives_archived_at ON conversation_archives(archived_at DESC, id DESC);
 
-        CREATE TABLE IF NOT EXISTS email_accounts (
-            id TEXT PRIMARY KEY,
-            label TEXT NOT NULL,
-            email_address TEXT NOT NULL,
-            imap_host TEXT NOT NULL,
-            smtp_host TEXT NOT NULL,
-            username TEXT,
-            password_ref TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        );
-
-        CREATE TABLE IF NOT EXISTS mailbox_messages (
-            id TEXT PRIMARY KEY,
-            account_id TEXT,
-            message_id TEXT,
-            folder TEXT NOT NULL DEFAULT 'INBOX',
-            subject TEXT NOT NULL,
-            sender TEXT NOT NULL,
-            recipients_json TEXT NOT NULL DEFAULT '[]',
-            received_at TEXT NOT NULL,
-            body_text TEXT NOT NULL DEFAULT '',
-            has_attachments INTEGER NOT NULL DEFAULT 0,
-            attachment_paths_json TEXT NOT NULL DEFAULT '[]',
-            metadata_json TEXT NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(account_id) REFERENCES email_accounts(id) ON DELETE SET NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_mailbox_messages_received_at ON mailbox_messages(received_at DESC, id DESC);
-        CREATE INDEX IF NOT EXISTS idx_mailbox_messages_account_id ON mailbox_messages(account_id, received_at DESC, id DESC);
-
         CREATE TABLE IF NOT EXISTS meeting_records (
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
@@ -331,19 +300,6 @@ CREATE INDEX IF NOT EXISTS idx_recovery_checkpoints_profile_slug ON recovery_che
     (
         5,
         """
-        CREATE TABLE IF NOT EXISTS email_drafts (
-            id TEXT PRIMARY KEY,
-            to_json TEXT NOT NULL DEFAULT '[]',
-            cc_json TEXT NOT NULL DEFAULT '[]',
-            subject TEXT NOT NULL,
-            body TEXT NOT NULL,
-            attachments_json TEXT NOT NULL DEFAULT '[]',
-            status TEXT NOT NULL DEFAULT 'draft',
-            created_at TEXT NOT NULL,
-            sent_at TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_email_drafts_created_at ON email_drafts(created_at DESC, id DESC);
-
         CREATE TABLE IF NOT EXISTS compliance_rules (
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
@@ -365,15 +321,6 @@ CREATE INDEX IF NOT EXISTS idx_recovery_checkpoints_profile_slug ON recovery_che
         UPDATE conversation_archives SET profile_slug = COALESCE(profile_slug, 'default');
         CREATE INDEX IF NOT EXISTS idx_conversation_archives_profile_slug ON conversation_archives(profile_slug, archived_at DESC, id DESC);
 
-        ALTER TABLE email_accounts ADD COLUMN profile_slug TEXT;
-        UPDATE email_accounts SET profile_slug = COALESCE(profile_slug, 'default');
-        CREATE INDEX IF NOT EXISTS idx_email_accounts_profile_slug ON email_accounts(profile_slug, updated_at DESC, id DESC);
-
-        ALTER TABLE mailbox_messages ADD COLUMN profile_slug TEXT;
-        UPDATE mailbox_messages SET profile_slug = COALESCE(profile_slug, 'default');
-        CREATE INDEX IF NOT EXISTS idx_mailbox_messages_profile_slug ON mailbox_messages(profile_slug, received_at DESC, id DESC);
-        CREATE INDEX IF NOT EXISTS idx_mailbox_messages_profile_message_id ON mailbox_messages(profile_slug, account_id, message_id);
-
         ALTER TABLE meeting_records ADD COLUMN profile_slug TEXT;
         UPDATE meeting_records SET profile_slug = COALESCE(profile_slug, 'default');
         CREATE INDEX IF NOT EXISTS idx_meeting_records_profile_slug ON meeting_records(profile_slug, created_at DESC, id DESC);
@@ -386,10 +333,6 @@ CREATE INDEX IF NOT EXISTS idx_recovery_checkpoints_profile_slug ON recovery_che
         UPDATE sync_targets SET profile_slug = COALESCE(profile_slug, 'default');
         CREATE INDEX IF NOT EXISTS idx_sync_targets_profile_slug ON sync_targets(profile_slug, updated_at DESC, id DESC);
 
-        ALTER TABLE email_drafts ADD COLUMN profile_slug TEXT;
-        UPDATE email_drafts SET profile_slug = COALESCE(profile_slug, 'default');
-        CREATE INDEX IF NOT EXISTS idx_email_drafts_profile_slug ON email_drafts(profile_slug, created_at DESC, id DESC);
-
         ALTER TABLE compliance_rules ADD COLUMN profile_slug TEXT;
         UPDATE compliance_rules SET profile_slug = COALESCE(profile_slug, 'default');
         CREATE INDEX IF NOT EXISTS idx_compliance_rules_profile_slug ON compliance_rules(profile_slug, created_at DESC);
@@ -398,27 +341,6 @@ CREATE INDEX IF NOT EXISTS idx_recovery_checkpoints_profile_slug ON recovery_che
     (
         7,
         """
-        DELETE FROM mailbox_messages
-        WHERE id NOT IN (
-            SELECT id
-            FROM (
-                SELECT id,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY profile_slug, COALESCE(account_id, ''), COALESCE(message_id, '')
-                           ORDER BY received_at DESC, id DESC
-                       ) AS row_number
-                FROM mailbox_messages
-                WHERE message_id IS NOT NULL AND message_id != ''
-            )
-            WHERE row_number = 1
-        )
-        AND message_id IS NOT NULL
-        AND message_id != '';
-
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_mailbox_messages_profile_message_id_unique
-        ON mailbox_messages(profile_slug, account_id, message_id)
-        WHERE message_id IS NOT NULL AND message_id != '';
-
         ALTER TABLE transcript_artifacts ADD COLUMN profile_slug TEXT;
         UPDATE transcript_artifacts
         SET profile_slug = COALESCE(
@@ -871,8 +793,54 @@ def _ensure_profile_compat(connection: sqlite3.Connection) -> None:
         "CREATE INDEX IF NOT EXISTS idx_recovery_checkpoints_profile_slug ON recovery_checkpoints(profile_slug, updated_at DESC, id DESC)"
     )
     scheduled_task_columns = {row["name"] for row in connection.execute("PRAGMA table_info(scheduled_tasks)").fetchall()}
+    if not scheduled_task_columns:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_tasks (
+                id TEXT PRIMARY KEY,
+                profile_slug TEXT NOT NULL DEFAULT 'default',
+                title TEXT NOT NULL,
+                cron_expression TEXT NOT NULL,
+                action_type TEXT NOT NULL DEFAULT 'custom_prompt',
+                action_payload_json TEXT NOT NULL DEFAULT '{}',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                last_run_at TEXT,
+                next_run_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                run_status TEXT NOT NULL DEFAULT 'idle',
+                failure_count INTEGER NOT NULL DEFAULT 0,
+                retry_attempts INTEGER NOT NULL DEFAULT 0,
+                max_retries INTEGER NOT NULL DEFAULT 2,
+                last_error TEXT,
+                last_result_json TEXT NOT NULL DEFAULT '{}',
+                run_started_at TEXT
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX IF NOT EXISTS idx_scheduled_tasks_profile_slug ON scheduled_tasks(profile_slug, enabled, next_run_at)"
+        )
+        scheduled_task_columns = {row["name"] for row in connection.execute("PRAGMA table_info(scheduled_tasks)").fetchall()}
     if scheduled_task_columns and "run_started_at" not in scheduled_task_columns:
         connection.execute("ALTER TABLE scheduled_tasks ADD COLUMN run_started_at TEXT")
+    watch_rule_columns = {row["name"] for row in connection.execute("PRAGMA table_info(watch_rules)").fetchall()}
+    if not watch_rule_columns:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS watch_rules (
+                id TEXT PRIMARY KEY,
+                profile_slug TEXT NOT NULL DEFAULT 'default',
+                rule_type TEXT NOT NULL,
+                config_json TEXT NOT NULL DEFAULT '{}',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                last_triggered_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_watch_rules_profile_slug ON watch_rules(profile_slug, rule_type, enabled)")
     structured_memory_columns = {row["name"] for row in connection.execute("PRAGMA table_info(structured_memory_items)").fetchall()}
     if structured_memory_columns:
         for name, definition in (
@@ -890,6 +858,21 @@ def _ensure_profile_compat(connection: sqlite3.Connection) -> None:
     regulated_version_columns = {row["name"] for row in connection.execute("PRAGMA table_info(regulated_document_versions)").fetchall()}
     if regulated_version_columns and "version_chain_digest" not in regulated_version_columns:
         connection.execute("ALTER TABLE regulated_document_versions ADD COLUMN version_chain_digest TEXT NOT NULL DEFAULT ''")
+    email_draft_columns = {row["name"] for row in connection.execute("PRAGMA table_info(email_drafts)").fetchall()}
+    if email_draft_columns:
+        for name, definition in (
+            ("profile_slug", "TEXT NOT NULL DEFAULT 'default'"),
+            ("to_json", "TEXT NOT NULL DEFAULT '[]'"),
+            ("cc_json", "TEXT NOT NULL DEFAULT '[]'"),
+            ("attachments_json", "TEXT NOT NULL DEFAULT '[]'"),
+            ("status", "TEXT NOT NULL DEFAULT 'draft'"),
+            ("created_at", "TEXT NOT NULL DEFAULT ''"),
+            ("sent_at", "TEXT"),
+        ):
+            if name not in email_draft_columns:
+                connection.execute(f"ALTER TABLE email_drafts ADD COLUMN {name} {definition}")
+        connection.execute("UPDATE email_drafts SET profile_slug = COALESCE(profile_slug, 'default')")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_email_drafts_profile_slug ON email_drafts(profile_slug, created_at DESC, id DESC)")
 
 
 def load_sqlite_vec(connection: sqlite3.Connection) -> bool:

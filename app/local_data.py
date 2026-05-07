@@ -419,7 +419,6 @@ class LocalDataService:
         tasks = [task.model_dump(mode="json") for task in self.list_pending_tasks()]
         reminders = [reminder.model_dump(mode="json") for reminder in self.list_pending_reminders(limit=3)]
         next_event = self.next_upcoming_event()
-        preferred_music = self.get_preference("morning_playlist", "morning jazz")
         focus = tasks[0]["title"] if tasks else "protect the first hour for your highest-priority work"
         return MorningBrief(
             date=datetime.now(),
@@ -427,7 +426,6 @@ class LocalDataService:
             tasks=tasks,
             reminders=reminders,
             focus_suggestion=f"Your best focus is {focus}.",
-            music_suggestion=preferred_music,
             next_event=next_event.model_dump(mode="json") if next_event else None,
         )
 
@@ -442,7 +440,6 @@ class LocalDataService:
             "today_event_count": len(events),
             "pending_reminder_count": len(reminders),
             "preferred_title": self.preferred_title(),
-            "morning_playlist": self.get_preference("morning_playlist", "morning jazz"),
             "muted": self.muted(),
             "quiet_hours_active": self.quiet_hours_active(),
             "assistant_mode": self.assistant_mode(),

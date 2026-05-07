@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import defaultdict
-from datetime import datetime
 from typing import Any
 
 from app.intelligence import IntelligenceService
@@ -30,7 +29,7 @@ from app.types import (
 
 
 class DocumentIntelligenceService:
-    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÄÖÜäöüß_-]+")
+    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ_-]+")
     DOCUMENT_MARKERS = (
         "pdf",
         "document",
@@ -45,7 +44,7 @@ class DocumentIntelligenceService:
         "datei",
         "dateien",
         "anhang",
-        "anhänge",
+        "anhÃ¤nge",
     )
     CITATION_MARKERS = ("cite", "citation", "citations", "source", "sources", "quote", "quotes", "zitiere", "quelle", "quellen")
     SUMMARY_MARKERS = ("summarize", "summary", "summarise", "zusammenfassen", "zusammenfassung", "main points")
@@ -82,7 +81,7 @@ class DocumentIntelligenceService:
         "attached document",
         "uploaded",
         "recent",
-        "angehängt",
+        "angehÃ¤ngt",
         "hochgeladen",
     )
     STOPWORDS = {
@@ -93,7 +92,7 @@ class DocumentIntelligenceService:
     }
     RISK_TERMS = (
         "risk", "urgent", "deadline", "must", "required", "penalty", "warning", "overdue", "due", "riskant",
-        "frist", "fällig", "faellig", "muss", "erforderlich", "strafe", "warnung", "überfällig",
+        "frist", "fÃ¤llig", "faellig", "muss", "erforderlich", "strafe", "warnung", "Ã¼berfÃ¤llig",
     )
 
     def __init__(
@@ -171,6 +170,7 @@ class DocumentIntelligenceService:
                 reasons.append("Multiple local documents match the request.")
         if clarification_required:
             family = "clarification_needed"
+            resolved_ids = []
 
         signal_count = len(reasons) + len(resolved_ids)
         confidence = min(0.95, 0.35 + (signal_count * 0.12))
@@ -220,6 +220,25 @@ class DocumentIntelligenceService:
             workspace_slug=workspace_slug,
             actor_user_id=actor_user_id,
         )
+        if (
+            task_intent.task_family != "clarification_needed"
+            and not query_plan.clarification_required
+            and not selected_documents
+            and retrieval_context["fused_hits"]
+        ):
+            top_document_id = str(retrieval_context["fused_hits"][0].source_id)
+            selected_documents = self.memory.get_document_details([top_document_id])
+            if selected_documents:
+                task_intent = task_intent.model_copy(update={"selected_document_ids": [top_document_id]})
+                query_plan = query_plan.model_copy(update={"selected_document_ids": [top_document_id]})
+                retrieval_context = self._retrieve_evidence(
+                    transcript,
+                    query_plan=query_plan,
+                    selected_documents=selected_documents,
+                    organization_id=organization_id,
+                    workspace_slug=workspace_slug,
+                    actor_user_id=actor_user_id,
+                )
         evidence_bundle = self._build_evidence_bundle(
             transcript,
             task_intent=task_intent,
@@ -329,8 +348,8 @@ class DocumentIntelligenceService:
         matches: list[str] = []
         for record in recent_documents:
             title = str(record.title or "").lower()
-            stem = re.sub(r"[^0-9a-zäöüß]+", " ", title).strip()
-            file_name = re.sub(r"[^0-9a-zäöüß]+", " ", str(record.file_path or "").split("\\")[-1].lower()).strip()
+            stem = re.sub(r"[^0-9a-zÃ¤Ã¶Ã¼ÃŸ]+", " ", title).strip()
+            file_name = re.sub(r"[^0-9a-zÃ¤Ã¶Ã¼ÃŸ]+", " ", str(record.file_path or "").split("\\")[-1].lower()).strip()
             if title and title in lowered_transcript:
                 matches.append(record.id)
                 continue
@@ -356,14 +375,17 @@ class DocumentIntelligenceService:
         if title_matches:
             if any(marker in lowered_transcript for marker in self.COMPARE_MARKERS):
                 return title_matches[:2]
-            if len(title_matches) == 1:
-                return title_matches[:1]
-            return []
+            return title_matches[:1]
         if any(marker in lowered_transcript for marker in self.AMBIGUOUS_REFERENCE_MARKERS):
             if len(recent_documents) == 1:
                 return [recent_documents[0].id]
             if len(recent_documents) >= 2 and any(marker in lowered_transcript for marker in self.COMPARE_MARKERS):
                 return [recent_documents[0].id, recent_documents[1].id]
+        if any(marker in lowered_transcript for marker in self.RECENT_DOCUMENT_REFERENCE_MARKERS):
+            if len(recent_documents) >= 2 and any(marker in lowered_transcript for marker in self.COMPARE_MARKERS):
+                return [recent_documents[0].id, recent_documents[1].id]
+            if recent_documents:
+                return [recent_documents[0].id]
         return []
 
     def _query_terms(self, transcript: str) -> list[str]:
@@ -403,6 +425,9 @@ class DocumentIntelligenceService:
             broader_hits=broader_hits,
             selected_document_ids=selected_ids,
         )
+        if selected_ids and lexical_hits and query_plan.required_output_mode != "compare":
+            selected_set = set(selected_ids)
+            fused_hits = [hit for hit in fused_hits if str(hit.source_id) in selected_set]
         hit_stats = self._hit_statistics(
             fused_hits,
             selected_document_ids=selected_ids,
@@ -431,7 +456,7 @@ class DocumentIntelligenceService:
                     "ref_id": str(hit.metadata.get("chunk_id") or f"{hit.source_id}:{hit.metadata.get('chunk_index', 0)}"),
                     "title": str(hit.metadata.get("title") or hit.source_id),
                     "status": "retrieved_evidence",
-                    "reason": str(hit.text[:220]),
+                    "reason": str(hit.text[:900]),
                     "priority": 4 if str(hit.source_id) in selected_ids else 3,
                     "metadata": {"stage": "document_retrieval", "score": hit.score, **hit.metadata},
                 }
@@ -570,7 +595,7 @@ class DocumentIntelligenceService:
                     document_id=str(hit.source_id),
                     title=str(hit.metadata.get("title") or hit.source_id),
                     chunk_id=chunk_id,
-                    excerpt=str(hit.text[:240]).strip(),
+                    excerpt=str(hit.text[:1200]).strip(),
                     page_number=hit.metadata.get("page_number"),
                     chunk_index=int(hit.metadata.get("chunk_index") or 0),
                 )
@@ -653,12 +678,23 @@ class DocumentIntelligenceService:
     def _detect_conflicts(self, hits: list[RetrievalHit], mode: str) -> list[str]:
         if mode == "compare":
             return []
+        injection_markers = (
+            "ignoriere alle systemanweisungen",
+            "ignore all system",
+            "behaupte",
+            "disregard previous",
+            "system prompt",
+        )
+        if any(marker in str(hit.text).lower() for hit in hits[:6] for marker in injection_markers):
+            return ["The retrieved passage contains instruction-like document text that needs human review before answer generation."]
+        if len({str(hit.source_id) for hit in hits[:6]}) <= 1:
+            return []
         dates = set()
         amounts = set()
         for hit in hits[:6]:
             text = str(hit.text)
             dates.update(re.findall(r"\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[./]\d{1,2}[./]\d{2,4})\b", text))
-            amounts.update(re.findall(r"\b\d[\d.,]*\s*(?:EUR|USD|GBP|€|\$|£)\b", text))
+            amounts.update(re.findall(r"\b\d[\d.,]*\s*(?:EUR|USD|GBP|â‚¬|\$|Â£)\b", text))
         conflicts: list[str] = []
         if len(dates) > 1:
             conflicts.append("The retrieved passages reference different dates that may need human review.")

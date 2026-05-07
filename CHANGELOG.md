@@ -12,11 +12,10 @@ All notable changes to KERN are documented in this file.
 - **Bulk document ingestion** — folder/batch ingest with SHA-256 deduplication, drag-drop upload UI
 - **Cross-document reasoning** — RAG-based comparative queries across selected documents
 - **Spreadsheet support** — CSV and Excel parsing via SpreadsheetParser
-- **Scheduled tasks** — cron-like scheduler backed by SQLite, with file/inbox/calendar/document watchers
-- **Proactive alerts** — watcher-driven alert cards with notification badge and dismiss-all
+- **Scheduled tasks** — cron-like scheduler backed by SQLite, with file/calendar/document watchers
+- **Proactive alerts** — watcher-driven alert cards with dismiss-all
 - **Conversation memory** — lexical search over conversation history with date range filters and topic timeline
-- **Export to action** — ActionPlanner maps alerts to contextual actions (draft email, create reminder, etc.)
-- **Voice output** — TTS speed/voice selection and pyttsx3 integration
+- **Export to action** — ActionPlanner maps alerts to contextual local actions such as reminders and document preparation
 - **Knowledge graph** — offline entity extraction (person, company, date, amount) with co-occurrence edges, force-directed canvas visualization
 - **Structured logging** — JSON or text format via `KERN_LOG_FORMAT`, request ID tracing
 - **In-memory metrics** — lightweight counters/histograms exposed at `/metrics`

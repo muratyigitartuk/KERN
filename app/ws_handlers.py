@@ -15,16 +15,13 @@ from fastapi import HTTPException, WebSocket, WebSocketDisconnect
 
 from app.auth import ensure_websocket_allowed, redact_error_detail
 from app.config import settings
-from app.metrics import metrics
-from app.path_safety import ensure_local_path
+from app.path_safety import validate_user_import_path
 from app.tracing import generate_request_id, request_id_var
 from app.types import (
     BackupTarget,
     CapabilityDescriptor,
-    EmailDraft,
     ExecutionPlan,
     PendingConfirmation,
-    PendingInteraction,
     PlanStep,
     UICommand,
     WorkflowDomainEvent,
@@ -35,8 +32,14 @@ if TYPE_CHECKING:
 
 _WS_MAX_TEXT_BYTES = 32 * 1024
 _WS_BUCKETS: dict[str, list[float]] = {}
-_SCHEDULE_ACTION_TYPES = frozenset({"custom_prompt", "summarize_emails", "generate_report"})
+_SCHEDULE_ACTION_TYPES = frozenset({"custom_prompt", "generate_report"})
 _COMMAND_ROLE_REQUIREMENTS = {
+    "submit_text": {"org_owner", "org_admin", "member", "auditor", "break_glass_admin"},
+    "confirm_action": {"org_owner", "org_admin", "member", "break_glass_admin"},
+    "cancel_action": {"org_owner", "org_admin", "member", "auditor", "break_glass_admin"},
+    "reset_conversation": {"org_owner", "org_admin", "member", "break_glass_admin"},
+    "search_knowledge": {"org_owner", "org_admin", "member", "auditor", "break_glass_admin"},
+    "update_settings": {"org_owner", "org_admin", "member", "break_glass_admin"},
     "create_backup": {"org_owner", "org_admin", "break_glass_admin"},
     "restore_backup": {"org_owner", "org_admin", "break_glass_admin"},
     "export_audit": {"org_owner", "org_admin", "auditor", "break_glass_admin"},
@@ -48,6 +51,15 @@ _COMMAND_ROLE_REQUIREMENTS = {
     "unlock_profile": {"org_owner", "org_admin", "member", "break_glass_admin"},
     "set_profile_pin": {"org_owner", "org_admin", "member", "break_glass_admin"},
 }
+_UNLISTED_COMMAND_ROLES: frozenset[str] = frozenset({"org_owner", "org_admin", "break_glass_admin"})
+_EXPENSIVE_COMMANDS = frozenset({
+    "submit_text",
+    "search_knowledge",
+    "ingest_files",
+    "create_backup",
+    "restore_backup",
+    "export_audit",
+})
 
 
 def _consume_ws_budget(key: str, *, limit: int, window_seconds: int) -> tuple[bool, int]:
@@ -66,6 +78,28 @@ def _consume_ws_budget(key: str, *, limit: int, window_seconds: int) -> tuple[bo
 def _ws_client_key(websocket: WebSocket, suffix: str) -> str:
     client_host = websocket.client.host if websocket.client else "unknown"
     return f"{client_host}:{suffix}"
+
+
+def _ws_principal_key(websocket: WebSocket, auth_context: object | None, suffix: str) -> str:
+    for attr in ("session_id", "user_id", "workspace_slug"):
+        value = str(getattr(auth_context, attr, "") or "").strip()
+        if value:
+            return f"{attr}:{value}:{suffix}"
+    return _ws_client_key(websocket, suffix)
+
+
+async def _receive_command(websocket: WebSocket) -> UICommand:
+    raw = await websocket.receive_text()
+    if len(raw.encode("utf-8")) > _WS_MAX_TEXT_BYTES:
+        raise ValueError("WebSocket frame exceeds the dashboard size limit.")
+    return UICommand.model_validate(json.loads(raw))
+
+
+async def _reject_ws_command(runtime: "KernRuntime", reason: str, broadcast_reason: str) -> None:
+    _set_redacted_error(runtime, reason)
+    runtime.orchestrator.mark_dirty("runtime")
+    await runtime._refresh_platform_snapshot()
+    await runtime.broadcast_if_changed(force=True, reason=broadcast_reason)
 
 
 def _set_redacted_error(runtime: "KernRuntime", message: str) -> None:
@@ -208,9 +242,60 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
 
         forward_task = asyncio.create_task(forward_events())
         while True:
-            payload = await websocket.receive_json()
-            command = UICommand.model_validate(payload)
-            required_roles = _COMMAND_ROLE_REQUIREMENTS.get(command.type)
+            try:
+                command = await _receive_command(websocket)
+            except ValueError:
+                await _reject_ws_command(runtime, "WebSocket command exceeded the dashboard size limit.", "ws_frame_rejected")
+                continue
+            except json.JSONDecodeError:
+                await _reject_ws_command(runtime, "WebSocket command was not valid JSON.", "ws_json_rejected")
+                continue
+            ok, retry_after = _consume_ws_budget(
+                _ws_principal_key(websocket, auth_context, "commands"),
+                limit=120,
+                window_seconds=60,
+            )
+            if not ok:
+                runtime.orchestrator.snapshot.last_action = f"Command rate limit exceeded. Try again in {retry_after} seconds."
+                runtime.orchestrator.snapshot.response_text = "Too many dashboard commands. Please wait and try again."
+                runtime.orchestrator.mark_dirty("runtime")
+                if not await _safe_send_json(
+                    websocket,
+                    {
+                        "type": "rate_limit",
+                        "scope": "dashboard_commands",
+                        "message": f"Command rate limit exceeded. Retry in {retry_after} seconds.",
+                        "retry_after_seconds": retry_after,
+                    },
+                ):
+                    return
+                await runtime._refresh_platform_snapshot()
+                await runtime.broadcast_if_changed(force=True, reason="ws_rate_limited")
+                continue
+            if command.type in _EXPENSIVE_COMMANDS:
+                ok, retry_after = _consume_ws_budget(
+                    _ws_principal_key(websocket, auth_context, f"expensive:{command.type}"),
+                    limit=8,
+                    window_seconds=60,
+                )
+                if not ok:
+                    runtime.orchestrator.snapshot.last_action = f"Expensive command rate limit exceeded. Try again in {retry_after} seconds."
+                    runtime.orchestrator.snapshot.response_text = "That workspace action is temporarily rate limited."
+                    runtime.orchestrator.mark_dirty("runtime")
+                    if not await _safe_send_json(
+                        websocket,
+                        {
+                            "type": "rate_limit",
+                            "scope": f"expensive:{command.type}",
+                            "message": f"Workspace action is temporarily rate limited. Retry in {retry_after} seconds.",
+                            "retry_after_seconds": retry_after,
+                        },
+                    ):
+                        return
+                    await runtime._refresh_platform_snapshot()
+                    await runtime.broadcast_if_changed(force=True, reason="ws_expensive_rate_limited")
+                    continue
+            required_roles = _COMMAND_ROLE_REQUIREMENTS.get(command.type, _UNLISTED_COMMAND_ROLES)
             if required_roles:
                 current_roles = set(getattr(auth_context, "roles", []) or [])
                 if not getattr(auth_context, "is_break_glass", False) and required_roles.isdisjoint(current_roles):
@@ -229,14 +314,10 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 "set_profile_pin",
                 "create_backup",
                 "restore_backup",
-                "sync_mailbox",
                 "export_audit",
                 "ingest_files",
-                "save_email_draft",
-                "send_email_draft",
                 "search_knowledge",
                 "review_action_item",
-                "apply_email_reminder_suggestion",
                 "reminder_action",
                 "create_schedule",
                 "delete_schedule",
@@ -253,9 +334,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
             production_commands = {
                 "create_backup",
                 "restore_backup",
-                "sync_mailbox",
-                "save_email_draft",
-                "send_email_draft",
                 "ingest_files",
                 "export_audit",
                 "create_schedule",
@@ -277,21 +355,33 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                     await runtime.broadcast_if_changed(force=True, reason="submit_text_rejected")
                     continue
                 if not runtime.orchestrator.snapshot.action_in_progress:
-                    await runtime.orchestrator.process_transcript(
-                        command.text,
-                        trigger="manual_ui",
-                        auth_context=auth_context,
-                    )
+                    try:
+                        await runtime.orchestrator.process_transcript(
+                            command.text,
+                            trigger="manual_ui",
+                            auth_context=auth_context,
+                        )
+                    except Exception as exc:
+                        logger.exception("Dashboard transcript processing failed.")
+                        runtime.platform.record_audit(
+                            "runtime",
+                            "transcript_processing_error",
+                            "failure",
+                            f"Dashboard transcript processing failed: {exc}",
+                            profile_slug=runtime.active_profile.slug,
+                            details={"exception": type(exc).__name__},
+                        )
+                        _set_redacted_error(runtime, "The request could not be completed.")
+                        runtime.orchestrator.snapshot.assistant_state = (
+                            "muted" if runtime.local_data.muted() else "idle"
+                        )
+                        runtime.orchestrator.mark_dirty("runtime")
+                        await runtime.broadcast_if_changed(force=True, reason="transcript_error")
             elif command.type == "confirm_action":
                 await runtime.orchestrator.confirm_pending(True)
             elif command.type == "cancel_action":
                 await runtime.orchestrator.confirm_pending(False)
             elif command.type == "update_settings":
-                if "speaking_enabled" in command.settings:
-                    enabled = bool(command.settings["speaking_enabled"])
-                    runtime.tts.set_enabled(enabled)
-                    runtime.orchestrator.snapshot.speaking_enabled = enabled
-                    runtime.orchestrator.snapshot.last_action = f"Voice output {'enabled' if enabled else 'disabled'}."
                 if "local_mode_enabled" in command.settings:
                     runtime.brain.set_local_mode(bool(command.settings["local_mode_enabled"]))
                 onboarding_updates = {}
@@ -320,7 +410,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                         runtime.orchestrator.snapshot.last_action = "Recommended local model path confirmed."
                     elif "storage_confirmed" in onboarding_updates:
                         runtime.orchestrator.snapshot.last_action = "Local profile storage confirmed."
-                runtime.refresh_audio_snapshot()
+                runtime.refresh_interaction_snapshot()
                 await runtime._refresh_platform_snapshot()
                 await runtime.broadcast_if_changed(force=True, reason="settings_update")
             elif command.type == "rerun_readiness":
@@ -366,12 +456,12 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 runtime.orchestrator.snapshot.assistant_state = "muted" if muted else "idle"
                 runtime.orchestrator.snapshot.last_action = "Runtime muted." if muted else "Runtime unmuted."
                 runtime.orchestrator.add_history("system", runtime.orchestrator.snapshot.last_action)
-                runtime.refresh_audio_snapshot()
+                runtime.refresh_interaction_snapshot()
                 runtime.orchestrator.mark_dirty("runtime")
                 await runtime.broadcast_if_changed(force=True, reason="mute_toggle")
             elif command.type == "reset_conversation":
                 runtime.orchestrator.reset_conversation()
-                runtime.refresh_audio_snapshot()
+                runtime.refresh_interaction_snapshot()
                 await runtime.broadcast_if_changed(force=True, reason="conversation_reset")
             elif command.type == "lock_profile":
                 if not runtime.active_profile.has_pin:
@@ -651,102 +741,44 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 await runtime._refresh_platform_snapshot()
                 runtime.orchestrator.mark_dirty("runtime")
                 await runtime.broadcast_if_changed(force=True, reason="backup_restore_finished")
-            elif command.type == "sync_mailbox":
-                allowed = await _policy_gate_dashboard_action(
-                    runtime,
-                    "sync_mailbox",
-                    arguments={"limit": int(command.settings.get("limit", 8) or 8)},
-                    summary="Sync mailbox",
-                )
-                if not allowed:
-                    continue
-                try:
-                    runtime.email_service.sync_mailbox(limit=int(command.settings.get("limit", 8)))
-                    runtime.orchestrator.snapshot.last_action = "Mailbox synchronized."
-                except Exception as exc:
-                    logger.warning("Mailbox sync failed: %s", exc, exc_info=True)
-                    _set_redacted_error(runtime, "Mailbox sync failed.")
-                await runtime._refresh_platform_snapshot()
-                runtime.orchestrator.mark_dirty("runtime")
-                await runtime.broadcast_if_changed(force=True, reason="mailbox_sync")
-            elif command.type == "save_email_draft":
-                try:
-                    draft = runtime.email_service.save_draft(
-                        EmailDraft(
-                            id=str(command.settings.get("draft_id", "")).strip() or None,
-                            to=list(command.settings.get("to", [])),
-                            cc=list(command.settings.get("cc", [])),
-                            subject=str(command.settings.get("subject", "")),
-                            body=str(command.settings.get("body", "")),
-                            attachments=list(command.settings.get("attachments", [])),
-                        )
-                    )
-                    runtime.orchestrator.snapshot.last_action = f"Saved draft '{draft.subject or '(no subject)'}'."
-                except Exception as exc:
-                    logger.warning("Draft save failed: %s", exc, exc_info=True)
-                    _set_redacted_error(runtime, "Draft save failed.")
-                await runtime._refresh_platform_snapshot()
-                runtime.orchestrator.mark_dirty("runtime")
-                await runtime.broadcast_if_changed(force=True, reason="draft_saved")
-            elif command.type == "send_email_draft":
-                draft_id = str(command.settings.get("draft_id", "") or "")
-                try:
-                    subject = runtime.email_service.send_draft(draft_id)
-                    runtime.orchestrator.snapshot.last_action = f"Sent draft '{subject}'."
-                except Exception as exc:
-                    logger.warning("Draft send failed: %s", exc, exc_info=True)
-                    _set_redacted_error(runtime, "Draft send failed.")
-                await runtime._refresh_platform_snapshot()
-                runtime.orchestrator.mark_dirty("runtime")
-                await runtime.broadcast_if_changed(force=True, reason="draft_sent")
             elif command.type == "search_knowledge":
                 query = str(command.settings.get("query", "") or "").strip()
-                hits = runtime.retrieval_service.retrieve(query, scope=runtime.orchestrator.snapshot.memory_scope, limit=8)
-                if (
-                    settings.policy_mode == "corporate"
-                    and settings.policy_restrict_sensitive_reads
-                ):
-                    runtime.retrieval_service.last_hits = [
-                        hit for hit in hits
-                        if not runtime.policy.is_sensitive_classification(str(hit.metadata.get("classification") or ""))
-                    ]
-                    if len(runtime.retrieval_service.last_hits) != len(hits):
-                        runtime.orchestrator.snapshot.last_action = "Sensitive knowledge hits are restricted in corporate mode."
-                else:
-                    runtime.orchestrator.snapshot.last_action = (
-                        f"Searched knowledge for '{query}'." if query else "Cleared knowledge search."
-                    )
-                await runtime._refresh_platform_snapshot()
-                runtime.orchestrator.mark_dirty("context", "runtime")
-                await runtime.broadcast_if_changed(force=True, reason="knowledge_search")
-            elif command.type == "review_action_item":
-                item_id = int(command.settings.get("item_id", 0))
-                accepted = bool(command.settings.get("accepted", False))
                 try:
-                    item = runtime.meeting_service.review_action_item(item_id, accepted)
-                    runtime.orchestrator.snapshot.last_action = (
-                        f"{'Accepted' if accepted else 'Rejected'} action item '{item.title}'."
-                    )
+                    hits = runtime.retrieval_service.retrieve(query, scope=runtime.orchestrator.snapshot.memory_scope, limit=8)
+                    if (
+                        settings.policy_mode == "corporate"
+                        and settings.policy_restrict_sensitive_reads
+                    ):
+                        filtered_hits = [
+                            hit for hit in hits
+                            if not runtime.policy.is_sensitive_classification(str(hit.metadata.get("classification") or ""))
+                        ]
+                        if hasattr(runtime.retrieval_service, "replace_last_hits"):
+                            runtime.retrieval_service.replace_last_hits(filtered_hits)
+                        else:  # pragma: no cover - compatibility with older retrieval service shapes
+                            runtime.retrieval_service._last_hits = filtered_hits
+                        if len(filtered_hits) != len(hits):
+                            runtime.orchestrator.snapshot.last_action = "Sensitive knowledge hits are restricted in corporate mode."
+                    else:
+                        runtime.orchestrator.snapshot.last_action = (
+                            f"Searched knowledge for '{query}'." if query else "Cleared knowledge search."
+                        )
+                    await runtime._refresh_platform_snapshot()
+                    runtime.orchestrator.mark_dirty("context", "runtime")
+                    await runtime.broadcast_if_changed(force=True, reason="knowledge_search")
                 except Exception as exc:
-                    runtime.orchestrator.snapshot.last_action = f"Action item review failed: {exc}"
-                    runtime.orchestrator.snapshot.response_text = str(exc)
-                await runtime._refresh_platform_snapshot()
-                runtime.orchestrator.mark_dirty("runtime", "context")
-                await runtime.broadcast_if_changed(force=True, reason="meeting_review")
-            elif command.type == "apply_email_reminder_suggestion":
-                message_id = str(command.settings.get("message_id", "") or "")
-                accepted = bool(command.settings.get("accepted", False))
-                try:
-                    result = runtime.email_service.apply_reminder_suggestion(runtime.reminder_service, message_id, accepted)
-                    runtime.orchestrator.snapshot.last_action = (
-                        f"Created reminder suggestion '{result.get('title', '')}'." if accepted else "Rejected email reminder suggestion."
+                    logger.exception("Knowledge search failed.")
+                    runtime.platform.record_audit(
+                        "runtime",
+                        "knowledge_search_error",
+                        "failure",
+                        f"Knowledge search failed: {exc}",
+                        profile_slug=runtime.active_profile.slug,
+                        details={"exception": type(exc).__name__},
                     )
-                except Exception as exc:
-                    runtime.orchestrator.snapshot.last_action = f"Email suggestion update failed: {exc}"
-                    runtime.orchestrator.snapshot.response_text = str(exc)
-                await runtime._refresh_platform_snapshot()
-                runtime.orchestrator.mark_dirty("context", "runtime")
-                await runtime.broadcast_if_changed(force=True, reason="email_suggestion_review")
+                    _set_redacted_error(runtime, "Knowledge search could not be completed.")
+                    runtime.orchestrator.mark_dirty("runtime")
+                    await runtime.broadcast_if_changed(force=True, reason="knowledge_search_error")
             elif command.type == "reminder_action":
                 reminder_id = int(command.settings.get("reminder_id", 0))
                 action = str(command.settings.get("action", "")).strip()
@@ -758,7 +790,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                         runtime.reminder_service.dismiss(reminder_id)
                         runtime.orchestrator.snapshot.last_action = f"Dismissed reminder #{reminder_id}."
                     runtime.orchestrator.add_history("reminder", runtime.orchestrator.snapshot.last_action)
-                    runtime.refresh_audio_snapshot()
+                    runtime.refresh_interaction_snapshot()
                     runtime.orchestrator.mark_dirty("context", "runtime")
                     await runtime.broadcast_if_changed(force=True, reason="reminder_action")
             elif command.type == "export_audit":
@@ -783,16 +815,29 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                     profile_slug=runtime.active_profile.slug,
                 )
             elif command.type == "ingest_files":
-                file_paths = list(command.settings.get("file_paths", []))
-                folder_path = str(command.settings.get("folder_path", "") or "")
+                profile = runtime.active_profile
+                try:
+                    file_paths = [
+                        validate_user_import_path(item, profile)
+                        for item in list(command.settings.get("file_paths", []))
+                    ]
+                    folder_path_raw = str(command.settings.get("folder_path", "") or "")
+                    folder_path = validate_user_import_path(folder_path_raw, profile) if folder_path_raw else None
+                except ValueError as exc:
+                    runtime.orchestrator.snapshot.last_action = f"Bulk ingestion rejected: {exc}"
+                    runtime.orchestrator.snapshot.response_text = "The selected path is outside approved workspace storage."
+                    runtime.orchestrator.mark_dirty("runtime")
+                    await runtime._refresh_platform_snapshot()
+                    await runtime.broadcast_if_changed(force=True, reason="ingest_path_rejected")
+                    continue
                 category = str(command.settings.get("category", "") or "")
                 tags = list(command.settings.get("tags", []))
                 allowed = await _policy_gate_dashboard_action(
                     runtime,
                     "bulk_ingest",
                     arguments={
-                        "file_paths": file_paths,
-                        "folder_path": folder_path,
+                        "file_paths": [str(path) for path in file_paths],
+                        "folder_path": str(folder_path or ""),
                         "category": category,
                         "tags": tags,
                     },
@@ -800,7 +845,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 )
                 if not allowed:
                     continue
-                if folder_path and hasattr(runtime.document_service, "ingest_folder"):
+                if folder_path is not None and hasattr(runtime.document_service, "ingest_folder"):
                     await asyncio.to_thread(
                         runtime.document_service.ingest_folder,
                         folder_path,
@@ -1013,33 +1058,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                     entities = runtime.knowledge_graph_service.search_entities(query, limit=20)
                     if not await _safe_send_json(websocket, {"type": "knowledge_graph_search", "entities": entities, "query": query}):
                         return
-            elif command.type == "set_tts_speed":
-                speed = float(command.settings.get("speed", 1.0))
-                runtime.tts.set_speed(speed)
-                runtime.orchestrator.snapshot.last_action = f"Speech speed set to {speed:.1f}×."
-                runtime.platform.record_audit(
-                    "voice",
-                    "set_tts_speed",
-                    "warning",
-                    runtime.orchestrator.snapshot.last_action,
-                    profile_slug=runtime.active_profile.slug,
-                    details={"speed": speed},
-                )
-                await runtime.broadcast_if_changed(force=True, reason="tts_speed_changed")
-            elif command.type == "set_tts_voice":
-                voice_id = str(command.settings.get("voice_id", "")).strip()
-                if voice_id:
-                    runtime.tts.set_voice(voice_id)
-                    runtime.orchestrator.snapshot.last_action = f"Voice set to {voice_id}."
-                    runtime.platform.record_audit(
-                        "voice",
-                        "set_tts_voice",
-                        "warning",
-                        runtime.orchestrator.snapshot.last_action,
-                        profile_slug=runtime.active_profile.slug,
-                        details={"voice_id": voice_id},
-                    )
-                await runtime.broadcast_if_changed(force=True, reason="tts_voice_changed")
     except WebSocketDisconnect:
         pass
     except Exception as exc:
@@ -1062,9 +1080,9 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
         runtime.orchestrator.snapshot.response_text = redact_error_detail()["detail"]
         runtime.orchestrator.mark_dirty("runtime")
         await runtime._refresh_platform_snapshot()
-        with contextlib.suppress(Exception):  # cleanup — best-effort
+        with contextlib.suppress(Exception):  # cleanup â€” best-effort
             await runtime.broadcast_if_changed(force=True, reason="websocket_error")
-        with contextlib.suppress(Exception):  # cleanup — best-effort
+        with contextlib.suppress(Exception):  # cleanup â€” best-effort
             await websocket.close(code=1011)
     finally:
         runtime._ws_connection_count = max(0, getattr(runtime, '_ws_connection_count', 1) - 1)

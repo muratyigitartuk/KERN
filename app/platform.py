@@ -10,12 +10,13 @@ import os
 import secrets
 import sqlite3
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
+from app.path_safety import validate_workspace_slug
 from app.types import (
     AuditEvent,
     AuthContext,
@@ -34,6 +35,8 @@ from app.types import (
     RetentionDecision,
     RetentionPolicyRecord,
     SecretRef,
+    MessageRecord,
+    ThreadRecord,
     UserRecord,
     UserSessionRecord,
     WorkspaceMembershipRecord,
@@ -266,6 +269,85 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_user
     ON user_sessions(user_id, expires_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_org
     ON user_sessions(organization_id, expires_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS threads (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    workspace_slug TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    visibility TEXT NOT NULL DEFAULT 'private',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_threads_owner
+    ON threads(organization_id, workspace_slug, owner_user_id, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_threads_workspace_visibility
+    ON threads(organization_id, workspace_slug, visibility, updated_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS thread_participants (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    organization_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    workspace_slug TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'owner',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_participants_unique
+    ON thread_participants(thread_id, user_id);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    organization_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    workspace_slug TEXT NOT NULL,
+    actor_user_id TEXT,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_messages_thread_created
+    ON messages(thread_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_messages_actor
+    ON messages(organization_id, workspace_slug, actor_user_id, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS workspace_memory_items (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    workspace_slug TEXT NOT NULL,
+    source_thread_id TEXT,
+    promoted_by_user_id TEXT,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_workspace_memory_scope
+    ON workspace_memory_items(organization_id, workspace_slug, updated_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS private_memory_items (
+    id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
+    workspace_slug TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    source_thread_id TEXT,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_private_memory_scope
+    ON private_memory_items(organization_id, workspace_slug, user_id, updated_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS break_glass_admins (
     id TEXT PRIMARY KEY,
@@ -539,6 +621,84 @@ class PlatformStore:
         )
         self.connection.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, expires_at DESC, id DESC)")
         self.connection.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_org ON user_sessions(organization_id, expires_at DESC, id DESC)")
+        self.connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS threads (
+                id TEXT PRIMARY KEY,
+                organization_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                workspace_slug TEXT NOT NULL,
+                owner_user_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                visibility TEXT NOT NULL DEFAULT 'private',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_threads_owner
+                ON threads(organization_id, workspace_slug, owner_user_id, updated_at DESC, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_threads_workspace_visibility
+                ON threads(organization_id, workspace_slug, visibility, updated_at DESC, id DESC);
+            CREATE TABLE IF NOT EXISTS thread_participants (
+                id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                organization_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                workspace_slug TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'owner',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_thread_participants_unique
+                ON thread_participants(thread_id, user_id);
+            CREATE TABLE IF NOT EXISTS messages (
+                id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                organization_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                workspace_slug TEXT NOT NULL,
+                actor_user_id TEXT,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_messages_thread_created
+                ON messages(thread_id, created_at DESC, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_messages_actor
+                ON messages(organization_id, workspace_slug, actor_user_id, created_at DESC, id DESC);
+            CREATE TABLE IF NOT EXISTS workspace_memory_items (
+                id TEXT PRIMARY KEY,
+                organization_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                workspace_slug TEXT NOT NULL,
+                source_thread_id TEXT,
+                promoted_by_user_id TEXT,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_workspace_memory_scope
+                ON workspace_memory_items(organization_id, workspace_slug, updated_at DESC, id DESC);
+            CREATE TABLE IF NOT EXISTS private_memory_items (
+                id TEXT PRIMARY KEY,
+                organization_id TEXT NOT NULL,
+                workspace_id TEXT NOT NULL,
+                workspace_slug TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                source_thread_id TEXT,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_private_memory_scope
+                ON private_memory_items(organization_id, workspace_slug, user_id, updated_at DESC, id DESC);
+            """
+        )
         self.connection.execute(
             """
             CREATE TABLE IF NOT EXISTS break_glass_admins (
@@ -618,11 +778,14 @@ class PlatformStore:
         title: str = "Primary profile",
         slug: str = "default",
     ) -> ProfileSummary:
+        slug = validate_workspace_slug(slug)
         existing = self.get_profile(slug)
         if existing:
             self._ensure_profile_directories(existing)
             return existing
 
+        profile_root = Path(profile_root).expanduser().resolve()
+        backup_root = Path(backup_root).expanduser().resolve()
         root = (profile_root / slug).resolve()
         documents_root = root / "documents"
         attachments_root = root / "attachments"
@@ -630,6 +793,8 @@ class PlatformStore:
         meetings_root = root / "meetings"
         backups_root = (backup_root / slug).resolve()
         db_path = root / "kern.db"
+        root.relative_to(profile_root)
+        backups_root.relative_to(backup_root)
         for path in (root, documents_root, attachments_root, archives_root, meetings_root, backups_root):
             path.mkdir(parents=True, exist_ok=True)
         if legacy_db_path.exists() and legacy_db_path.resolve() != db_path.resolve() and not db_path.exists():
@@ -727,6 +892,10 @@ class PlatformStore:
         ]
 
     def get_profile(self, slug: str) -> ProfileSummary | None:
+        try:
+            slug = validate_workspace_slug(slug)
+        except ValueError:
+            return None
         row = self.connection.execute("SELECT * FROM profiles WHERE slug = ?", (slug,)).fetchone()
         if not row:
             return None
@@ -1167,6 +1336,257 @@ class PlatformStore:
             updated_at=datetime.fromisoformat(row["updated_at"]),
         )
 
+    def _row_to_thread(self, row: sqlite3.Row) -> ThreadRecord:
+        return ThreadRecord(
+            id=str(row["id"]),
+            organization_id=str(row["organization_id"]),
+            workspace_id=str(row["workspace_id"]),
+            workspace_slug=str(row["workspace_slug"]),
+            owner_user_id=str(row["owner_user_id"]),
+            title=str(row["title"]),
+            visibility=str(row["visibility"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
+        )
+
+    def _row_to_message(self, row: sqlite3.Row) -> MessageRecord:
+        return MessageRecord(
+            id=str(row["id"]),
+            thread_id=str(row["thread_id"]),
+            organization_id=str(row["organization_id"]),
+            workspace_id=str(row["workspace_id"]),
+            workspace_slug=str(row["workspace_slug"]),
+            actor_user_id=str(row["actor_user_id"]) if row["actor_user_id"] else None,
+            role=str(row["role"]),
+            content=str(row["content"]),
+            metadata=json.loads(row["metadata_json"] or "{}"),
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
+    def create_thread(
+        self,
+        *,
+        organization_id: str,
+        workspace_slug: str,
+        owner_user_id: str,
+        title: str = "New thread",
+        visibility: str = "private",
+    ) -> ThreadRecord:
+        if visibility not in {"private", "shared", "system_audit"}:
+            raise ValueError("Unsupported thread visibility.")
+        profile = self.get_profile(workspace_slug)
+        if profile is None or not profile.workspace_id:
+            raise RuntimeError("Unknown workspace.")
+        if profile.organization_id != organization_id:
+            raise RuntimeError("Workspace does not belong to the active organization.")
+        if not self.has_workspace_access(owner_user_id, workspace_slug):
+            raise PermissionError("User does not have workspace access.")
+        now = datetime.now(timezone.utc).isoformat()
+        thread_id = str(uuid4())
+        self.connection.execute(
+            """
+            INSERT INTO threads (id, organization_id, workspace_id, workspace_slug, owner_user_id, title, visibility, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (thread_id, organization_id, profile.workspace_id, profile.slug, owner_user_id, title.strip() or "New thread", visibility, now, now),
+        )
+        self.connection.execute(
+            """
+            INSERT INTO thread_participants (id, thread_id, organization_id, workspace_id, workspace_slug, user_id, role, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'owner', ?, ?)
+            """,
+            (str(uuid4()), thread_id, organization_id, profile.workspace_id, profile.slug, owner_user_id, now, now),
+        )
+        self.connection.commit()
+        self.record_audit(
+            "conversation",
+            "thread_created",
+            "success",
+            "Created private workspace thread." if visibility == "private" else f"Created {visibility} workspace thread.",
+            profile_slug=profile.slug,
+            details={"thread_id": thread_id, "actor_user_id": owner_user_id, "visibility": visibility},
+        )
+        row = self.connection.execute("SELECT * FROM threads WHERE id = ?", (thread_id,)).fetchone()
+        return self._row_to_thread(row)
+
+    def get_thread_for_user(self, thread_id: str, *, user_id: str, organization_id: str) -> ThreadRecord | None:
+        row = self.connection.execute("SELECT * FROM threads WHERE id = ? AND organization_id = ?", (thread_id, organization_id)).fetchone()
+        if not row:
+            return None
+        thread = self._row_to_thread(row)
+        if thread.visibility == "system_audit":
+            return None
+        if thread.visibility == "shared" and self.has_workspace_access(user_id, thread.workspace_slug):
+            return thread
+        participant = self.connection.execute(
+            "SELECT 1 FROM thread_participants WHERE thread_id = ? AND user_id = ? LIMIT 1",
+            (thread_id, user_id),
+        ).fetchone()
+        if participant:
+            return thread
+        return None
+
+    def list_threads_for_user(
+        self,
+        *,
+        organization_id: str,
+        workspace_slug: str,
+        user_id: str,
+        limit: int = 50,
+    ) -> list[ThreadRecord]:
+        if not self.has_workspace_access(user_id, workspace_slug):
+            return []
+        rows = self.connection.execute(
+            """
+            SELECT DISTINCT t.*
+            FROM threads t
+            LEFT JOIN thread_participants tp ON tp.thread_id = t.id AND tp.user_id = ?
+            WHERE t.organization_id = ?
+              AND t.workspace_slug = ?
+              AND t.visibility != 'system_audit'
+              AND (t.visibility = 'shared' OR tp.user_id IS NOT NULL)
+            ORDER BY t.updated_at DESC, t.id DESC
+            LIMIT ?
+            """,
+            (user_id, organization_id, workspace_slug, limit),
+        ).fetchall()
+        return [self._row_to_thread(row) for row in rows]
+
+    def append_message(
+        self,
+        *,
+        thread_id: str,
+        actor_user_id: str | None,
+        role: str,
+        content: str,
+        metadata: dict[str, object] | None = None,
+        acting_user_id: str | None = None,
+        organization_id: str,
+    ) -> MessageRecord:
+        requester = acting_user_id or actor_user_id
+        if not requester:
+            raise PermissionError("A user context is required to append a message.")
+        thread = self.get_thread_for_user(thread_id, user_id=requester, organization_id=organization_id)
+        if thread is None:
+            raise PermissionError("Thread is not available to the active user.")
+        if role not in {"user", "assistant", "system", "tool"}:
+            raise ValueError("Unsupported message role.")
+        now = datetime.now(timezone.utc).isoformat()
+        message_id = str(uuid4())
+        self.connection.execute(
+            """
+            INSERT INTO messages (id, thread_id, organization_id, workspace_id, workspace_slug, actor_user_id, role, content, metadata_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                message_id,
+                thread.id,
+                thread.organization_id,
+                thread.workspace_id,
+                thread.workspace_slug,
+                actor_user_id,
+                role,
+                content,
+                json.dumps(metadata or {}, sort_keys=True),
+                now,
+            ),
+        )
+        self.connection.execute("UPDATE threads SET updated_at = ? WHERE id = ?", (now, thread.id))
+        self.connection.commit()
+        row = self.connection.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
+        return self._row_to_message(row)
+
+    def list_messages_for_user(
+        self,
+        *,
+        thread_id: str,
+        user_id: str,
+        organization_id: str,
+        limit: int = 100,
+    ) -> list[MessageRecord]:
+        thread = self.get_thread_for_user(thread_id, user_id=user_id, organization_id=organization_id)
+        if thread is None:
+            return []
+        rows = self.connection.execute(
+            """
+            SELECT *
+            FROM messages
+            WHERE thread_id = ? AND organization_id = ?
+            ORDER BY created_at ASC, id ASC
+            LIMIT ?
+            """,
+            (thread_id, organization_id, limit),
+        ).fetchall()
+        return [self._row_to_message(row) for row in rows]
+
+    def share_thread(self, *, thread_id: str, user_id: str, organization_id: str) -> ThreadRecord:
+        thread = self.get_thread_for_user(thread_id, user_id=user_id, organization_id=organization_id)
+        if thread is None or thread.owner_user_id != user_id:
+            raise PermissionError("Only the private thread owner can share it.")
+        now = datetime.now(timezone.utc).isoformat()
+        self.connection.execute("UPDATE threads SET visibility = 'shared', updated_at = ? WHERE id = ?", (now, thread_id))
+        self.connection.commit()
+        self.record_audit(
+            "conversation",
+            "thread_shared",
+            "warning",
+            "Private thread was shared with the workspace.",
+            profile_slug=thread.workspace_slug,
+            details={"thread_id": thread_id, "actor_user_id": user_id},
+        )
+        row = self.connection.execute("SELECT * FROM threads WHERE id = ?", (thread_id,)).fetchone()
+        return self._row_to_thread(row)
+
+    def promote_thread_memory(
+        self,
+        *,
+        thread_id: str,
+        user_id: str,
+        organization_id: str,
+        key: str,
+        value: str,
+        metadata: dict[str, object] | None = None,
+    ) -> str:
+        thread = self.get_thread_for_user(thread_id, user_id=user_id, organization_id=organization_id)
+        if thread is None:
+            raise PermissionError("Thread is not available to the active user.")
+        if thread.owner_user_id != user_id and not self.has_workspace_access(user_id, thread.workspace_slug, "org_owner", "org_admin"):
+            raise PermissionError("Only the thread owner or workspace admin can promote thread memory.")
+        memory_id = str(uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        self.connection.execute(
+            """
+            INSERT INTO workspace_memory_items (
+                id, organization_id, workspace_id, workspace_slug, source_thread_id,
+                promoted_by_user_id, key, value, metadata_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                memory_id,
+                thread.organization_id,
+                thread.workspace_id,
+                thread.workspace_slug,
+                thread.id,
+                user_id,
+                key,
+                value,
+                json.dumps(metadata or {}, sort_keys=True),
+                now,
+                now,
+            ),
+        )
+        self.connection.commit()
+        self.record_audit(
+            "memory",
+            "thread_memory_promoted",
+            "warning",
+            "Private thread content was promoted to workspace memory.",
+            profile_slug=thread.workspace_slug,
+            details={"thread_id": thread.id, "memory_id": memory_id, "actor_user_id": user_id},
+        )
+        return memory_id
+
     def create_session(
         self,
         *,
@@ -1211,10 +1631,21 @@ class PlatformStore:
             return None
         revoked_at = datetime.fromisoformat(row["revoked_at"]) if row["revoked_at"] else None
         expires_at = datetime.fromisoformat(row["expires_at"])
-        if revoked_at is not None or expires_at <= datetime.now(timezone.utc):
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        last_activity_at = datetime.fromisoformat(row["last_activity_at"])
+        if last_activity_at.tzinfo is None:
+            last_activity_at = last_activity_at.replace(tzinfo=timezone.utc)
+        now_dt = datetime.now(timezone.utc)
+        if revoked_at is not None or expires_at <= now_dt:
+            return None
+        from app.config import settings
+
+        idle_minutes = int(getattr(settings, "session_idle_minutes", 0) or 0)
+        if idle_minutes > 0 and last_activity_at + timedelta(minutes=idle_minutes) <= now_dt:
             return None
         if touch:
-            now = datetime.now(timezone.utc).isoformat()
+            now = now_dt.isoformat()
             self.connection.execute("UPDATE user_sessions SET last_activity_at = ? WHERE id = ?", (now, session_id))
             self.connection.commit()
             row = self.connection.execute("SELECT * FROM user_sessions WHERE id = ?", (session_id,)).fetchone()
@@ -1350,6 +1781,8 @@ class PlatformStore:
         session = self.get_session(session_id)
         if session is None:
             return None
+        if workspace_slug:
+            workspace_slug = validate_workspace_slug(workspace_slug)
         workspace = self.get_profile(workspace_slug) if workspace_slug else None
         now = datetime.now(timezone.utc).isoformat()
         self.connection.execute(
@@ -2249,6 +2682,11 @@ class PlatformStore:
         if not row:
             return None
         next_status = status or row["status"]
+        next_error_code = error_code if error_code is not None else row["error_code"]
+        next_error_message = error_message if error_message is not None else row["error_message"]
+        if next_status == "completed" and error_code is None and error_message is None:
+            next_error_code = None
+            next_error_message = None
         self.connection.execute(
             """
             UPDATE background_jobs
@@ -2262,8 +2700,8 @@ class PlatformStore:
                 json.dumps(result if result is not None else json.loads(row["result_json"])),
                 checkpoint_stage if checkpoint_stage is not None else row["checkpoint_stage"],
                 int(recoverable if recoverable is not None else row["recoverable"]),
-                error_code if error_code is not None else row["error_code"],
-                error_message if error_message is not None else row["error_message"],
+                next_error_code,
+                next_error_message,
                 datetime.now(timezone.utc).isoformat(),
                 job_id,
             ),
@@ -2700,7 +3138,7 @@ class PlatformStore:
         else:
             key = Fernet.generate_key()
             self.secret_key_path.write_bytes(key)
-            with contextlib.suppress(Exception):  # cleanup — best-effort
+            with contextlib.suppress(Exception):  # cleanup â€” best-effort
                 os.chmod(self.secret_key_path, 0o600)
         return Fernet(key)
 

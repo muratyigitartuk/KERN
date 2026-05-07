@@ -7,6 +7,7 @@ ARG EXTRAS="documents,scheduler,system_control,vector"
 
 COPY pyproject.toml README.md /build/
 COPY app /build/app
+COPY prompts /build/prompts
 
 RUN pip install --no-cache-dir --prefix=/install ".[${EXTRAS}]"
 
@@ -25,6 +26,7 @@ COPY --from=builder /install /usr/local
 # Copy application code
 COPY pyproject.toml README.md /app/
 COPY app /app/app
+COPY prompts /app/prompts
 COPY .env.example /app/.env.example
 
 # Copy and prepare entrypoint
@@ -40,11 +42,11 @@ RUN pip install --no-cache-dir --no-deps .
 
 # Dependency audit and lock file
 RUN python -m pip install --no-cache-dir --upgrade pip wheel
-RUN pip install --no-cache-dir pip-audit && pip-audit || true
+RUN pip install --no-cache-dir pip-audit && pip-audit
 RUN pip freeze > /app/requirements.lock
 
 # Create data directories
-RUN mkdir -p /data/profiles /data/backups /data/documents /data/attachments /data/meetings
+RUN mkdir -p /data/profiles /data/backups /data/documents /data/attachments
 
 # Environment defaults for containerized deployment
 ENV KERN_DB_PATH=/data/kern.db \
@@ -54,7 +56,6 @@ ENV KERN_DB_PATH=/data/kern.db \
     KERN_BACKUP_ROOT=/data/backups \
     KERN_DOCUMENT_ROOT=/data/documents \
     KERN_ATTACHMENT_ROOT=/data/attachments \
-    KERN_MEETING_ROOT=/data/meetings \
     KERN_PRODUCT_POSTURE=production \
     KERN_POLICY_MODE=corporate
 

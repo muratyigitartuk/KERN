@@ -4,7 +4,6 @@ import logging
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from app.types import ExecutionReceipt, ToolRequest, ToolResult
 
@@ -48,8 +47,6 @@ class VerificationService:
             elif receipt.status == "observed":
                 receipt.status = "attempted"
                 receipt.verification_source = "none"
-        elif tool == "compose_email" and receipt.status != "failed":
-            self._verify_email(receipt, request, result, connection)
         elif tool == "create_reminder" and receipt.status != "failed":
             self._verify_reminder(receipt, request, result, connection)
         elif tool in ("create_schedule", "create_task") and receipt.status != "failed":
@@ -58,50 +55,7 @@ class VerificationService:
             self._verify_file(receipt, request, result)
         return receipt
 
-    # ── open_app ─────────────────────────────────────────────────────
-
-    def _verify_open_app(self, app_name: str) -> bool:
-        if not app_name or psutil is None:
-            return False
-        lowered = app_name.lower()
-        candidates = {lowered, f"{lowered}.exe", Path(lowered).stem}
-        try:
-            for process in psutil.process_iter(["name"]):
-                name = (process.info.get("name") or "").lower()
-                if not name:
-                    continue
-                if name in candidates or any(candidate and candidate in name for candidate in candidates):
-                    return True
-        except Exception:  # pragma: no cover - process list can fail locally
-            return False
-        return False
-
-    # ── compose_email / send_email ───────────────────────────────────
-
-    def _verify_email(
-        self,
-        receipt: ExecutionReceipt,
-        request: ToolRequest,
-        result: ToolResult,
-        connection: sqlite3.Connection | None,
-    ) -> None:
-        draft_id = result.data.get("draft_id") or result.data.get("id")
-        if not draft_id or not connection:
-            return
-        try:
-            row = connection.execute(
-                "SELECT id, status FROM email_drafts WHERE id = ?", (draft_id,)
-            ).fetchone()
-            if row:
-                receipt.status = "observed"
-                receipt.verification_source = "database"
-                receipt.evidence.append(f"Email draft '{draft_id}' found in database (status: {row['status']}).")
-            else:
-                receipt.evidence.append(f"Email draft '{draft_id}' not found in database.")
-        except Exception as exc:
-            logger.debug("Email verification failed: %s", exc)
-
-    # ── create_reminder ──────────────────────────────────────────────
+    # â”€â”€ create_reminder â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _verify_reminder(
         self,
@@ -135,7 +89,7 @@ class VerificationService:
         except Exception as exc:
             logger.debug("Reminder verification failed: %s", exc)
 
-    # ── create_schedule / create_task ────────────────────────────────
+    # â”€â”€ create_schedule / create_task â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _verify_schedule(
         self,
@@ -160,7 +114,7 @@ class VerificationService:
         except Exception as exc:
             logger.debug("Schedule verification failed: %s", exc)
 
-    # ── write_file ───────────────────────────────────────────────────
+    # â”€â”€ write_file â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def _verify_file(
         self,

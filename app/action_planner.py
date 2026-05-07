@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _ACTION_TO_TOOL: dict[str, str] = {
-    "draft_email": "compose_email",
     "create_reminder": "create_reminder",
     "create_task": "create_task",
     "draft_letter": "draft_behoerde_letter",
@@ -132,23 +131,8 @@ class ActionPlanner:
     def _inbox_actions(self, alert: dict[str, Any]) -> list[dict]:
         sample = next(iter(alert.get("samples") or []), {})
         subject = str(sample.get("subject", "") or "your message")
-        sender = str(sample.get("sender", "") or "").strip()
-        sender_token = sender.split("<", 1)[0].strip() or sender
         due_at = (datetime.now(timezone.utc) + timedelta(minutes=60)).replace(second=0, microsecond=0).isoformat()
-        actions: list[dict] = []
-        if sender_token:
-            actions.append(
-                {
-                    "action_type": "draft_email",
-                    "label": "Draft reply",
-                    "payload": self._with_source_context(alert, {
-                        "to": [sender_token],
-                        "subject": f"Re: {subject}",
-                        "body": f"Hi,\n\nFollowing up on {subject}.\n\nBest regards,",
-                    }),
-                }
-            )
-        actions.extend([
+        return [
             {
                 "action_type": "create_reminder",
                 "label": "Remind me later",
@@ -158,8 +142,7 @@ class ActionPlanner:
                     "kind": "reminder",
                 }),
             },
-        ])
-        return actions
+        ]
 
     def _calendar_actions(self, alert: dict[str, Any]) -> list[dict]:
         event_title = str(alert.get("event_title", "") or "upcoming event")
@@ -174,14 +157,6 @@ class ActionPlanner:
                     "title": f"Prepare for {event_title}",
                     "due_at": reminder_due.replace(second=0, microsecond=0).isoformat(),
                     "kind": "reminder",
-                }),
-            },
-            {
-                "action_type": "draft_email",
-                "label": "Draft update",
-                "payload": self._with_source_context(alert, {
-                    "subject": f"Update about {event_title}",
-                    "body": f"Hi,\n\nQuick update before {event_title} at {starts_at.strftime('%Y-%m-%d %H:%M')}.\n\nBest regards,",
                 }),
             },
         ]
@@ -206,14 +181,6 @@ class ActionPlanner:
                     "kind": "reminder",
                 }),
             },
-            {
-                "action_type": "draft_email",
-                "label": "Draft response",
-                "payload": self._with_source_context(alert, {
-                    "subject": f"Regarding {title}",
-                    "body": f"Hi,\n\nI am reviewing {title}{due_hint}.\n\nBest regards,",
-                }),
-            },
         ]
 
     def _file_watch_actions(self, alert: dict[str, Any]) -> list[dict]:
@@ -235,16 +202,7 @@ class ActionPlanner:
     def _validate_payload(self, action_type: str, payload: dict[str, Any]) -> dict[str, Any]:
         """Normalize and validate payload fields for the given action type."""
         normalized = dict(payload)
-        if action_type == "draft_email":
-            # Ensure 'to' is always a list
-            to_field = normalized.get("to")
-            if isinstance(to_field, str):
-                normalized["to"] = [to_field] if to_field.strip() else []
-            elif to_field is None:
-                normalized["to"] = []
-            normalized.setdefault("subject", "")
-            normalized.setdefault("body", "")
-        elif action_type == "create_reminder":
+        if action_type == "create_reminder":
             normalized.setdefault("title", "Follow up")
             normalized.setdefault("kind", "reminder")
         elif action_type == "create_task":
@@ -368,8 +326,6 @@ class ActionPlanner:
         for action in list(alert.get("suggested_actions") or []):
             payload = self._with_source_context(alert, dict(action.get("payload") or {}))
             action_type = str(action.get("action_type", "") or "")
-            if action_type == "draft_email" and not payload.get("to"):
-                continue
             enriched = dict(action)
             enriched["payload"] = payload
             enriched["confidence"] = round(min(0.97, max(0.4, float(alert.get("confidence", 0.6)) - 0.06)), 3)
@@ -378,7 +334,7 @@ class ActionPlanner:
             actions.append(enriched)
         return actions
 
-    # ── Contextual payload generation ───────────────────────────────
+    # â”€â”€ Contextual payload generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     def build_contextual_payload(
         self,
@@ -392,8 +348,6 @@ class ActionPlanner:
         goes beyond the generic template.
         """
         context = self._extract_context(alert)
-        if action_type == "draft_email":
-            return self._contextual_email(alert, context)
         if action_type == "create_reminder":
             return self._contextual_reminder(alert, context)
         if action_type == "create_task":
@@ -441,7 +395,7 @@ class ActionPlanner:
             "sender": "",
         }
 
-        # From inbox samples
+        # From legacy alert samples
         for sample in list(alert.get("samples") or []):
             sender = str(sample.get("sender", "") or "")
             if sender:
@@ -501,38 +455,13 @@ class ActionPlanner:
     def _extract_amounts(self, text: str) -> list[str]:
         """Extract monetary amounts from text."""
         patterns = [
-            r"\d[\d.,]*\s*(?:EUR|€|CHF|USD|\$)",
-            r"(?:EUR|€|CHF|USD|\$)\s*\d[\d.,]*",
+            r"\d[\d.,]*\s*(?:EUR|â‚¬|CHF|USD|\$)",
+            r"(?:EUR|â‚¬|CHF|USD|\$)\s*\d[\d.,]*",
         ]
         amounts: list[str] = []
         for pattern in patterns:
             amounts.extend(re.findall(pattern, text))
         return amounts
-
-    def _contextual_email(self, alert: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
-        subject = ctx["subject"] or str(alert.get("event_title", "") or "your message")
-        sender = ctx["sender"]
-        to = [sender] if sender else []
-        name = ctx["names"][0] if ctx["names"] else ""
-        greeting = f"Sehr geehrte/r {name}" if name else "Sehr geehrte Damen und Herren"
-
-        body_parts = [f"{greeting},\n"]
-        if ctx["references"]:
-            body_parts.append(f"bezugnehmend auf {', '.join(ctx['references'][:2])}")
-        elif subject:
-            body_parts.append(f"bezugnehmend auf \"{subject}\"")
-        if ctx["dates"]:
-            body_parts.append(f"(Datum: {', '.join(ctx['dates'][:2])})")
-        if ctx["amounts"]:
-            body_parts.append(f"— Betrag: {', '.join(ctx['amounts'][:2])}")
-        body_parts.append("\n\nMit freundlichen Grüßen,")
-
-        return self._with_source_context(alert, {
-            "to": to,
-            "subject": f"Re: {subject}" if subject else "Betreff",
-            "body": " ".join(body_parts),
-            "generated_by": "template",
-        })
 
     def _contextual_reminder(self, alert: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
         subject = ctx["subject"] or ctx["references"][0] if ctx["references"] else "Nachfassen"
@@ -595,8 +524,6 @@ class ActionPlanner:
             parts.append(f"Alert message: {message}")
 
         context_block = "\n".join(parts)
-        if action_type == "draft_email":
-            return f"Write a brief, professional email body in German (formal Sie) based on this context:\n{context_block}\n\nDo not include greetings or sign-off — only the main paragraph."
         if action_type == "create_reminder":
             return f"Write a concise reminder title (max 80 chars) in German based on this context:\n{context_block}"
         if action_type == "draft_letter":

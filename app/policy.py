@@ -7,10 +7,8 @@ from app.config import settings
 from app.types import CapabilityDescriptor, ExecutionPlan, PlanStep, PolicyDecision, ToolRequest
 
 
-DENY_TOOLS = {"send_email", "delete_file", "financial_operation", "account_modification"}
+DENY_TOOLS = {"delete_file", "financial_operation", "account_modification"}
 CORPORATE_CONFIRM_TOOLS = {
-    "compose_email",
-    "sync_mailbox",
     "bulk_ingest",
     "import_conversation_archive",
     "create_backup",
@@ -112,7 +110,7 @@ class PolicyEngine:
             or step.metadata.get("classification")
             or ""
         ).strip().lower()
-        # Reject unknown classification values — default to "internal" (most restrictive)
+        # Reject unknown classification values â€” default to "internal" (most restrictive)
         if classification and classification not in VALID_CLASSIFICATIONS:
             import logging
             logging.getLogger(__name__).warning(

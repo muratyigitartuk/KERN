@@ -1,10 +1,10 @@
 # KERN Internal Deployment
 
-KERN's recommended near-term shape is **one controlled internal machine** focused on one clear workflow:
+KERN's recommended local-mode shape is **one controlled internal machine** focused on one clear workflow:
 
 **private German business drafting grounded in local company documents**
 
-This is not a public installer and not a multi-user server rollout.
+This guide is for local Windows deployment. Use the server-mode checklist for shared multi-user deployments.
 
 ## Deployment shape
 
@@ -40,7 +40,7 @@ If you want the **reference-quality tuned model path** instead of that default r
 .\scripts\install-kern.ps1 -InternalDeploy -IncludeHfAdapter
 ```
 
-That adds the optional HF adapter serving stack. See [hf-adapter-serving.md](/Users/mur4t/Desktop/claudes/skillstests/docs/hf-adapter-serving.md).
+That adds the optional HF adapter serving stack. See [hf-adapter-serving.md](hf-adapter-serving.md).
 
 Use `-IncludeDev` only on development machines.
 
@@ -56,7 +56,7 @@ Use `-IncludeDev` only on development machines.
 ## What this machine should not be yet
 
 - not a general public installer target
-- not a shared multi-user server
+- not the server-mode host for shared multi-user deployment
 - not the final OCR validation target for PaddleOCR on Windows
 - not yet the simplest host for heavyweight HF adapter runtime on Windows; treat that as the reference-quality path, not the easiest one
 
@@ -87,11 +87,11 @@ For pilot-hardening, this branch now treats the following as product surfaces, n
 
 Use the related operator docs for those flows:
 
-- [operator-runbook.md](/Users/mur4t/Desktop/claudes/skillstests/docs/operator-runbook.md)
-- [backup-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/backup-guide.md)
-- [restore-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/restore-guide.md)
-- [uninstall-data-deletion.md](/Users/mur4t/Desktop/claudes/skillstests/docs/uninstall-data-deletion.md)
-- [troubleshooting-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/troubleshooting-guide.md)
+- [operator-runbook.md](operator-runbook.md)
+- [backup-guide.md](backup-guide.md)
+- [restore-guide.md](restore-guide.md)
+- [uninstall-data-deletion.md](uninstall-data-deletion.md)
+- [troubleshooting-guide.md](troubleshooting-guide.md)
 
 ## Phase 2B and 2C product surfaces
 
@@ -111,9 +111,9 @@ That means a pilot operator can:
 
 Use these docs alongside the deployment guide:
 
-- [activation-renewal-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/activation-renewal-guide.md)
-- [update-rollback-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/update-rollback-guide.md)
-- [sample-workspace-guide.md](/Users/mur4t/Desktop/claudes/skillstests/docs/sample-workspace-guide.md)
+- [activation-renewal-guide.md](activation-renewal-guide.md)
+- [update-rollback-guide.md](update-rollback-guide.md)
+- [sample-workspace-guide.md](sample-workspace-guide.md)
 
 ## Packaging
 
@@ -191,7 +191,7 @@ This now:
 
 ## Operator runbook
 
-Use [operator-runbook.md](/Users/mur4t/Desktop/claudes/skillstests/docs/operator-runbook.md) as the single operational sequence for:
+Use [operator-runbook.md](operator-runbook.md) as the single operational sequence for:
 
 - install
 - startup
@@ -203,13 +203,13 @@ Use [operator-runbook.md](/Users/mur4t/Desktop/claudes/skillstests/docs/operator
 
 Use these companion operator docs for acceptance and symptom-based triage:
 
-- [pilot-acceptance-checklist.md](/Users/mur4t/Desktop/claudes/skillstests/docs/pilot-acceptance-checklist.md)
-- [pilot-troubleshooting-matrix.md](/Users/mur4t/Desktop/claudes/skillstests/docs/pilot-troubleshooting-matrix.md)
+- [pilot-acceptance-checklist.md](pilot-acceptance-checklist.md)
+- [pilot-troubleshooting-matrix.md](pilot-troubleshooting-matrix.md)
 
 ## Current boundaries
 
 - uploaded-document QA is productized
 - OCR exists in code but is not validated on this Windows Paddle runtime
-- multi-user and role separation are deferred
+- multi-user and role separation belong to server mode, not this local Windows deployment path
 - dataset v3 and further model work are no longer first-priority deployment blockers
 - the blessed pilot story is one local drafting workflow, even though broader KERN features remain available

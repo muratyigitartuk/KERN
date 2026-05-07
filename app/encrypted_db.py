@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import tempfile
@@ -9,6 +10,7 @@ from pathlib import Path
 from threading import RLock
 
 _PERSIST_LOCK = RLock()
+logger = logging.getLogger(__name__)
 
 
 def _protected_temp_dir(target: Path) -> Path:
@@ -113,6 +115,17 @@ def hydrate_encrypted_connection(connection: EncryptedProfileConnection, encrypt
 
     payload_bytes = encrypted_path.read_bytes()
     if payload_bytes.startswith(b"SQLite format 3"):
+        opt_in = os.getenv("KERN_ALLOW_PLAINTEXT_DB_MIGRATION", "").strip().lower() in {"1", "true", "yes", "on"}
+        if not opt_in:
+            raise RuntimeError(
+                "Encrypted database file contains plaintext SQLite data. "
+                "Refusing migration without KERN_ALLOW_PLAINTEXT_DB_MIGRATION=1."
+            )
+        logger.warning(
+            "SECURITY: Encrypted database file %s contains unencrypted SQLite data. "
+            "Migrating only because KERN_ALLOW_PLAINTEXT_DB_MIGRATION is enabled.",
+            encrypted_path,
+        )
         plaintext = sqlite3.connect(encrypted_path)
         try:
             plaintext.backup(connection)

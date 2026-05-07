@@ -91,7 +91,7 @@ class DocumentService:
             metadata = self._build_metadata(owned_path, text, inferred_category, source)
             metadata.update(extraction_metadata)
             classification = str(metadata.get("classification") or "internal")
-            data_class = "regulated_business" if inferred_category in {"finance", "legal"} else "operational"
+            data_class = "regulated_business" if classification in {"finance", "legal"} else "operational"
             metadata.setdefault("data_class", data_class)
             metadata.setdefault("retention_state", "standard")
             metadata.setdefault(
@@ -105,6 +105,7 @@ class DocumentService:
             metadata["original_path"] = str(path)
             metadata["stored_path"] = str(owned_path)
             metadata["file_hash"] = file_hash
+            logical_suffix = self._logical_suffix(owned_path).lstrip(".") or "unknown"
             record = DocumentRecord(
                 id=str(uuid4()),
                 profile_slug=self.profile.slug if self.profile else "default",
@@ -112,13 +113,14 @@ class DocumentService:
                 workspace_id=self.profile.workspace_id if self.profile else None,
                 title=owned_path.stem,
                 source=source,
-                file_type=owned_path.suffix.lower().lstrip(".") or "unknown",
+                file_type=logical_suffix,
                 file_path=str(owned_path),
                 file_hash=file_hash,
                 category=inferred_category,
                 classification=classification,
                 data_class=data_class,
                 retention_state=str(metadata.get("retention_state") or "standard"),
+                metadata=metadata,
                 provenance=dict(metadata.get("provenance") or {}),
                 tags=tags or self._default_tags(owned_path, inferred_category),
                 archived=False,
@@ -144,7 +146,7 @@ class DocumentService:
             return record
         except Exception as exc:
             if owned_path is not None and owned_path.exists() and owned_path != path:
-                with contextlib.suppress(Exception):  # cleanup — best-effort
+                with contextlib.suppress(Exception):  # cleanup â€” best-effort
                     owned_path.unlink(missing_ok=True)
             if self.platform and self.profile and job_id:
                 self.platform.update_job(job_id, status="failed", detail=str(exc), error_code="document_ingest_failed", error_message=str(exc), result={"path": str(path)})
@@ -523,7 +525,7 @@ class DocumentService:
             return record
         except Exception as exc:
             if owned_path is not None and owned_path.exists() and owned_path != path:
-                with contextlib.suppress(Exception):  # cleanup — best-effort
+                with contextlib.suppress(Exception):  # cleanup â€” best-effort
                     owned_path.unlink(missing_ok=True)
             if self.platform and self.profile and job_id:
                 self.platform.update_job(job_id, status="failed", detail=str(exc), error_code="archive_import_failed", error_message=str(exc), result={"path": str(path)})
@@ -650,14 +652,16 @@ class DocumentService:
             return self.artifacts.read_text(path, encoding="utf-8"), metadata
         if suffix == ".csv":
             from app.spreadsheet import SpreadsheetParser
-            try:
-                return SpreadsheetParser.extract_text_from_csv(path), metadata
-            except Exception as exc:
-                logger.debug("CSV spreadsheet parse failed for %s, falling back to raw text: %s", path, exc)
+            with self.artifacts.temporary_plaintext(path) as temporary_path:
+                try:
+                    return SpreadsheetParser.extract_text_from_csv(temporary_path), metadata
+                except Exception as exc:
+                    logger.debug("CSV spreadsheet parse failed for %s, falling back to raw text: %s", path, exc)
             return self.artifacts.read_text(path, encoding="utf-8"), metadata
         if suffix in {".xlsx", ".xls"}:
             from app.spreadsheet import SpreadsheetParser
-            return SpreadsheetParser.extract_text_from_excel(path), metadata
+            with self.artifacts.temporary_plaintext(path) as temporary_path:
+                return SpreadsheetParser.extract_text_from_excel(temporary_path), metadata
         if suffix == ".pdf":
             try:
                 import fitz  # type: ignore
@@ -684,6 +688,8 @@ class DocumentService:
         page_texts: list[str] = []
         ocr_confidences: list[float] = []
         ocr_page_indices: list[int] = []
+        ocr_failed_page_indices: list[int] = []
+        ocr_errors: list[str] = []
         ocr_backend = None
         if settings.ocr_enabled and ocr_backend_available(settings.ocr_engine):
             ocr_backend = get_ocr_backend(settings.ocr_engine, settings.ocr_lang)
@@ -695,7 +701,14 @@ class DocumentService:
             if ocr_backend is None:
                 page_texts.append(native_text.strip())
                 continue
-            ocr_result = self._run_pdf_page_ocr(page, page_number, ocr_backend)
+            try:
+                ocr_result = self._run_pdf_page_ocr(page, page_number, ocr_backend)
+            except Exception as exc:
+                logger.warning("OCR failed for PDF page %s: %s", page_number, exc)
+                ocr_failed_page_indices.append(page_number)
+                ocr_errors.append(f"page {page_number}: {type(exc).__name__}")
+                page_texts.append(native_text.strip())
+                continue
             combined_text = (ocr_result.text or native_text).strip()
             page_texts.append(combined_text)
             if ocr_result.text.strip():
@@ -705,10 +718,13 @@ class DocumentService:
         metadata["ocr_used"] = bool(ocr_page_indices)
         metadata["ocr_pages"] = len(ocr_page_indices)
         metadata["ocr_page_indices"] = ocr_page_indices
+        metadata["ocr_failed_pages"] = len(ocr_failed_page_indices)
+        metadata["ocr_failed_page_indices"] = ocr_failed_page_indices
+        metadata["ocr_error"] = "; ".join(ocr_errors[:3]) if ocr_errors else None
         metadata["ocr_confidence_avg"] = sum(ocr_confidences) / len(ocr_confidences) if ocr_confidences else None
         confidence_avg = metadata["ocr_confidence_avg"]
         metadata["ocr_low_confidence"] = bool(
-            confidence_avg is not None and confidence_avg < settings.ocr_low_confidence_threshold
+            bool(ocr_failed_page_indices) or (confidence_avg is not None and confidence_avg < settings.ocr_low_confidence_threshold)
         )
         merged_text = "\n\n".join(part for part in page_texts if part.strip()).strip()
         return merged_text, metadata
@@ -771,14 +787,14 @@ class DocumentService:
         }
         if category == "invoice":
             metadata["tracking_state"] = "received"
-            due_date = self._extract_due_date(text, ("due", "payment due", "fällig", "faellig"))
+            due_date = self._extract_due_date(text, ("due", "payment due", "fÃ¤llig", "faellig"))
             if due_date:
                 metadata["due_date"] = due_date
         elif category == "offer":
             metadata["tracking_state"] = "draft"
         elif category == "contract":
             metadata["tracking_state"] = "active"
-            due_date = self._extract_due_date(text, ("expires", "expiry", "valid until", "gültig bis", "gueltig bis"))
+            due_date = self._extract_due_date(text, ("expires", "expiry", "valid until", "gÃ¼ltig bis", "gueltig bis"))
             if due_date:
                 metadata["due_date"] = due_date
         else:

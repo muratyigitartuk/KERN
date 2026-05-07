@@ -3,25 +3,24 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time as perf_time
 from datetime import datetime, time as clock_time, timezone
 from pathlib import Path
 
 from app.attention import AttentionManager
-from app.capabilities import CapabilityRegistry, build_capability_registry
+from app.capabilities import build_capability_registry
 from app.planning import LlamaServerPlanner
 from app.config import settings
 from app.context import ContextAssembler
 from app.dialogue import DialogueStateStore
 from app.documents import DocumentService
-from app.email_service import EmailService
 from app.events import EventHub
 from app.german_business import GermanBusinessService
 from app.llm import Brain
 from app.rag import NoRetrievalHitsError, RAGStreamResult
 from app.local_data import LocalDataService
 from app.memory import MemoryRepository
-from app.meetings import MeetingService
 from app.model_router import ModelRouter
 from app.policy import PolicyEngine
 from app.platform import PlatformStore
@@ -41,17 +40,14 @@ from app.tools.documents import (
     SummarizeDocumentTool,
 )
 from app.tools.scheduler_tools import CreateScheduleTool, ListSchedulesTool, ManageScheduleTool, WatchFolderTool
-from app.tools.email_tools import ComposeEmailTool, EmailReminderTool, ReadEmailTool, ScheduleMeetingInviteTool, SendNtfyNotificationTool
 from app.tools.german_business import CreateAngebotTool, CreateDsgvoReminderTool, CreateRechnungTool, DraftBehoerdeLetterTool, TaxSupportTool
 from app.tools.local_runtime import GenerateMorningBriefTool, ReadStatusTool, SetPreferenceTool
 from app.tools.memory_tools import BuildTopicTimelineTool, RecallMemoryTool, RememberFactTool, SearchConversationHistoryTool
 from app.tools.knowledge_tools import BuildKnowledgeGraphTool, QueryKnowledgeGraphTool
-from app.tools.meeting_tools import StartMeetingRecordingTool, StopMeetingRecordingTool
 from app.tools.notes import ListNotesTool, NoteTool
 from app.tools.reminders import CreateReminderTool, DismissReminderTool, SnoozeReminderTool
 from app.tools.routines import RunRoutineTool
 from app.tools.runtime_control import BrowserSearchTool, FocusModeTool, SystemStatusTool
-from app.tools.spotify import SpotifyTool
 from app.tools.system import OpenAppTool, OpenWebsiteTool
 from app.tools.system_state import (
     CreateBackupTool,
@@ -59,16 +55,13 @@ from app.tools.system_state import (
     ListBackupsTool,
     ReadAuditEventsTool,
     ReadCurrentContextTool,
-    ReadMailboxSummaryTool,
     ReadProfileSecurityTool,
     ReadRuntimeSnapshotTool,
     RestoreBackupTool,
-    SyncMailboxTool,
 )
 from app.tools.sync_tools import SyncToTargetTool
 from app.tools.tasks import CompleteTaskTool, CreateTaskTool, PendingTasksTool, TaskService
 from app.tools.workspace import ReadFileExcerptTool, SearchFilesTool
-from app.tts import TTSService
 from app.types import (
     ActionHistoryEntry,
     AssistantTurn,
@@ -81,7 +74,6 @@ from app.types import (
     PendingConfirmation,
     PendingInteraction,
     PersonContextPacket,
-    PlanStep,
     ProfileSummary,
     RuntimeSnapshot,
     SecretRef,
@@ -101,7 +93,7 @@ class _NullPlatformStore:
     """Stub platform store for personal/test use only. Logs a warning on first use."""
 
     def __init__(self) -> None:
-        logger.warning("Audit logging disabled — running without platform store")
+        logger.warning("Audit logging disabled â€” running without platform store")
 
     def record_audit(self, *args, **kwargs) -> None:
         return None
@@ -154,6 +146,7 @@ class KernOrchestrator:
     MAX_CONVERSATION_TURNS = 40
     MAX_ACTION_HISTORY = 24
     MAX_RECEIPT_CACHE = 6
+    PLAIN_CHAT_LLM_TIMEOUT_SECONDS = 10.0
 
     def __init__(
         self,
@@ -162,13 +155,10 @@ class KernOrchestrator:
         brain: Brain,
         local_data: LocalDataService,
         policy: PolicyEngine,
-        tts: TTSService,
         task_service: TaskService,
         calendar_service: CalendarService,
         default_title: str,
         document_service: DocumentService | None = None,
-        email_service: EmailService | None = None,
-        meeting_service: MeetingService | None = None,
         german_business_service: GermanBusinessService | None = None,
         sync_service: SyncService | None = None,
         dialogue_state: DialogueStateStore | None = None,
@@ -186,7 +176,6 @@ class KernOrchestrator:
         self.brain = brain
         self.local_data = local_data
         self.policy = policy
-        self.tts = tts
         self.default_title = default_title
         self.dialogue_state = dialogue_state or DialogueStateStore(memory)
         self.reminder_service = reminder_service or ReminderService(local_data)
@@ -211,19 +200,6 @@ class KernOrchestrator:
             has_pin=False,
         )
         document_service = document_service or DocumentService(memory, Path(default_profile.documents_root), Path(default_profile.archives_root))
-        email_service = email_service or EmailService(
-            memory.connection,
-            null_platform,  # type: ignore[arg-type]
-            default_profile,
-            local_data,
-            calendar_service,
-            document_service,
-        )
-        meeting_service = meeting_service or MeetingService(
-            memory.connection,
-            null_platform,  # type: ignore[arg-type]
-            default_profile,
-        )
         german_business_service = german_business_service or GermanBusinessService(
             memory.connection,
             null_platform,  # type: ignore[arg-type]
@@ -249,7 +225,6 @@ class KernOrchestrator:
         )
         self.snapshot = RuntimeSnapshot(
             product_posture=settings.product_posture,
-            speaking_enabled=tts.enabled,
             cognition_backend=brain.cognition_backend,
             assistant_mode=self.local_data.assistant_mode(),
         )
@@ -257,8 +232,6 @@ class KernOrchestrator:
             task_service,
             calendar_service,
             document_service,
-            email_service,
-            meeting_service,
             german_business_service,
             sync_service,
             self.backup_service,
@@ -306,15 +279,12 @@ class KernOrchestrator:
         task_service: TaskService,
         calendar_service: CalendarService,
         document_service: DocumentService,
-        email_service: EmailService,
-        meeting_service: MeetingService,
         german_business_service: GermanBusinessService,
         sync_service: SyncService,
         backup_service: BackupService,
     ):
         workspace_root = Path.cwd()
         return {
-            "play_spotify": SpotifyTool(),
             "open_app": OpenAppTool(),
             "open_website": OpenWebsiteTool(),
             "browser_search": BrowserSearchTool(),
@@ -327,7 +297,6 @@ class KernOrchestrator:
             "set_preference": SetPreferenceTool(self.local_data),
             "read_status": ReadStatusTool(self.local_data),
             "generate_morning_brief": GenerateMorningBriefTool(self.local_data),
-            "play_media": SpotifyTool(),
             "create_reminder": CreateReminderTool(self.reminder_service),
             "set_timer": CreateReminderTool(self.reminder_service),
             "snooze_reminder": SnoozeReminderTool(self.reminder_service),
@@ -360,15 +329,6 @@ class KernOrchestrator:
                 }
                 if self.knowledge_graph_service else {}
             ),
-            "read_email": ReadEmailTool(email_service),
-            "read_mailbox_summary": ReadMailboxSummaryTool(email_service),
-            "sync_mailbox": SyncMailboxTool(email_service),
-            "compose_email": ComposeEmailTool(email_service),
-            "create_email_reminder": EmailReminderTool(email_service, self.reminder_service),
-            "schedule_meeting_and_invite": ScheduleMeetingInviteTool(email_service),
-            "send_ntfy_notification": SendNtfyNotificationTool(email_service),
-            "start_meeting_recording": StartMeetingRecordingTool(meeting_service),
-            "stop_meeting_recording": StopMeetingRecordingTool(meeting_service),
             "create_angebot": CreateAngebotTool(german_business_service),
             "create_rechnung": CreateRechnungTool(german_business_service),
             "draft_behoerde_letter": DraftBehoerdeLetterTool(german_business_service),
@@ -482,7 +442,7 @@ class KernOrchestrator:
         await asyncio.to_thread(self.memory.mark_morning_greeting, date_key)
         title = self.local_data.preferred_title()
         text = f"Good morning, {title}. Would you like me to play something to start the day?"
-        await self._speak_and_store(text)
+        await self._store_response_text(text)
         self.snapshot.assistant_state = "muted" if self.local_data.muted() else "responding"
         self.snapshot.response_text = text
         self.snapshot.last_action = "Morning greeting delivered."
@@ -824,7 +784,7 @@ class KernOrchestrator:
                 trigger_source=trigger,
                 missing_slots=["local_target"],
             )
-            await self._speak_and_store(reply)
+            await self._store_response_text(reply)
             await asyncio.to_thread(self.memory.append_conversation_entry, f"User: {transcript}\nKern: {reply}")
             await asyncio.to_thread(self.dialogue_state.set_last_response, reply)
             self.snapshot.active_plan = None
@@ -835,7 +795,7 @@ class KernOrchestrator:
             self.add_history("route", f"freeform:clarification:{task_intent.confidence:.2f}")
             self.mark_dirty("runtime")
             await self.broadcast(reason="freeform_clarification")
-            return AssistantTurn(trigger=trigger, transcript=transcript, intent_type="query", response_text=reply, spoken=self.tts.enabled, reasoning_source="system_decision")
+            return AssistantTurn(trigger=trigger, transcript=transcript, intent_type="query", response_text=reply, reasoning_source="system_decision")
         if packet is None and task_intent.task_family == "clarification_needed":
             if clarification_source == "generic":
                 return None
@@ -847,7 +807,7 @@ class KernOrchestrator:
                 trigger_source=trigger,
                 missing_slots=["local_target"],
             )
-            await self._speak_and_store(reply)
+            await self._store_response_text(reply)
             await asyncio.to_thread(self.memory.append_conversation_entry, f"User: {transcript}\nKern: {reply}")
             await asyncio.to_thread(self.dialogue_state.set_last_response, reply)
             self.snapshot.active_plan = None
@@ -858,7 +818,7 @@ class KernOrchestrator:
             self.add_history("route", f"freeform:clarification:{task_intent.confidence:.2f}")
             self.mark_dirty("runtime")
             await self.broadcast(reason="freeform_clarification")
-            return AssistantTurn(trigger=trigger, transcript=transcript, intent_type="query", response_text=reply, spoken=self.tts.enabled, reasoning_source="system_decision")
+            return AssistantTurn(trigger=trigger, transcript=transcript, intent_type="query", response_text=reply, reasoning_source="system_decision")
         if packet_type == "document_answer_packet" and isinstance(packet, DocumentAnswerPacket):
             rendered = None
             if allow_llm_generation and (packet.generation_contract.allow_answer or packet.generation_contract.allow_summarize or packet.generation_contract.allow_cite):
@@ -982,7 +942,7 @@ class KernOrchestrator:
             last_action = "Prepared grounded person context from freeform routing."
         else:
             return None
-        await self._speak_and_store(reply)
+        await self._store_response_text(reply)
         await asyncio.to_thread(self.memory.append_conversation_entry, f"User: {transcript}\nKern: {reply}")
         await asyncio.to_thread(self.dialogue_state.set_last_response, reply)
         self.snapshot.active_plan = None
@@ -998,7 +958,6 @@ class KernOrchestrator:
             transcript=transcript,
             intent_type="query",
             response_text=reply,
-            spoken=self.tts.enabled,
             reasoning_source=reasoning_source,
             recommendation_id=recommendation_id,
             workflow_type=workflow_type,
@@ -1016,11 +975,162 @@ class KernOrchestrator:
             "write the email",
             "draft the email",
             "turn this into",
+            "formuliere",
+            "schreibe",
+            "verfasse",
+            "entwirf",
+            "angebotsabsatz",
+            "antwort",
+            "nachricht",
         )
         if any(marker in lowered for marker in markers):
             return True
         return ("draft" in lowered or "write" in lowered or "rewrite" in lowered or "compose" in lowered) and (
             "email" in lowered or "reply" in lowered or "follow-up" in lowered or "follow up" in lowered or "message" in lowered
+        )
+
+    def _is_plain_chat_request(self, transcript: str) -> bool:
+        lowered = " ".join((transcript or "").strip().lower().split())
+        if not lowered or len(lowered) > 180:
+            return False
+        local_workflow_markers = (
+            "document",
+            "file",
+            "upload",
+            "evidence",
+            "citation",
+            "source",
+            "compliance",
+            "legal",
+            "retention",
+            "erasure",
+            "export",
+            "audit",
+            "policy",
+            "workspace",
+            "customer",
+            "client",
+            "supplier",
+            "email",
+            "draft",
+            "review",
+            "finalize",
+            "schedule",
+            "reminder",
+            "backup",
+            "license",
+            "summarize",
+            "compare",
+        )
+        if any(marker in lowered for marker in local_workflow_markers):
+            return False
+        if lowered in {"hi", "hello", "hey"}:
+            return True
+        prefix_markers = (
+            "what can you do",
+            "who are you",
+            "answer this",
+            "reply with",
+            "respond with",
+            "say ",
+        )
+        if any(lowered.startswith(marker) for marker in prefix_markers):
+            return True
+        return "smoke test" in lowered or "one short sentence" in lowered
+
+    def _is_low_signal_text(self, text: str) -> bool:
+        value = " ".join((text or "").strip().lower().split())
+        if not value or len(value) <= 2:
+            return True
+        if len(value.split()) == 1 and len(value) <= 10:
+            if not re.search(r"[aeiouÃ¤Ã¶Ã¼]", value):
+                return True
+            known_short_words = {
+                "hi",
+                "hey",
+                "hello",
+                "help",
+                "hallo",
+                "danke",
+                "yes",
+                "no",
+                "ok",
+                "okay",
+                "policy",
+                "risk",
+                "draft",
+                "write",
+                "summarize",
+                "explain",
+            }
+            if re.fullmatch(r"[a-zÃ¤Ã¶Ã¼ÃŸ]{3,10}", value) and value not in known_short_words:
+                return True
+        return False
+
+    def _local_generation_unavailable_reply(self, transcript: str) -> str:
+        if self._is_low_signal_text(transcript):
+            return "I could not parse that as a request. Send a complete question or instruction."
+        return "The local model is not available, so I cannot generate a free-form answer right now."
+
+    async def _reply_plain_chat(
+        self,
+        transcript: str,
+        *,
+        trigger: str,
+        context_summary=None,
+        allow_llm_fallback: bool,
+    ) -> AssistantTurn:
+        title = self.local_data.preferred_title()
+        llm_reply_text = None
+        if allow_llm_fallback:
+            try:
+                llm_reply_text = await asyncio.wait_for(
+                    self._try_llm_chat(transcript, title, context_summary=context_summary),
+                    timeout=max(1.0, min(float(settings.llama_server_timeout), self.PLAIN_CHAT_LLM_TIMEOUT_SECONDS)),
+                )
+            except asyncio.TimeoutError:
+                self.add_history("system", "plain_chat_llm_timeout")
+            except Exception as exc:
+                logger.debug("Plain chat LLM reply failed: %s", exc, exc_info=True)
+        if llm_reply_text:
+            reply_display = llm_reply_text
+            reply_spoken = llm_reply_text
+            reasoning_source = "llm_generated_wording"
+        elif allow_llm_fallback:
+            if not self.brain.llm_available:
+                reply_display = self._local_generation_unavailable_reply(transcript)
+                reply_spoken = reply_display
+            else:
+                try:
+                    persona_reply = self.brain.generate_chat_persona_reply(transcript, title)
+                    reply_display = persona_reply.display_text
+                    reply_spoken = persona_reply.display_text
+                except Exception as exc:
+                    logger.warning("Persona reply generation failed: %s", exc)
+                    reply_display = "The local model did not return a usable answer. Please try again."
+                    reply_spoken = reply_display
+            reasoning_source = "system_decision"
+        else:
+            reply_display = "I could not resolve that with deterministic local reasoning alone."
+            reply_spoken = reply_display
+            reasoning_source = "system_decision"
+        await self._store_response_text(reply_spoken)
+        await asyncio.to_thread(self.memory.append_conversation_entry, f"User: {transcript}\nKern: {reply_display}")
+        await asyncio.to_thread(self.dialogue_state.set_last_response, reply_display)
+        self.snapshot.active_plan = None
+        self.snapshot.response_text = reply_display
+        self.snapshot.assistant_state = "muted" if self.local_data.muted() else "idle"
+        self.snapshot.last_action = "Replied conversationally."
+        self.append_turn("assistant", reply_display, meta={"reasoning_source": reasoning_source, "route": "plain_chat"})
+        self.add_history("system", "plain_chat")
+        self.mark_dirty("runtime")
+        await self.broadcast(reason="plain_chat_reply")
+        return AssistantTurn(
+            trigger=trigger,
+            transcript=transcript,
+            intent_type="chat",
+            response_text=reply_display,
+            reasoning_source=reasoning_source,
         )
 
     async def _try_document_guidance(
@@ -1088,7 +1198,7 @@ class KernOrchestrator:
         else:
             reply = self._build_document_packet_reply(packet)
             reasoning_source = "system_decision"
-        await self._speak_and_store(reply)
+        await self._store_response_text(reply)
         await asyncio.to_thread(self.memory.append_conversation_entry, f"User: {transcript}\nKern: {reply}")
         await asyncio.to_thread(self.dialogue_state.set_last_response, reply)
         self.snapshot.active_plan = None
@@ -1114,7 +1224,6 @@ class KernOrchestrator:
             transcript=transcript,
             intent_type="query",
             response_text=reply,
-            spoken=self.tts.enabled,
             reasoning_source=reasoning_source,
         )
 
@@ -1151,7 +1260,7 @@ class KernOrchestrator:
         else:
             reply = self._build_preparation_reply(packet)
             reasoning_source = "system_decision"
-        await self._speak_and_store(reply)
+        await self._store_response_text(reply)
         await asyncio.to_thread(self.memory.append_conversation_entry, f"User: {transcript}\nKern: {reply}")
         await asyncio.to_thread(self.dialogue_state.set_last_response, reply)
         self.snapshot.active_plan = None
@@ -1185,7 +1294,6 @@ class KernOrchestrator:
             transcript=transcript,
             intent_type="query",
             response_text=reply,
-            spoken=self.tts.enabled,
             reasoning_source=reasoning_source,
             recommendation_id=packet.recommendation_id,
             workflow_type=packet.workflow_type,
@@ -1206,7 +1314,7 @@ class KernOrchestrator:
             self.append_turn("system", reply, kind="tool_status", status="pending")
             self.mark_dirty("runtime")
             await self.broadcast(reason="overlap_blocked")
-            return AssistantTurn(trigger=trigger, transcript=transcript, intent_type="chat", response_text=reply, spoken=False)
+            return AssistantTurn(trigger=trigger, transcript=transcript, intent_type="chat", response_text=reply)
         pending = self._pending_interaction
         effective_transcript = transcript
         if pending and pending.kind == "clarification":
@@ -1222,6 +1330,15 @@ class KernOrchestrator:
         await self.broadcast(reason="transcript_received")
 
         if pending is None:
+            if self._is_plain_chat_request(effective_transcript):
+                context_summary = self.snapshot.active_context_summary or self.context_assembler.build()
+                self.snapshot.active_context_summary = context_summary
+                return await self._reply_plain_chat(
+                    effective_transcript,
+                    trigger=trigger,
+                    context_summary=context_summary,
+                    allow_llm_fallback=allow_llm_fallback,
+                )
             freeform_turn = await self._try_freeform_guidance(
                 effective_transcript,
                 trigger=trigger,
@@ -1248,7 +1365,7 @@ class KernOrchestrator:
                 return reasoning_turn
             if not allow_llm_fallback:
                 reply = "I could not resolve that with deterministic local reasoning alone."
-                await self._speak_and_store(reply)
+                await self._store_response_text(reply)
                 await asyncio.to_thread(self.dialogue_state.set_last_response, reply)
                 self.snapshot.active_plan = None
                 self.snapshot.response_text = reply
@@ -1267,7 +1384,6 @@ class KernOrchestrator:
                     transcript=effective_transcript,
                     intent_type="query",
                     response_text=reply,
-                    spoken=self.tts.enabled,
                     reasoning_source="system_decision",
                 )
 
@@ -1308,11 +1424,6 @@ class KernOrchestrator:
             "plan",
             f"Intent {parsed.intent_name} via {plan.source} with {len(plan.steps)} step(s).",
         )
-        if parsed.tool_request and parsed.tool_request.tool_name == "play_spotify":
-            query = str(parsed.tool_request.arguments.get("query", "")).strip()
-            if query:
-                await asyncio.to_thread(self.dialogue_state.set_last_media_query, query)
-
         if parsed.missing_slots:
             reply = parsed.response_hint if parsed.response_hint else f"I need {', '.join(parsed.missing_slots)} before I can do that."
             self._pending_interaction = PendingInteraction(
@@ -1323,7 +1434,7 @@ class KernOrchestrator:
                 missing_slots=list(parsed.missing_slots),
                 plan=plan,
             )
-            await self._speak_and_store(reply)
+            await self._store_response_text(reply)
             self.snapshot.response_text = reply
             self.snapshot.assistant_state = "muted" if self.local_data.muted() else "idle"
             self.snapshot.last_action = "Asked for clarification."
@@ -1336,7 +1447,6 @@ class KernOrchestrator:
                 transcript=effective_transcript,
                 intent_type=parsed.intent_type,
                 response_text=reply,
-                spoken=self.tts.enabled,
                 plan=plan,
                 candidates=analysis.candidates,
             )
@@ -1344,13 +1454,12 @@ class KernOrchestrator:
         if not plan.steps:
             if self.brain.looks_operational_request(effective_transcript):
                 reply = "I couldn't map that operational request to a supported capability yet. Try rephrasing it more explicitly."
-                await self._speak_and_store(reply)
+                await self._store_response_text(reply)
                 turn = AssistantTurn(
                     trigger=trigger,
                     transcript=effective_transcript,
                     intent_type=parsed.intent_type,
                     response_text=reply,
-                    spoken=self.tts.enabled,
                     plan=plan,
                     candidates=analysis.candidates,
                 )
@@ -1377,23 +1486,25 @@ class KernOrchestrator:
             elif not allow_llm_fallback:
                 reply_display = "I could not resolve that with deterministic local reasoning alone."
                 reply_spoken = reply_display
+            elif not self.brain.llm_available:
+                reply_display = self._local_generation_unavailable_reply(transcript)
+                reply_spoken = reply_display
             else:
                 try:
                     persona_reply = self.brain.generate_chat_persona_reply(transcript, title)
                     reply_display = persona_reply.display_text
-                    reply_spoken = persona_reply.spoken_text
+                    reply_spoken = persona_reply.display_text
                 except Exception as exc:
                     logger.warning("Persona reply generation failed: %s", exc)
-                    reply_display = f"I'm having trouble thinking right now, {title}. Please try again in a moment."
+                    reply_display = "The local model did not return a usable answer. Please try again."
                     reply_spoken = reply_display
-            await self._speak_and_store(reply_spoken)
+            await self._store_response_text(reply_spoken)
             await asyncio.to_thread(self.memory.append_conversation_entry, f"User: {transcript}\nKern: {reply_display}")
             turn = AssistantTurn(
                 trigger=trigger,
                 transcript=effective_transcript,
                 intent_type=parsed.intent_type,
                 response_text=reply_display,
-                spoken=self.tts.enabled,
                 plan=plan,
                 candidates=analysis.candidates,
                 reasoning_source="llm_generated_wording" if llm_reply_text else None,
@@ -1413,7 +1524,7 @@ class KernOrchestrator:
         self.add_history("plan", f"{plan.summary or 'plan'}: {decision.verdict}")
         if decision.verdict == "deny":
             reply = f"I cannot do that. {decision.message}"
-            await self._speak_and_store(reply)
+            await self._store_response_text(reply)
             self.snapshot.response_text = reply
             self.snapshot.assistant_state = "muted" if self.local_data.muted() else "idle"
             self.snapshot.last_action = "Denied by policy."
@@ -1426,7 +1537,6 @@ class KernOrchestrator:
                 transcript=effective_transcript,
                 intent_type=parsed.intent_type,
                 response_text=reply,
-                spoken=self.tts.enabled,
                 tool_calls=[self.capabilities.build_request(step, effective_transcript, trigger) for step in plan.steps],
                 plan=plan,
                 candidates=analysis.candidates,
@@ -1444,7 +1554,7 @@ class KernOrchestrator:
             self.snapshot.response_text = prompt
             self.snapshot.assistant_state = "muted" if self.local_data.muted() else "idle"
             self.snapshot.last_action = "Waiting for confirmation."
-            await self._speak_and_store(prompt)
+            await self._store_response_text(prompt)
             await asyncio.to_thread(self.dialogue_state.set_last_response, prompt)
             self.append_turn("system", prompt, kind="confirmation", status="pending")
             self.mark_dirty("runtime")
@@ -1454,7 +1564,6 @@ class KernOrchestrator:
                 transcript=effective_transcript,
                 intent_type=parsed.intent_type,
                 response_text=prompt,
-                spoken=self.tts.enabled,
                 tool_calls=[self.capabilities.build_request(step, effective_transcript, trigger) for step in plan.steps],
                 plan=plan,
                 candidates=analysis.candidates,
@@ -1469,7 +1578,6 @@ class KernOrchestrator:
             transcript=effective_transcript,
             intent_type=parsed.intent_type,
             response_text=reply,
-            spoken=self.tts.enabled,
             tool_calls=[self.capabilities.build_request(step, effective_transcript, trigger) for step in plan.steps],
             plan=plan,
             candidates=analysis.candidates,
@@ -1487,8 +1595,8 @@ class KernOrchestrator:
         if not pending or plan is None:
             return
         if not approved:
-            text = "Understood. I will not proceed."
-            await self._speak_and_store(text)
+            text = "I will not proceed."
+            await self._store_response_text(text)
             self.snapshot.response_text = text
             self.snapshot.last_action = "Action cancelled."
             self.snapshot.assistant_state = "muted" if self.local_data.muted() else "idle"
@@ -1518,8 +1626,6 @@ class KernOrchestrator:
         self.snapshot.assistant_mode = "proactive"
         self.append_turn("system", prompt.message, kind="proactive")
         self.add_history("system", f"Proactive: {prompt.reason}")
-        if self.tts.enabled and not self.local_data.muted():
-            self.tts.speak(prompt.message)
         self.mark_dirty("context", "runtime")
         await self.broadcast(reason="proactive_prompt")
 
@@ -1539,7 +1645,6 @@ class KernOrchestrator:
                     result = ToolResult(
                         status="failed",
                         display_text=f"Unknown capability: {step.capability_name}.",
-                        spoken_text="I do not have that capability available.",
                         suggested_follow_up="Use a registered capability name or fix planner output.",
                     )
                     receipt = self.verifier.verify(request, result)
@@ -1561,7 +1666,6 @@ class KernOrchestrator:
                     result = ToolResult(
                         status="failed",
                         display_text=message,
-                        spoken_text=message,
                         evidence=[availability_note] if availability_note else [],
                         suggested_follow_up=availability_note,
                     )
@@ -1581,13 +1685,12 @@ class KernOrchestrator:
                     break
                 preamble = self._tool_preamble(request)
                 if preamble:
-                    await self._speak_and_store(preamble, wait=True)
+                    await self._store_response_text(preamble, wait=True)
                 validation_error = capability.tool.validate_arguments(request.arguments)
                 if validation_error:
                     result = ToolResult(
                         status="failed",
                         display_text=validation_error,
-                        spoken_text="That request had invalid arguments.",
                         suggested_follow_up="Review the required arguments and retry the action.",
                     )
                     receipt = self.verifier.verify(request, result)
@@ -1611,7 +1714,6 @@ class KernOrchestrator:
                     result = ToolResult(
                         status="failed",
                         display_text=f"{request.tool_name} timed out.",
-                        spoken_text=self.brain.failure_reply(self.local_data.preferred_title()),
                         suggested_follow_up="Try the request again or reduce the scope of the action.",
                         data={"timeout_seconds": timeout_seconds},
                     )
@@ -1620,7 +1722,6 @@ class KernOrchestrator:
                     result = ToolResult(
                         status="failed",
                         display_text=f"{request.tool_name} failed.",
-                        spoken_text=self.brain.failure_reply(self.local_data.preferred_title()),
                         data={},
                     )
                 receipt = self.verifier.verify(request, result)
@@ -1632,8 +1733,6 @@ class KernOrchestrator:
                 self._receipt_cache_ready = True
                 self.snapshot.verification_state = f"{receipt.capability_name}: {receipt.status}"
                 self._apply_tool_result(result)
-                if result.spoken_text:
-                    await self._speak_and_store(result.spoken_text)
                 self.snapshot.response_text = result.display_text
                 self.snapshot.last_action = result.display_text
                 await asyncio.to_thread(self.dialogue_state.set_last_response, result.display_text)
@@ -1705,7 +1804,6 @@ class KernOrchestrator:
     def _dialogue_context(self) -> dict[str, str]:
         next_event = self.local_data.next_upcoming_event()
         return {
-            "last_media_query": self.dialogue_state.get_last_media_query() or "",
             "last_response": self.dialogue_state.get_last_response() or "",
             "last_announced_reminder_id": str(self.dialogue_state.get_last_announced_reminder_id() or ""),
             "last_listed_reminder_ids": ",".join(str(item) for item in self.dialogue_state.get_last_listed_reminder_ids()),
@@ -1893,13 +1991,8 @@ class KernOrchestrator:
             logger.debug("LLM summarize results failed: %s", exc, exc_info=True)
         return None
 
-    async def _speak_and_store(self, text: str, wait: bool = False) -> None:
+    async def _store_response_text(self, text: str, wait: bool = False) -> None:
         self.snapshot.response_text = text
-        if self.tts.enabled and not self.local_data.muted():
-            if wait:
-                await asyncio.to_thread(self.tts.speak_and_wait, text)
-            else:
-                self.tts.speak(text)
         await asyncio.to_thread(self.memory.append_conversation_summary, text)
         await asyncio.to_thread(self.dialogue_state.set_last_response, text)
         self.mark_dirty("conversation", "runtime")
@@ -1930,7 +2023,6 @@ class KernOrchestrator:
         self.snapshot.proactive_prompt = None
         self.snapshot.conversation_turns = []
         self.dialogue_state.set_last_response("")
-        self.dialogue_state.set_last_media_query("")
         self.mark_dirty("conversation", "context", "runtime")
         self.add_history("system", self.snapshot.last_action)
 

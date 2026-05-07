@@ -88,7 +88,7 @@ class GermanBusinessService:
         ]
         if vat_exempt:
             content_lines.append("")
-            content_lines.append("Gemäß §19 UStG wird keine Umsatzsteuer berechnet.")
+            content_lines.append("GemÃ¤ÃŸ Â§19 UStG wird keine Umsatzsteuer berechnet.")
         content_lines.append("")
         content_lines.append("_Entwurf. Vor Versand pruefen._")
         content = "\n".join(content_lines)
@@ -118,7 +118,7 @@ class GermanBusinessService:
         ]
         if vat_exempt:
             content_lines.append("")
-            content_lines.append("Gemäß §19 UStG wird keine Umsatzsteuer berechnet.")
+            content_lines.append("GemÃ¤ÃŸ Â§19 UStG wird keine Umsatzsteuer berechnet.")
         content_lines.append("")
         content_lines.append("_Entwurf. Buchhalterisch und steuerlich pruefen._")
         content = "\n".join(content_lines)
@@ -260,7 +260,7 @@ class GermanBusinessService:
             "total_gross": float(total_gross),
         }
         if vat_exempt:
-            result["vat_exempt_note"] = "Gemäß §19 UStG wird keine Umsatzsteuer berechnet."
+            result["vat_exempt_note"] = "GemÃ¤ÃŸ Â§19 UStG wird keine Umsatzsteuer berechnet."
         return result
 
     def _ensure_default_compliance_rules(self) -> None:
@@ -303,7 +303,7 @@ class GermanBusinessService:
                         logger.warning("Failed to parse checkpoint payload JSON: %s", exc)
             document_id = str(payload.get("document_id", "") or "")
             file_path = str(payload.get("file_path", "") or "")
-            with contextlib.suppress(Exception):  # cleanup — best-effort
+            with contextlib.suppress(Exception):  # cleanup â€” best-effort
                 if file_path:
                     Path(file_path).unlink(missing_ok=True)
             if document_id:
@@ -414,7 +414,7 @@ class GermanBusinessService:
                 self.platform.record_audit("german_business", kind, "success", f"Created {title}.", profile_slug=self.profile.slug)
             return document
         except Exception as exc:
-            with contextlib.suppress(Exception):  # cleanup — best-effort
+            with contextlib.suppress(Exception):  # cleanup â€” best-effort
                 if target_path.exists():
                     target_path.unlink()
             if self.platform:
@@ -513,10 +513,10 @@ class GermanBusinessService:
             "GEWERBEANMELDUNG",
             f"Firma: {metadata['firmenname']}",
             f"Rechtsform: {metadata['rechtsform']}",
-            f"Geschäftsführer: {metadata['geschaeftsfuehrer']}",
+            f"GeschÃ¤ftsfÃ¼hrer: {metadata['geschaeftsfuehrer']}",
             f"Anschrift: {metadata['anschrift']}",
             f"Gegenstand des Gewerbes: {metadata['gegenstand']}",
-            f"Beginn der Tätigkeit: {metadata['beginn_datum']}",
+            f"Beginn der TÃ¤tigkeit: {metadata['beginn_datum']}",
         ]
         if metadata["handelsregister"]:
             content_lines.append(f"Handelsregister: {metadata['handelsregister']}")
@@ -525,7 +525,7 @@ class GermanBusinessService:
         if metadata["ust_id"]:
             content_lines.append(f"USt-IdNr.: {metadata['ust_id']}")
         if metadata["kleinunternehmer"]:
-            content_lines.append("Hinweis: Kleinunternehmerregelung gemäß §19 UStG angewendet.")
+            content_lines.append("Hinweis: Kleinunternehmerregelung gemÃ¤ÃŸ Â§19 UStG angewendet.")
 
         file_path = self._business_root / f"gewerbeanmeldung_{doc_id[:8]}.txt"
         file_path.write_text("\n".join(content_lines), encoding="utf-8")
@@ -554,32 +554,32 @@ class GermanBusinessService:
                     "description": "Chat-Nachrichten zwischen Benutzer und KI-Assistent",
                     "legal_basis": "Berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO)",
                     "retention_days": self.memory.CONVERSATION_RETENTION,
-                    "storage": "Lokale SQLite-Datenbank (verschlüsselt)",
-                    "recipients": "Keine — alle Daten bleiben lokal",
+                    "storage": "Lokale SQLite-Datenbank (verschlÃ¼sselt)",
+                    "recipients": "Keine â€” alle Daten bleiben lokal",
                 },
                 {
                     "category": "E-Mail-Nachrichten",
                     "description": "Synchronisierte E-Mails aus dem Posteingang",
                     "legal_basis": "Einwilligung / Berechtigtes Interesse",
                     "retention_days": settings.retention_email_days,
-                    "storage": "Lokale SQLite-Datenbank (verschlüsselt)",
-                    "recipients": "Keine — alle Daten bleiben lokal",
+                    "storage": "Lokale SQLite-Datenbank (verschlÃ¼sselt)",
+                    "recipients": "Keine â€” alle Daten bleiben lokal",
                 },
                 {
                     "category": "Dokumente",
                     "description": "Hochgeladene und indexierte Dokumente",
-                    "legal_basis": "Einwilligung / Vertragserfüllung",
+                    "legal_basis": "Einwilligung / VertragserfÃ¼llung",
                     "retention_days": settings.retention_documents_days,
                     "storage": "Lokale Dateien + SQLite-Index",
-                    "recipients": "Keine — alle Daten bleiben lokal",
+                    "recipients": "Keine â€” alle Daten bleiben lokal",
                 },
                 {
-                    "category": "Wissensgraph-Entitäten",
+                    "category": "Wissensgraph-EntitÃ¤ten",
                     "description": "Extrahierte Personen, Firmen, Daten aus Dokumenten",
                     "legal_basis": "Berechtigtes Interesse",
                     "retention_days": settings.retention_documents_days,
                     "storage": "Lokale SQLite-Datenbank",
-                    "recipients": "Keine — alle Daten bleiben lokal",
+                    "recipients": "Keine â€” alle Daten bleiben lokal",
                 },
                 {
                     "category": "Audit-Protokoll",
@@ -587,17 +587,17 @@ class GermanBusinessService:
                     "legal_basis": "Berechtigtes Interesse / Rechenschaftspflicht",
                     "retention_days": settings.retention_audit_days,
                     "storage": "Lokale SQLite-Datenbank",
-                    "recipients": "Keine — alle Daten bleiben lokal",
+                    "recipients": "Keine â€” alle Daten bleiben lokal",
                 },
             ],
             "technical_measures": [
-                "Fernet-Verschlüsselung für Profildatenbanken",
-                "Keine Cloud-Verbindungen — vollständig lokale Verarbeitung",
-                "Netzwerküberwachung zur Erkennung unbeabsichtigter Verbindungen",
-                "Zugriffskontrolle über Profil-PIN",
-                "Automatische Aufbewahrungsfristen mit konfigurierbarer Löschung",
+                "Fernet-VerschlÃ¼sselung fÃ¼r Profildatenbanken",
+                "Keine Cloud-Verbindungen â€” vollstÃ¤ndig lokale Verarbeitung",
+                "NetzwerkÃ¼berwachung zur Erkennung unbeabsichtigter Verbindungen",
+                "Zugriffskontrolle Ã¼ber Profil-PIN",
+                "Automatische Aufbewahrungsfristen mit konfigurierbarer LÃ¶schung",
             ],
-            "data_subject_rights": "Betroffene können Auskunft, Berichtigung und Löschung über die KERN-Oberfläche oder per Antrag anfordern.",
+            "data_subject_rights": "Betroffene kÃ¶nnen Auskunft, Berichtigung und LÃ¶schung Ã¼ber die KERN-OberflÃ¤che oder per Antrag anfordern.",
         }
         return inventory
 
@@ -613,42 +613,42 @@ class GermanBusinessService:
 
         templates = {
             "auskunft": (
-                f"Betreff: Auskunftsersuchen gemäß Art. 15 DSGVO\n\n"
+                f"Betreff: Auskunftsersuchen gemÃ¤ÃŸ Art. 15 DSGVO\n\n"
                 f"Datum: {date_str}\n\n"
                 f"Sehr geehrte(r) {dpo_name},\n\n"
-                f"hiermit bitte ich gemäß Art. 15 DSGVO um Auskunft über die zu meiner Person "
+                f"hiermit bitte ich gemÃ¤ÃŸ Art. 15 DSGVO um Auskunft Ã¼ber die zu meiner Person "
                 f"gespeicherten personenbezogenen Daten.\n\n"
                 f"Bitte teilen Sie mir insbesondere mit:\n"
-                f"- Welche personenbezogenen Daten über mich gespeichert sind\n"
+                f"- Welche personenbezogenen Daten Ã¼ber mich gespeichert sind\n"
                 f"- Den Zweck der Datenverarbeitung\n"
-                f"- Die Empfänger, an die meine Daten weitergegeben wurden\n"
+                f"- Die EmpfÃ¤nger, an die meine Daten weitergegeben wurden\n"
                 f"- Die geplante Speicherdauer\n\n"
-                f"Bitte übermitteln Sie mir die Auskunft schriftlich an meine Adresse oder "
+                f"Bitte Ã¼bermitteln Sie mir die Auskunft schriftlich an meine Adresse oder "
                 f"per E-Mail.\n\n"
-                f"Mit freundlichen Grüßen,\n[Ihr Name]\n[Ihre Adresse]"
+                f"Mit freundlichen GrÃ¼ÃŸen,\n[Ihr Name]\n[Ihre Adresse]"
             ),
             "loeschung": (
-                f"Betreff: Antrag auf Löschung gemäß Art. 17 DSGVO\n\n"
+                f"Betreff: Antrag auf LÃ¶schung gemÃ¤ÃŸ Art. 17 DSGVO\n\n"
                 f"Datum: {date_str}\n\n"
                 f"Sehr geehrte(r) {dpo_name},\n\n"
-                f"hiermit fordere ich gemäß Art. 17 DSGVO die unverzügliche Löschung "
+                f"hiermit fordere ich gemÃ¤ÃŸ Art. 17 DSGVO die unverzÃ¼gliche LÃ¶schung "
                 f"aller zu meiner Person gespeicherten personenbezogenen Daten.\n\n"
-                f"Bitte bestätigen Sie die vollständige Löschung schriftlich.\n\n"
-                f"Mit freundlichen Grüßen,\n[Ihr Name]\n[Ihre Adresse]"
+                f"Bitte bestÃ¤tigen Sie die vollstÃ¤ndige LÃ¶schung schriftlich.\n\n"
+                f"Mit freundlichen GrÃ¼ÃŸen,\n[Ihr Name]\n[Ihre Adresse]"
             ),
             "berichtigung": (
-                f"Betreff: Antrag auf Berichtigung gemäß Art. 16 DSGVO\n\n"
+                f"Betreff: Antrag auf Berichtigung gemÃ¤ÃŸ Art. 16 DSGVO\n\n"
                 f"Datum: {date_str}\n\n"
                 f"Sehr geehrte(r) {dpo_name},\n\n"
-                f"hiermit beantrage ich gemäß Art. 16 DSGVO die Berichtigung folgender "
+                f"hiermit beantrage ich gemÃ¤ÃŸ Art. 16 DSGVO die Berichtigung folgender "
                 f"unrichtiger personenbezogener Daten:\n\n"
                 f"Falsche Angabe: [Bitte eintragen]\n"
                 f"Richtige Angabe: [Bitte eintragen]\n\n"
-                f"Bitte bestätigen Sie die Berichtigung schriftlich.\n\n"
-                f"Mit freundlichen Grüßen,\n[Ihr Name]\n[Ihre Adresse]"
+                f"Bitte bestÃ¤tigen Sie die Berichtigung schriftlich.\n\n"
+                f"Mit freundlichen GrÃ¼ÃŸen,\n[Ihr Name]\n[Ihre Adresse]"
             ),
         }
-        return templates.get(request_type.lower(), f"Unbekannter Antragstyp: {request_type}. Gültige Typen: auskunft, loeschung, berichtigung.")
+        return templates.get(request_type.lower(), f"Unbekannter Antragstyp: {request_type}. GÃ¼ltige Typen: auskunft, loeschung, berichtigung.")
 
     def create_tax_calendar_reminders(self, scheduler_service=None) -> list[dict]:
         """Create scheduled reminders for German tax deadlines.
@@ -659,37 +659,37 @@ class GermanBusinessService:
             {
                 "title": "USt-Voranmeldung (monatlich)",
                 "cron": "0 9 8 * *",
-                "description": "Umsatzsteuervoranmeldung fällig am 10. des Folgemonats",
+                "description": "Umsatzsteuervoranmeldung fÃ¤llig am 10. des Folgemonats",
             },
             {
                 "title": "Lohnsteuer-Anmeldung",
                 "cron": "0 9 8 * *",
-                "description": "Lohnsteuer-Anmeldung fällig am 10. des Folgemonats",
+                "description": "Lohnsteuer-Anmeldung fÃ¤llig am 10. des Folgemonats",
             },
             {
                 "title": "KSt/ESt Vorauszahlung Q1",
                 "cron": "0 9 5 3 *",
-                "description": "Körperschaftsteuer/Einkommensteuer Vorauszahlung fällig am 10. März",
+                "description": "KÃ¶rperschaftsteuer/Einkommensteuer Vorauszahlung fÃ¤llig am 10. MÃ¤rz",
             },
             {
                 "title": "KSt/ESt Vorauszahlung Q2",
                 "cron": "0 9 5 6 *",
-                "description": "Körperschaftsteuer/Einkommensteuer Vorauszahlung fällig am 10. Juni",
+                "description": "KÃ¶rperschaftsteuer/Einkommensteuer Vorauszahlung fÃ¤llig am 10. Juni",
             },
             {
                 "title": "KSt/ESt Vorauszahlung Q3",
                 "cron": "0 9 5 9 *",
-                "description": "Körperschaftsteuer/Einkommensteuer Vorauszahlung fällig am 10. September",
+                "description": "KÃ¶rperschaftsteuer/Einkommensteuer Vorauszahlung fÃ¤llig am 10. September",
             },
             {
                 "title": "KSt/ESt Vorauszahlung Q4",
                 "cron": "0 9 5 12 *",
-                "description": "Körperschaftsteuer/Einkommensteuer Vorauszahlung fällig am 10. Dezember",
+                "description": "KÃ¶rperschaftsteuer/Einkommensteuer Vorauszahlung fÃ¤llig am 10. Dezember",
             },
             {
                 "title": "Jahresabschluss-Erinnerung",
                 "cron": "0 9 1 11 *",
-                "description": "Jahresabschluss für das vergangene Geschäftsjahr vorbereiten (Frist: 31.12.)",
+                "description": "Jahresabschluss fÃ¼r das vergangene GeschÃ¤ftsjahr vorbereiten (Frist: 31.12.)",
             },
         ]
         created = []

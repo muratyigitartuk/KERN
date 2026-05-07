@@ -30,17 +30,16 @@ from app.types import (
 
 
 class FreeformIntelligenceService:
-    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÄÖÜäöüß]+")
-    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÄÖÜäöüß@._+-]+")
-    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÄÖÜäöüß]+")
-    QUERY_TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÄÖÜäöüß]+")
+    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ]+")
+    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ@._+-]+")
+    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ]+")
+    QUERY_TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ]+")
     PREPARED_WORK_MARKERS = (
         "what should",
         "what next",
         "follow up",
         "follow-up",
-        "draft",
-        "reply",
+        "prepared work",
         "review",
         "finalize",
         "export",
@@ -113,17 +112,8 @@ class FreeformIntelligenceService:
             actor_user_id=actor_user_id,
             selected_document_ids=selected_document_ids,
         )
-        mailbox_messages = self.memory.list_mailbox_messages(limit=24)
-        drafts = self.memory.list_email_drafts(limit=24)
-        contacts = self._build_contact_index(mailbox_messages=mailbox_messages, drafts=drafts)
-        matched_contacts = self._match_contacts(lowered, query_terms=query_terms, contacts=contacts)
-        thread_candidates = self._match_threads(
-            lowered,
-            query_terms=query_terms,
-            mailbox_messages=mailbox_messages,
-            drafts=drafts,
-            matched_contacts=matched_contacts,
-        )
+        matched_contacts: list[dict[str, Any]] = []
+        thread_candidates: list[dict[str, Any]] = []
 
         scores: dict[str, float] = defaultdict(float)
         reasons: dict[str, list[str]] = defaultdict(list)
@@ -152,7 +142,7 @@ class FreeformIntelligenceService:
                 scores["thread_qa"],
                 0.34 + min(0.48, len(thread_candidates) * 0.14) + min(0.18, thread_hits * 0.08),
             )
-            reasons["thread_qa"].append("Mailbox and draft history matched the request like a thread lookup.")
+            reasons["thread_qa"].append("Local thread context matched the request.")
             linked_refs.extend(candidate["refs"][:2] for candidate in thread_candidates[:2])  # type: ignore[arg-type]
         elif thread_hits:
             scores["thread_qa"] = 0.42
@@ -220,6 +210,11 @@ class FreeformIntelligenceService:
                 ambiguity_count = len(matched_contacts[:3])
                 clarification_reason = "Multiple plausible contacts share that local name."
         accept_threshold = {
+            "document_qa": 0.47,
+            "document_citation": 0.47,
+            "document_summary": 0.47,
+            "document_key_sections": 0.47,
+            "document_compare": 0.47,
             "prepared_work": 0.5,
             "thread_qa": 0.58,
             "person_context": 0.54,
@@ -227,6 +222,11 @@ class FreeformIntelligenceService:
             "cross_context_question": 0.74,
         }.get(top_family, 0.72)
         clarify_threshold = {
+            "document_qa": 0.35,
+            "document_citation": 0.35,
+            "document_summary": 0.35,
+            "document_key_sections": 0.35,
+            "document_compare": 0.35,
             "prepared_work": 0.36,
             "thread_qa": 0.4,
             "person_context": 0.38,
@@ -341,17 +341,8 @@ class FreeformIntelligenceService:
         )
         lowered = transcript.lower()
         query_terms = self._query_terms(transcript)
-        mailbox_messages = self.memory.list_mailbox_messages(limit=30)
-        drafts = self.memory.list_email_drafts(limit=20)
-        contacts = self._build_contact_index(mailbox_messages=mailbox_messages, drafts=drafts)
-        matched_contacts = self._match_contacts(lowered, query_terms=query_terms, contacts=contacts)
-        thread_candidates = self._match_threads(
-            lowered,
-            query_terms=query_terms,
-            mailbox_messages=mailbox_messages,
-            drafts=drafts,
-            matched_contacts=matched_contacts,
-        )
+        matched_contacts: list[dict[str, Any]] = []
+        thread_candidates: list[dict[str, Any]] = []
         recommendations = self.recommendation_lister(
             organization_id=organization_id,
             workspace_slug=workspace_slug or self.profile.slug,
@@ -416,11 +407,11 @@ class FreeformIntelligenceService:
                 label="Thread target is resolved",
                 status="supported" if selected_candidate else "missing",
                 evidence_refs=[
-                    ClaimEvidenceRef(ref_id=ref, source_type="mailbox_thread" if ref.startswith("mailbox:") else "email_draft", title=selected_candidate["title"])
+                    ClaimEvidenceRef(ref_id=ref, source_type="local_thread_context", title=selected_candidate["title"])
                     for ref in resolved_refs[:3]
                 ],
-                rationale="Thread questions need one clear thread or draft chain target.",
-                derived_from=["mailbox_messages", "email_drafts"],
+                rationale="Thread questions need one clear local context target.",
+                derived_from=["structured_memory_items", "context_links"],
             ),
             ClaimRecord(
                 id=self._stable_id("thread-claim", transcript, "history"),
@@ -431,7 +422,7 @@ class FreeformIntelligenceService:
                     for ref in self._flatten_refs([item["refs"][:1] for item in matched_contacts[:2]])
                 ],
                 rationale="Thread answers are stronger when KERN can connect the thread to recurring contact history.",
-                derived_from=["context_links", "mailbox_messages", "email_drafts"],
+                derived_from=["context_links", "structured_memory_items"],
             ),
         ]
         negative_evidence: list[NegativeEvidenceRecord] = []
@@ -441,14 +432,14 @@ class FreeformIntelligenceService:
                 NegativeEvidenceRecord(
                     id=self._stable_id("thread-neg", transcript, "target"),
                     expected_signal="resolved thread target",
-                    searched_sources=["mailbox_messages", "email_drafts"],
-                    detail=clarification_reason or "KERN could not resolve one clear prior thread from local email state.",
+                    searched_sources=["structured_memory_items", "context_links"],
+                    detail=clarification_reason or "KERN could not resolve one clear prior thread from local context.",
                 )
             )
             missing_inputs.append(
                 MissingInputRecord(
                     id=self._stable_id("thread-missing", transcript, "target"),
-                    label="Choose the thread or email chain",
+                    label="Choose the local thread or context target",
                     reason=clarification_reason or "KERN needs a clearer thread target before answering confidently.",
                     required_for="thread_qa",
                     severity="warning",
@@ -481,7 +472,7 @@ class FreeformIntelligenceService:
                 label="Thread target resolved",
                 node_type="thread_target",
                 state="verified" if selected_candidate else "missing",
-                reason=clarification_reason or "A clear prior email thread is required.",
+                reason=clarification_reason or "A clear prior local thread is required.",
                 required=True,
                 source_refs=resolved_refs[:4],
             ),
@@ -511,7 +502,7 @@ class FreeformIntelligenceService:
             task_intent=intent,
             query_text=transcript,
             title=selected_candidate["title"] if selected_candidate else "Thread context",
-            summary="Grounded thread context from local mailbox, draft, and memory state.",
+            summary="Grounded thread context from local structured memory and context links.",
             thread_refs=resolved_refs,
             linked_entity_refs=self._flatten_refs([resolved_refs, *[item["refs"][:2] for item in matched_contacts[:2]]])[:12],
             resolution_confidence=round(intent.confidence if selected_candidate else min(0.69, intent.confidence), 4),
@@ -551,10 +542,7 @@ class FreeformIntelligenceService:
         )
         lowered = transcript.lower()
         query_terms = self._query_terms(transcript)
-        mailbox_messages = self.memory.list_mailbox_messages(limit=30)
-        drafts = self.memory.list_email_drafts(limit=20)
-        contacts = self._build_contact_index(mailbox_messages=mailbox_messages, drafts=drafts)
-        matched_contacts = self._match_contacts(lowered, query_terms=query_terms, contacts=contacts)
+        matched_contacts: list[dict[str, Any]] = []
         recommendations = self.recommendation_lister(
             organization_id=organization_id,
             workspace_slug=workspace_slug or self.profile.slug,
@@ -612,7 +600,7 @@ class FreeformIntelligenceService:
                     for ref in contact_refs[:3]
                 ] if selected_contact else [],
                 rationale="People-aware answers need one grounded identity target.",
-                derived_from=["mailbox_messages", "email_drafts"],
+                derived_from=["structured_memory_items", "context_links"],
             ),
             ClaimRecord(
                 id=self._stable_id("person-claim", transcript, "history"),
@@ -623,7 +611,7 @@ class FreeformIntelligenceService:
                     for item in (selected_contact["interactions"][:3] if selected_contact else [])
                 ],
                 rationale="KERN should not make a person-context answer feel strong without recent grounded interactions.",
-                derived_from=["mailbox_messages", "email_drafts"],
+                derived_from=["structured_memory_items", "context_links"],
             ),
         ]
         negative_evidence: list[NegativeEvidenceRecord] = []
@@ -633,7 +621,7 @@ class FreeformIntelligenceService:
                 NegativeEvidenceRecord(
                     id=self._stable_id("person-neg", transcript, "identity"),
                     expected_signal="resolved contact identity",
-                    searched_sources=["mailbox_messages", "email_drafts", "structured_memory_items"],
+                    searched_sources=["structured_memory_items", "context_links"],
                     detail=clarification_reason or "KERN could not resolve one clear customer/contact from local context.",
                 )
             )
@@ -743,200 +731,13 @@ class FreeformIntelligenceService:
             return "thread"
         if any(marker in lowered for marker in self.PERSON_MARKERS) or "what matters for" in lowered:
             return "person"
-        if any(ref.startswith("mailbox:") or ref.startswith("draft:") for ref in intent.linked_entity_refs):
-            return "thread"
         return "generic"
 
-    def _build_contact_index(self, *, mailbox_messages: list[Any], drafts: list[Any]) -> dict[str, dict[str, Any]]:
-        contacts: dict[str, dict[str, Any]] = {}
-        for message in mailbox_messages:
-            participants = [message.sender, *(message.recipients or [])]
-            for raw_contact in participants:
-                normalized = self._normalize_contact(raw_contact)
-                if not normalized:
-                    continue
-                bucket = contacts.setdefault(
-                    normalized,
-                    {"label": normalized, "refs": [], "interactions": [], "names": set()},
-                )
-                ref_id = f"mailbox:{message.id}"
-                bucket["refs"].append(ref_id)
-                bucket["interactions"].append(
-                    {
-                        "ref_id": ref_id,
-                        "title": message.subject or normalized,
-                        "summary": f"{message.folder}: {message.subject or 'message'}",
-                        "kind": "mailbox_message",
-                        "subject": message.subject,
-                        "contact": normalized,
-                    }
-                )
-        for draft in drafts:
-            participants = [*(draft.to or []), *(draft.cc or [])]
-            for raw_contact in participants:
-                normalized = self._normalize_contact(raw_contact)
-                if not normalized:
-                    continue
-                bucket = contacts.setdefault(
-                    normalized,
-                    {"label": normalized, "refs": [], "interactions": [], "names": set()},
-                )
-                ref_id = f"draft:{draft.id or self._stable_id('draft', draft.subject, normalized)}"
-                bucket["refs"].append(ref_id)
-                bucket["interactions"].append(
-                    {
-                        "ref_id": ref_id,
-                        "title": draft.subject or normalized,
-                        "summary": f"Draft: {draft.subject or 'draft'}",
-                        "kind": "email_draft",
-                        "subject": draft.subject,
-                        "contact": normalized,
-                    }
-                )
-        for item in contacts.values():
-            item["refs"] = list(dict.fromkeys(item["refs"]))
-            item["interactions"] = sorted(
-                item["interactions"],
-                key=lambda interaction: interaction["ref_id"],
-                reverse=True,
-            )
-        return contacts
-
-    def _match_contacts(
-        self,
-        lowered: str,
-        *,
-        query_terms: list[str],
-        contacts: dict[str, dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        matches: list[dict[str, Any]] = []
-        for label, payload in contacts.items():
-            label_tokens = set(self._query_terms(label))
-            overlap = len(label_tokens.intersection(query_terms))
-            if overlap <= 0 and label not in lowered:
-                continue
-            interaction_hits = min(4, len(payload["interactions"]))
-            outcome_boost = self._interaction_link_boost(payload["refs"][:4], packet_types={"person_context", "thread_context"})
-            link_boost = min(
-                0.12,
-                len(
-                    self.memory.list_context_link_records(
-                        workspace_slug=self.profile.slug,
-                        source_ref=payload["refs"][0] if payload["refs"] else None,
-                        limit=6,
-                    )
-                )
-                * 0.03,
-            ) if payload["refs"] else 0.0
-            score = min(0.96, 0.28 + (overlap * 0.18) + (interaction_hits * 0.06) + link_boost + outcome_boost)
-            matches.append(
-                {
-                    "label": label,
-                    "refs": list(payload["refs"]),
-                    "interactions": list(payload["interactions"]),
-                    "score": score,
-                }
-            )
-        matches.sort(key=lambda item: (-item["score"], item["label"]))
-        return matches[:6]
-
-    def _match_threads(
-        self,
-        lowered: str,
-        *,
-        query_terms: list[str],
-        mailbox_messages: list[Any],
-        drafts: list[Any],
-        matched_contacts: list[dict[str, Any]],
-    ) -> list[dict[str, Any]]:
-        grouped: dict[str, dict[str, Any]] = {}
-        contact_labels = {self._normalize_contact(item["label"]) for item in matched_contacts[:4] if item.get("label")}
-        for message in mailbox_messages:
-            subject = (message.subject or "").strip()
-            if not subject:
-                continue
-            normalized_subject = re.sub(r"^(re:|fw:|fwd:)\s*", "", subject, flags=re.IGNORECASE).strip().lower()
-            entry = grouped.setdefault(
-                normalized_subject,
-                {"title": subject, "entries": [], "refs": [], "score": 0.0, "contact_refs": set()},
-            )
-            ref_id = f"mailbox:{message.id}"
-            entry["entries"].append(
-                {
-                    "ref_id": ref_id,
-                    "title": subject,
-                    "summary": f"{message.folder}: {subject}",
-                    "kind": "mailbox_message",
-                    "subject": subject,
-                    "contact": self._normalize_contact(message.sender),
-                }
-            )
-            entry["refs"].append(ref_id)
-            if self._normalize_contact(message.sender):
-                entry["contact_refs"].add(self._normalize_contact(message.sender))
-            for recipient in message.recipients or []:
-                normalized_contact = self._normalize_contact(recipient)
-                if normalized_contact:
-                    entry["contact_refs"].add(normalized_contact)
-        for draft in drafts:
-            subject = (draft.subject or "").strip()
-            if not subject:
-                continue
-            normalized_subject = re.sub(r"^(re:|fw:|fwd:)\s*", "", subject, flags=re.IGNORECASE).strip().lower()
-            entry = grouped.setdefault(
-                normalized_subject,
-                {"title": subject, "entries": [], "refs": [], "score": 0.0, "contact_refs": set()},
-            )
-            ref_id = f"draft:{draft.id or self._stable_id('draft', subject)}"
-            entry["entries"].append(
-                {
-                    "ref_id": ref_id,
-                    "title": subject,
-                    "summary": f"Draft: {subject}",
-                    "kind": "email_draft",
-                    "subject": subject,
-                    "contact": self._normalize_contact((draft.to or [""])[0] if draft.to else ""),
-                }
-            )
-            entry["refs"].append(ref_id)
-            for recipient in [*(draft.to or []), *(draft.cc or [])]:
-                normalized_contact = self._normalize_contact(recipient)
-                if normalized_contact:
-                    entry["contact_refs"].add(normalized_contact)
-        matches: list[dict[str, Any]] = []
-        for subject_key, payload in grouped.items():
-            subject_terms = set(self._query_terms(subject_key))
-            overlap = len(subject_terms.intersection(query_terms))
-            contact_overlap = len(payload["contact_refs"].intersection(contact_labels))
-            explicit_match = subject_key in lowered
-            if overlap <= 0 and not explicit_match and not contact_overlap and not any(marker in lowered for marker in self.THREAD_MARKERS):
-                continue
-            outcome_boost = self._interaction_link_boost(payload["refs"][:4], packet_types={"thread_context"})
-            link_boost = min(
-                0.12,
-                len(
-                    self.memory.list_context_link_records(
-                        workspace_slug=self.profile.slug,
-                        source_ref=payload["refs"][0] if payload["refs"] else None,
-                        limit=6,
-                    )
-                )
-                * 0.03,
-            ) if payload["refs"] else 0.0
-            score = min(
-                0.97,
-                0.26 + (overlap * 0.14) + (len(payload["entries"][:4]) * 0.07) + (contact_overlap * 0.08) + link_boost + outcome_boost + (0.08 if explicit_match else 0.0),
-            )
-            matches.append(
-                {
-                    "title": payload["title"],
-                    "refs": list(dict.fromkeys(payload["refs"]))[:8],
-                    "entries": list(payload["entries"])[:6],
-                    "score": score,
-                }
-            )
-        matches.sort(key=lambda item: (-item["score"], item["title"]))
-        return matches[:6]
+    def _query_terms(self, text: str) -> list[str]:
+        return [
+            term.lower()
+            for term in re.findall(r"[^\W\d_]{2,}|[0-9]+(?:[.,][0-9]+)*", text, flags=re.UNICODE)
+        ]
 
     def _related_recommendations(
         self,
@@ -1074,26 +875,6 @@ class FreeformIntelligenceService:
         if related_rec_titles:
             parts.append("Related work right now: " + "; ".join(related_rec_titles[:2]) + ".")
         return " ".join(parts)
-
-    def _normalize_contact(self, raw_value: str | None) -> str:
-        value = (raw_value or "").strip().lower()
-        if not value:
-            return ""
-        angle_match = re.search(r"<([^>]+)>", value)
-        if angle_match:
-            value = angle_match.group(1).strip().lower()
-        value = value.replace('"', "").strip()
-        return value
-
-    def _query_terms(self, transcript: str) -> list[str]:
-        seen: set[str] = set()
-        terms: list[str] = []
-        for token in self.QUERY_TOKEN_PATTERN.findall(transcript.lower()):
-            if len(token) < 3 or token in seen:
-                continue
-            seen.add(token)
-            terms.append(token)
-        return terms[:18]
 
     def _flatten_refs(self, refs: list[Any]) -> list[str]:
         flattened: list[str] = []

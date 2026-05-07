@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class RetrievalService:
     BACKEND_NAME = "local_tfidf"
-    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÄÖÜäöüß]+")
+    TOKEN_PATTERN = re.compile(r"[0-9A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ]+")
 
     QUERY_SYNONYMS: dict[str, tuple[str, ...]] = {
         "angebot": ("offer",),
@@ -35,9 +35,9 @@ class RetrievalService:
         "betrag": ("amount", "total"),
         "summe": ("amount", "total"),
         "faellig": ("due",),
-        "fällig": ("due",),
+        "fÃ¤llig": ("due",),
         "faelligkeit": ("due", "date"),
-        "fälligkeit": ("due", "date"),
+        "fÃ¤lligkeit": ("due", "date"),
         "lieferant": ("contact", "supplier"),
         "ust": ("vat",),
         "ustidnr": ("vat", "id"),
@@ -78,6 +78,9 @@ class RetrievalService:
     @property
     def last_hits(self) -> list[RetrievalHit]:
         return list(self._last_hits)
+
+    def replace_last_hits(self, hits: list[RetrievalHit]) -> None:
+        self._last_hits = list(hits)
 
     @property
     def vec_available(self) -> bool:

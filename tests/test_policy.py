@@ -76,15 +76,15 @@ def test_corporate_policy_confirms_sensitive_classification():
     engine = PolicyEngine(mode="corporate")
     decision = engine.decide(
         ToolRequest(
-            tool_name="compose_email",
+            tool_name="create_backup",
             arguments={"classification": "finance"},
-            user_utterance="send the finance file",
+            user_utterance="export the finance evidence bundle",
             reason="test",
         ),
         descriptor=CapabilityDescriptor(
-            name="compose_email",
-            title="Send Email",
-            summary="Send email.",
+            name="create_backup",
+            title="Create Backup",
+            summary="Create a backup.",
             risk_level="high",
             confirmation_rule="always",
             side_effectful=True,

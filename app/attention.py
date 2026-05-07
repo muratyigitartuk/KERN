@@ -17,7 +17,6 @@ _action_planner = ActionPlanner()
 
 if TYPE_CHECKING:
     from app.documents import DocumentService
-    from app.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
@@ -125,14 +124,14 @@ class FileWatcher:
             observer.start()
             self._observer = observer
         except ImportError:
-            logger.info("watchdog not installed — FileWatcher using poll mode")
+            logger.info("watchdog not installed â€” FileWatcher using poll mode")
 
     def stop(self) -> None:
         if self._observer:
             try:
                 self._observer.stop()
                 self._observer.join(timeout=2)
-            except Exception:  # cleanup — best-effort
+            except Exception:  # cleanup â€” best-effort
                 pass
             self._observer = None
 
@@ -279,59 +278,6 @@ class FileWatcher:
         self._connection.commit()
 
 
-class InboxWatcher:
-    """Periodically check for new unread emails and surface alerts."""
-
-    def __init__(
-        self,
-        email_service: "EmailService",
-        profile_slug: str,
-        interval_seconds: int = 300,
-    ) -> None:
-        self._email = email_service
-        self._profile_slug = profile_slug
-        self._interval = interval_seconds
-        self._last_check: datetime | None = None
-        self._last_seen_ids: set[str] = set()
-
-    def check(self, now: datetime | None = None) -> list[dict]:
-        now = now or datetime.now(timezone.utc)
-        if self._last_check and (now - self._last_check).total_seconds() < self._interval:
-            return []
-        self._last_check = now
-        alerts: list[dict] = []
-        try:
-            messages = self._email.list_indexed_messages(limit=10, audit=False)
-            unread_messages = [m for m in messages if not getattr(m, "read", True)]
-            new_ids = {str(m.id) for m in unread_messages}
-            new_unread = new_ids - self._last_seen_ids
-            if new_unread:
-                count = len(new_unread)
-                samples = [
-                    {
-                        "id": str(m.id),
-                        "sender": m.sender,
-                        "subject": m.subject,
-                        "received_at": m.received_at.isoformat(),
-                    }
-                    for m in unread_messages
-                    if str(m.id) in new_unread
-                ][:3]
-                alert = {
-                    "type": "inbox",
-                    "title": "New email",
-                    "message": f"You have {count} new unread message{'s' if count > 1 else ''}.",
-                    "count": count,
-                    "samples": samples,
-                    "evidence": [f"{item['sender']}: {item['subject']}" for item in samples],
-                }
-                alert["suggested_actions"] = _action_planner.suggest_actions(alert)
-                alerts.append(alert)
-            self._last_seen_ids = set(list(new_ids)[-_WATCHER_STATE_LIMIT:])
-        except Exception as exc:
-            logger.debug("InboxWatcher check error: %s", exc)
-        return alerts
-
 
 class CalendarWatcher:
     """Alert on upcoming deadlines found in ingested documents or calendar events."""
@@ -458,7 +404,7 @@ class DocumentWatcher:
             due_date = datetime.fromisoformat(due_raw)
             return now <= due_date <= deadline
         except (ValueError, TypeError) as exc:
-            logger.warning("Invalid due date in document metadata: %r — %s", raw_metadata, exc)
+            logger.warning("Invalid due date in document metadata: %r â€” %s", raw_metadata, exc)
             return False
         except Exception as exc:
             logger.warning("Unexpected error checking document deadline: %s", exc)

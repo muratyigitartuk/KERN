@@ -20,13 +20,15 @@ from starlette.background import BackgroundTask
 
 from app import __version__
 
-from app.auth import request_auth_context, require_request_auth_context
+from app.auth import is_loopback_client, request_auth_context, require_request_auth_context
 from app.compliance import ComplianceService
 from app.config import settings
 from app.database import connect, get_schema_version
+from app.identity import sanitize_local_redirect
 from app.intelligence import IntelligenceService
 from app.memory import MemoryRepository
 from app.metrics import metrics
+from app.path_safety import validate_workspace_slug
 from app.reasoning import ReasoningService
 from app.types import CapabilityDescriptor, PlanStep, SuggestedDraftRecord, WorkflowDomainEvent
 
@@ -53,6 +55,31 @@ UPLOAD_DOCUMENTS_DESCRIPTOR = CapabilityDescriptor(
     side_effectful=True,
     verification_support="database",
 )
+
+
+def _validated_workspace_slug(value: str) -> str:
+    try:
+        return validate_workspace_slug(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _set_loopback_cookie_if_needed(request: Request, response: Response) -> None:
+    context = request_auth_context(request)
+    if (
+        context is not None
+        and getattr(settings, "disable_auth_for_loopback", False)
+        and context.is_bootstrap_token
+        and is_loopback_client(request)
+    ):
+        response.set_cookie(
+            "kern_loopback",
+            getattr(settings, "loopback_nonce", ""),
+            httponly=True,
+            samesite="lax",
+            secure=False,
+            path="/",
+        )
 
 
 def _validate_upload_filename(name: str) -> str | None:
@@ -133,11 +160,20 @@ def _require_roles(request: Request | None, *roles: str):
     context = require_request_auth_context(request)
     if context.is_bootstrap_token:
         return context
+    if context.is_break_glass:
+        return context
     if not roles:
         return context
     if any(role in context.roles for role in roles):
         return context
     raise HTTPException(status_code=403, detail="Insufficient role for this action.")
+
+
+def _ensure_same_organization(context, record, label: str) -> None:
+    if getattr(context, "is_break_glass", False):
+        return
+    if getattr(record, "organization_id", None) != getattr(context, "organization_id", None):
+        raise HTTPException(status_code=404, detail=f"{label} not found.")
 
 
 def _identity_service(request: Request, runtime) -> object:
@@ -294,6 +330,8 @@ def _action_response(*, item_name: str | None = None, item: object | None = None
 
 
 def _read_training_manifest(runtime, export_id: str) -> dict[str, object] | None:
+    if export_id != Path(export_id).name or not export_id.startswith("training-"):
+        return None
     root = Path(runtime.active_profile.profile_root) / "training-exports" / export_id / "manifest.json"
     if not root.exists():
         return None
@@ -357,12 +395,12 @@ def _health_components(runtime) -> dict[str, str]:
         runtime.memory.connection.execute("SELECT 1").fetchone()
         components["database"] = "ok"
     except Exception as exc:
-        components["database"] = f"error — {exc}"
+        components["database"] = f"error â€” {exc}"
     # LLM
     if getattr(runtime.orchestrator.snapshot, "llm_available", False):
         components["llm"] = "ok"
     elif settings.llm_enabled:
-        components["llm"] = "error — not reachable"
+        components["llm"] = "error â€” not reachable"
     else:
         components["llm"] = "disabled"
     # Scheduler
@@ -370,16 +408,6 @@ def _health_components(runtime) -> dict[str, str]:
         components["scheduler"] = "ok"
     else:
         components["scheduler"] = "disabled"
-    # Email
-    if settings.imap_host or settings.smtp_host:
-        components["email"] = "ok"
-    else:
-        components["email"] = "warning — not configured"
-    # TTS
-    if getattr(runtime, "tts", None) and getattr(runtime.tts, "enabled", False):
-        components["tts"] = "ok"
-    else:
-        components["tts"] = "disabled"
     return components
 
 
@@ -510,8 +538,6 @@ async def export_logs(request: Request | None = None) -> dict[str, object]:
 async def export_governance_bundle(request: Request | None = None) -> dict[str, object]:
     _require_roles(request, "org_owner", "org_admin", "auditor", "break_glass_admin")
     runtime: KernRuntime = await _resolve_runtime(request)
-    if hasattr(runtime, "ensure_production_access") and not runtime.ensure_production_access(blocked_scope="governance export"):
-        raise HTTPException(status_code=403, detail="Production access is blocked by license state.")
     if await asyncio.to_thread(runtime.platform.is_profile_locked, runtime.active_profile.slug):
         await asyncio.to_thread(
             runtime.platform.record_audit,
@@ -522,18 +548,19 @@ async def export_governance_bundle(request: Request | None = None) -> dict[str, 
             profile_slug=runtime.active_profile.slug,
         )
         raise HTTPException(status_code=423, detail="Unlock the active KERN profile before exporting governance data.")
-    _http_policy_gate(
-        runtime,
-        "export_governance_bundle",
-        descriptor=CapabilityDescriptor(
-            name="export_governance_bundle",
-            title="Export governance bundle",
-            summary="Exports audit, security, and governance state for the active profile.",
-            domain="security",
-            risk_level="high",
-            confirmation_rule="always",
-        ),
-    )
+    if settings.policy_mode == "corporate":
+        _http_policy_gate(
+            runtime,
+            "export_governance_bundle",
+            descriptor=CapabilityDescriptor(
+                name="export_governance_bundle",
+                title="Export governance bundle",
+                summary="Exports audit, security, and governance state for the active profile.",
+                domain="security",
+                risk_level="high",
+                confirmation_rule="always",
+            ),
+        )
     bundle = await _build_governance_bundle(runtime)
     await asyncio.to_thread(
         runtime.platform.record_audit,
@@ -570,22 +597,8 @@ def _config_summary() -> dict[str, object]:
 async def export_support_bundle(request: Request | None = None) -> FileResponse:
     _require_roles(request, "org_owner", "org_admin", "auditor", "break_glass_admin")
     runtime: KernRuntime = await _resolve_runtime(request)
-    if hasattr(runtime, "ensure_production_access") and not runtime.ensure_production_access(blocked_scope="support export"):
-        raise HTTPException(status_code=403, detail="Production access is blocked by license state.")
     if await asyncio.to_thread(runtime.platform.is_profile_locked, runtime.active_profile.slug):
         raise HTTPException(status_code=423, detail="Unlock the active KERN profile before exporting a support bundle.")
-    _http_policy_gate(
-        runtime,
-        "export_support_bundle",
-        descriptor=CapabilityDescriptor(
-            name="export_support_bundle",
-            title="Export support bundle",
-            summary="Exports a support bundle with health, readiness, logs, and config summaries.",
-            domain="security",
-            risk_level="high",
-            confirmation_rule="always",
-        ),
-    )
     support_root = (settings.root_path / "support").resolve()
     support_root.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -685,14 +698,26 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
     @app.get("/")
     async def index(request: Request) -> Response:
         if request_auth_context(request):
-            return FileResponse(static_dir / "dashboard.html")
+            response = FileResponse(static_dir / "dashboard.html")
+            _set_loopback_cookie_if_needed(request, response)
+            return response
         return RedirectResponse("/login", status_code=302)
 
     @app.get("/dashboard")
     async def dashboard(request: Request) -> Response:
         if request_auth_context(request):
-            return FileResponse(static_dir / "dashboard.html")
+            response = FileResponse(static_dir / "dashboard.html")
+            _set_loopback_cookie_if_needed(request, response)
+            return response
         return RedirectResponse("/login", status_code=302)
+
+    @app.get("/sw.js")
+    async def service_worker() -> Response:
+        return FileResponse(
+            static_dir / "sw.js",
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+        )
 
     @app.get("/login")
     async def login_page() -> FileResponse:
@@ -700,6 +725,8 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
 
     @app.post("/auth/break-glass/bootstrap")
     async def bootstrap_break_glass(request: Request) -> JSONResponse:
+        if settings.server_mode:
+            raise HTTPException(status_code=404, detail="Break-glass bootstrap is unavailable in server mode.")
         runtime: KernRuntime = await _resolve_runtime(request)
         context = request_auth_context(request)
         if context is None or not context.is_bootstrap_token:
@@ -721,6 +748,13 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
 
     @app.post("/auth/break-glass/login")
     async def break_glass_login(request: Request) -> JSONResponse:
+        if settings.server_mode and not settings.server_break_glass_enabled:
+            raise HTTPException(status_code=404, detail="Break-glass login is unavailable in server mode.")
+        if settings.server_mode and settings.break_glass_ip_allowlist:
+            allowed = {item.strip() for item in settings.break_glass_ip_allowlist.split(",") if item.strip()}
+            client_host = request.client.host if request.client else ""
+            if client_host not in allowed:
+                raise HTTPException(status_code=403, detail="Break-glass login is not allowed from this address.")
         runtime: KernRuntime = await _resolve_runtime(request)
         identity = _identity_service(request, runtime)
         payload = await request.json()
@@ -740,7 +774,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
     async def oidc_login(request: Request, return_to: str | None = None) -> Response:
         runtime: KernRuntime = await _resolve_runtime(request)
         identity = _identity_service(request, runtime)
-        redirect_url, state_cookie = await identity.begin_oidc_login(redirect_to=return_to or "/dashboard")
+        redirect_url, state_cookie = await identity.begin_oidc_login(redirect_to=sanitize_local_redirect(return_to))
         response = RedirectResponse(redirect_url, status_code=302)
         response.set_cookie("kern_oidc_state", state_cookie, httponly=True, samesite="lax", secure=request.url.scheme == "https", path="/", max_age=600)
         return response
@@ -756,7 +790,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         )
         if login_result.context is None:
             return JSONResponse({"status": login_result.status, "message": login_result.message}, status_code=202)
-        response = RedirectResponse(login_result.message or "/dashboard", status_code=302)
+        response = RedirectResponse(sanitize_local_redirect(login_result.message), status_code=302)
         identity.set_session_cookie(response, str(login_result.context.session_id), secure=request.url.scheme == "https")
         response.delete_cookie("kern_oidc_state", path="/")
         return response
@@ -785,13 +819,178 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         payload = [workspace.model_dump(mode="json") for workspace in workspaces]
         return _collection_response("workspaces", payload)
 
+    @app.get("/workspaces")
+    async def public_workspaces(request: Request) -> JSONResponse:
+        runtime: KernRuntime = await _resolve_runtime(request)
+        context = require_request_auth_context(request)
+        identity = _identity_service(request, runtime)
+        workspaces = await asyncio.to_thread(identity.list_accessible_workspaces, context)
+        return _collection_response("workspaces", [workspace.model_dump(mode="json") for workspace in workspaces])
+
+    @app.post("/workspaces/{workspace_slug}/threads")
+    async def create_thread(workspace_slug: str, request: Request) -> JSONResponse:
+        workspace_slug = _validated_workspace_slug(workspace_slug)
+        runtime: KernRuntime = await _resolve_runtime(request)
+        context = require_request_auth_context(request)
+        if not context.user_id or not context.organization_id:
+            raise HTTPException(status_code=401, detail="User session required.")
+        if not context.is_break_glass and not runtime.platform.has_workspace_access(context.user_id, workspace_slug):
+            raise HTTPException(status_code=403, detail="Workspace access is not granted.")
+        payload = await request.json()
+        visibility = str(payload.get("visibility") or "private")
+        if visibility not in {"private", "shared"}:
+            raise HTTPException(status_code=400, detail="Thread visibility is not available for this endpoint.")
+        if visibility != "private" and not context.has_role("org_owner", "org_admin"):
+            raise HTTPException(status_code=403, detail="Only workspace admins can create non-private threads.")
+        thread = await asyncio.to_thread(
+            runtime.platform.create_thread,
+            organization_id=context.organization_id,
+            workspace_slug=workspace_slug,
+            owner_user_id=context.user_id,
+            title=str(payload.get("title") or "New thread"),
+            visibility=visibility,
+        )
+        return _action_response(item_name="thread", item=thread.model_dump(mode="json"))
+
+    @app.get("/workspaces/{workspace_slug}/threads")
+    async def list_threads(workspace_slug: str, request: Request) -> JSONResponse:
+        workspace_slug = _validated_workspace_slug(workspace_slug)
+        runtime: KernRuntime = await _resolve_runtime(request)
+        context = require_request_auth_context(request)
+        if not context.user_id or not context.organization_id:
+            raise HTTPException(status_code=401, detail="User session required.")
+        threads = await asyncio.to_thread(
+            runtime.platform.list_threads_for_user,
+            organization_id=context.organization_id,
+            workspace_slug=workspace_slug,
+            user_id=context.user_id,
+        )
+        return _collection_response("threads", [thread.model_dump(mode="json") for thread in threads])
+
+    @app.get("/threads/{thread_id}/messages")
+    async def list_thread_messages(thread_id: str, request: Request) -> JSONResponse:
+        runtime: KernRuntime = await _resolve_runtime(request)
+        context = require_request_auth_context(request)
+        if not context.user_id or not context.organization_id:
+            raise HTTPException(status_code=401, detail="User session required.")
+        thread = await asyncio.to_thread(
+            runtime.platform.get_thread_for_user,
+            thread_id,
+            user_id=context.user_id,
+            organization_id=context.organization_id,
+        )
+        if thread is None:
+            raise HTTPException(status_code=404, detail="Thread not found.")
+        runtime.platform.record_audit(
+            "conversation",
+            "private_thread_read" if thread.visibility == "private" else "thread_read",
+            "warning" if thread.visibility == "private" else "success",
+            "Read thread messages.",
+            profile_slug=thread.workspace_slug,
+            details={"thread_id": thread.id, "actor_user_id": context.user_id, "visibility": thread.visibility},
+        )
+        messages = await asyncio.to_thread(
+            runtime.platform.list_messages_for_user,
+            thread_id=thread_id,
+            user_id=context.user_id,
+            organization_id=context.organization_id,
+        )
+        return _collection_response("messages", [message.model_dump(mode="json") for message in messages], thread=thread.model_dump(mode="json"))
+
+    @app.post("/threads/{thread_id}/messages")
+    async def append_thread_message(thread_id: str, request: Request) -> JSONResponse:
+        runtime: KernRuntime = await _resolve_runtime(request)
+        context = require_request_auth_context(request)
+        if not context.user_id or not context.organization_id:
+            raise HTTPException(status_code=401, detail="User session required.")
+        payload = await request.json()
+        role = str(payload.get("role") or "user")
+        if role != "user" and not context.has_role("org_owner", "org_admin", "break_glass_admin"):
+            raise HTTPException(status_code=403, detail="Only privileged services can append non-user messages.")
+        try:
+            message = await asyncio.to_thread(
+                runtime.platform.append_message,
+                thread_id=thread_id,
+                actor_user_id=context.user_id if role == "user" else str(payload.get("actor_user_id") or context.user_id),
+                acting_user_id=context.user_id,
+                organization_id=context.organization_id,
+                role=role,
+                content=str(payload.get("content") or ""),
+                metadata=dict(payload.get("metadata") or {}),
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=404, detail="Thread not found.") from exc
+        return _action_response(item_name="message", item=message.model_dump(mode="json"))
+
+    @app.post("/threads/{thread_id}/share")
+    async def share_thread(thread_id: str, request: Request) -> JSONResponse:
+        runtime: KernRuntime = await _resolve_runtime(request)
+        context = require_request_auth_context(request)
+        if not context.user_id or not context.organization_id:
+            raise HTTPException(status_code=401, detail="User session required.")
+        try:
+            thread = await asyncio.to_thread(
+                runtime.platform.share_thread,
+                thread_id=thread_id,
+                user_id=context.user_id,
+                organization_id=context.organization_id,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="Thread sharing is not allowed.") from exc
+        return _action_response(item_name="thread", item=thread.model_dump(mode="json"))
+
+    @app.post("/threads/{thread_id}/promote-memory")
+    async def promote_thread_memory(thread_id: str, request: Request) -> JSONResponse:
+        runtime: KernRuntime = await _resolve_runtime(request)
+        context = require_request_auth_context(request)
+        if not context.user_id or not context.organization_id:
+            raise HTTPException(status_code=401, detail="User session required.")
+        payload = await request.json()
+        try:
+            memory_id = await asyncio.to_thread(
+                runtime.platform.promote_thread_memory,
+                thread_id=thread_id,
+                user_id=context.user_id,
+                organization_id=context.organization_id,
+                key=str(payload.get("key") or "thread_memory"),
+                value=str(payload.get("value") or ""),
+                metadata=dict(payload.get("metadata") or {}),
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail="Memory promotion is not allowed.") from exc
+        return _action_response(item_name="memory", item={"id": memory_id, "thread_id": thread_id})
+
     @app.post("/auth/session/select-workspace")
     async def select_workspace(request: Request) -> JSONResponse:
         runtime: KernRuntime = await _resolve_runtime(request)
         context = require_request_auth_context(request)
         identity = _identity_service(request, runtime)
         payload = await request.json()
-        workspace_slug = str(payload.get("workspace_slug") or "").strip()
+        workspace_slug = _validated_workspace_slug(str(payload.get("workspace_slug") or "").strip())
+        if context.is_bootstrap_token and not context.session_id:
+            profile = await asyncio.to_thread(runtime.platform.get_profile, workspace_slug)
+            if profile is None:
+                raise HTTPException(status_code=404, detail="Workspace not found.")
+            new_context = context.model_copy(
+                update={
+                    "organization_id": profile.organization_id or context.organization_id,
+                    "workspace_id": profile.workspace_id,
+                    "workspace_slug": profile.slug,
+                }
+            )
+            runtime_manager = _get_runtime()
+            next_runtime = await runtime_manager.get_runtime(profile.slug) if hasattr(runtime_manager, "get_runtime") else runtime
+            response = JSONResponse(await _session_payload(request, next_runtime, new_context))
+            response.set_cookie(
+                "kern_workspace_slug",
+                profile.slug,
+                httponly=False,
+                samesite="lax",
+                secure=request.url.scheme == "https",
+                path="/",
+                max_age=settings.session_ttl_hours * 60 * 60,
+            )
+            return response
         new_context = await asyncio.to_thread(identity.select_workspace, context, workspace_slug)
         runtime_manager = _get_runtime()
         next_runtime = await runtime_manager.get_runtime(new_context.workspace_slug) if hasattr(runtime_manager, "get_runtime") else runtime
@@ -812,7 +1011,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         runtime_or_manager = _get_runtime()
         runtime: KernRuntime = await _resolve_runtime(request)
         payload = await request.json()
-        slug = str(payload.get("slug") or "").strip() or f"workspace-{int(_time.time())}"
+        slug = _validated_workspace_slug(str(payload.get("slug") or "").strip() or f"workspace-{int(_time.time())}")
         title = str(payload.get("title") or "Workspace").strip()
         profile = await asyncio.to_thread(
             runtime.platform.ensure_default_profile,
@@ -837,6 +1036,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
 
     @app.get("/admin/workspaces/{workspace_slug}/users")
     async def list_workspace_users(workspace_slug: str, request: Request) -> JSONResponse:
+        workspace_slug = _validated_workspace_slug(workspace_slug)
         _require_roles(request, "org_owner", "org_admin", "auditor", "break_glass_admin")
         runtime: KernRuntime = await _resolve_runtime(request)
         users = await asyncio.to_thread(runtime.platform.list_workspace_users, workspace_slug)
@@ -875,7 +1075,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         email = str(payload.get("email") or "").strip().lower()
         display_name = str(payload.get("display_name") or email)
         role = str(payload.get("role") or "member")
-        workspace_slug = str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug)
+        workspace_slug = _validated_workspace_slug(str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug))
         user = await asyncio.to_thread(
             runtime.platform.create_user,
             email=email,
@@ -901,7 +1101,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         context = _require_roles(request, "org_owner", "org_admin", "break_glass_admin")
         runtime: KernRuntime = await _resolve_runtime(request)
         payload = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
-        workspace_slug = str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug)
+        workspace_slug = _validated_workspace_slug(str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug))
         role = str(payload.get("role") or "member")
         user = await asyncio.to_thread(runtime.platform.set_user_status, user_id, "active")
         membership = await asyncio.to_thread(
@@ -948,7 +1148,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         runtime: KernRuntime = await _resolve_runtime(request)
         payload = await request.json()
         user_id = str(payload.get("user_id") or "").strip()
-        workspace_slug = str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug).strip()
+        workspace_slug = _validated_workspace_slug(str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug).strip())
         role = str(payload.get("role") or "member").strip()
         membership = await asyncio.to_thread(
             runtime.platform.upsert_workspace_membership,
@@ -1058,6 +1258,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         record = await asyncio.to_thread(runtime.platform.get_erasure_request, request_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Erasure request not found.")
+        _ensure_same_organization(context, record, "Erasure request")
         if not (
             context.is_break_glass
             or any(role in context.roles for role in ("org_owner", "org_admin", "auditor"))
@@ -1103,6 +1304,10 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
     async def execute_erasure_request(request_id: str, request: Request) -> JSONResponse:
         context = _require_roles(request, "org_owner", "org_admin", "break_glass_admin")
         runtime: KernRuntime = await _resolve_runtime(request)
+        record = await asyncio.to_thread(runtime.platform.get_erasure_request, request_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Erasure request not found.")
+        _ensure_same_organization(context, record, "Erasure request")
         result = await asyncio.to_thread(
             _compliance_service(runtime).execute_erasure,
             request_id,
@@ -1145,6 +1350,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         record = await asyncio.to_thread(runtime.platform.get_data_export, export_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Export not found.")
+        _ensure_same_organization(context, record, "Export")
         if not (
             context.is_break_glass
             or any(role in context.roles for role in ("org_owner", "org_admin", "auditor"))
@@ -1212,6 +1418,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
 
     @app.get("/compliance/exports/workspace/{workspace_slug}")
     async def export_workspace_data(workspace_slug: str, request: Request) -> JSONResponse:
+        workspace_slug = _validated_workspace_slug(workspace_slug)
         context = _require_roles(request, "org_owner", "org_admin", "auditor", "break_glass_admin")
         runtime: KernRuntime = await _resolve_runtime(request)
         if not context.is_break_glass and not runtime.platform.has_workspace_access(context.user_id, workspace_slug, "org_owner", "org_admin", "auditor"):
@@ -1879,7 +2086,7 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
         context = _require_roles(request, "org_owner", "org_admin", "break_glass_admin")
         runtime: KernRuntime = await _resolve_runtime(request)
         payload = await request.json()
-        target_workspace = str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug).strip()
+        target_workspace = _validated_workspace_slug(str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug).strip())
         export = await asyncio.to_thread(
             _intelligence_service(runtime).export_training_dataset,
             actor_user_id=context.user_id,
@@ -1937,6 +2144,8 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
     @app.get("/health")
     async def health(request: Request) -> JSONResponse:
         runtime: KernRuntime = await _resolve_runtime(request)
+        if hasattr(runtime, "refresh_llm_status"):
+            await runtime.refresh_llm_status()
         snapshot = runtime.orchestrator.snapshot
         severity = _health_severity(runtime, snapshot)
         payload = {
@@ -2082,8 +2291,6 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
     ) -> JSONResponse:
         _require_roles(request, "org_owner", "org_admin", "member", "break_glass_admin")
         runtime: KernRuntime = await _resolve_runtime(request)
-        if hasattr(runtime, "ensure_production_access") and not runtime.ensure_production_access(blocked_scope="document upload"):
-            raise HTTPException(status_code=403, detail="Production access is blocked by license state.")
         if runtime.platform.is_profile_locked(runtime.active_profile.slug):
             raise HTTPException(status_code=423, detail="Unlock the active KERN profile before uploading documents.")
         _http_policy_gate(

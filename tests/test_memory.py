@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -91,11 +91,11 @@ def test_memory_migrates_legacy_facts_and_dialogue(tmp_path: Path):
     )
     connection.execute(
         "INSERT INTO assistant_facts (key, value, source, confidence, updated_at) VALUES (?, ?, ?, ?, ?)",
-        ("preferred_workspace", "Desktop setup", "user", 1.0, datetime.utcnow().isoformat()),
+        ("preferred_workspace", "Desktop setup", "user", 1.0, datetime.now(timezone.utc).isoformat()),
     )
     connection.execute(
         "INSERT INTO conversation_summaries (created_at, summary) VALUES (?, ?)",
-        (datetime.utcnow().isoformat(), "User: hello | Kern: hello back"),
+        (datetime.now(timezone.utc).isoformat(), "User: hello | Kern: hello back"),
     )
     connection.commit()
     connection.close()
@@ -111,13 +111,39 @@ def test_memory_migrates_legacy_facts_and_dialogue(tmp_path: Path):
     assert "Kern" in entries[0]
 
 
+def test_new_memory_schema_does_not_create_email_draft_surface(tmp_path: Path):
+    db_path = tmp_path / "legacy-email-drafts.db"
+    repo = MemoryRepository(connect(db_path))
+    tables = {
+        row["name"]
+        for row in repo.connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+    }
+
+    assert "email_drafts" not in tables
+
+
+def test_memory_repairs_missing_scheduler_tables(tmp_path: Path):
+    db_path = tmp_path / "missing-scheduler.db"
+    connect(db_path).close()
+    connection = sqlite3.connect(db_path)
+    connection.execute("DROP TABLE scheduled_tasks")
+    connection.execute("DROP TABLE watch_rules")
+    connection.commit()
+    connection.close()
+
+    repo = MemoryRepository(connect(db_path))
+
+    assert repo.connection.execute("SELECT COUNT(*) AS count FROM scheduled_tasks").fetchone()["count"] == 0
+    assert repo.connection.execute("SELECT COUNT(*) AS count FROM watch_rules").fetchone()["count"] == 0
+
+
 def test_seed_defaults_can_skip_demo_data(tmp_path: Path):
     repo = MemoryRepository(connect(tmp_path / "kern.db"))
 
     repo.seed_defaults(include_demo_data=False)
 
     assert repo.get_value("user_profile", "name") == "Murat"
-    assert repo.get_value("preferences", "preferred_title") == "sir"
+    assert repo.get_value("preferences", "preferred_title") == ""
     assert repo.list_local_tasks() == []
     assert repo.list_local_events() == []
     assert repo.list_pending_reminders() == []
@@ -147,7 +173,7 @@ def test_memory_maintenance_trims_append_only_tables(tmp_path: Path):
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 "test_capability",
                 "attempted",
                 f"receipt-{index}",
@@ -172,10 +198,10 @@ def test_memory_maintenance_trims_append_only_tables(tmp_path: Path):
 
 def test_memory_consolidation_produces_structured_summary(tmp_path: Path):
     repo = MemoryRepository(connect(tmp_path / "kern.db"))
-    old = (datetime.utcnow() - timedelta(days=60)).isoformat()
+    old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
     repo.connection.execute("INSERT INTO conversation_log (created_at, content) VALUES (?, ?)", (old, "Remember that I prefer concise answers."))
     repo.connection.execute("INSERT INTO conversation_log (created_at, content) VALUES (?, ?)", (old, "Decision: keep KERN local-first."))
-    repo.connection.execute("INSERT INTO conversation_log (created_at, content) VALUES (?, ?)", (old, "TODO: review the invoice before 2026-04-02."))
+    repo.connection.execute("INSERT INTO conversation_log (created_at, content) VALUES (?, ?)", (old, "Next step: review the invoice before 2026-04-02."))
     repo.connection.commit()
 
     count = repo.consolidate_memory(older_than_days=30)
@@ -306,7 +332,7 @@ def test_extractive_summarize_preserves_order():
 
 def test_consolidation_includes_key_points(tmp_path: Path):
     repo = MemoryRepository(connect(tmp_path / "kern.db"))
-    old = (datetime.utcnow() - timedelta(days=60)).isoformat()
+    old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
     for i in range(20):
         repo.connection.execute(
             "INSERT INTO conversation_log (created_at, content) VALUES (?, ?)",

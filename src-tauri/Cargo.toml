@@ -1,0 +1,16 @@
+[package]
+name = "kern-desktop"
+version = "1.0.0-rc1"
+description = "KERN desktop shell"
+authors = ["KERN"]
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-single-instance = "2"
+ureq = { version = "2.12", default-features = false }
+url = "2"

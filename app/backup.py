@@ -5,7 +5,6 @@ import io
 import json
 import logging
 import shutil
-import tempfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -227,6 +226,7 @@ class BackupService:
 
     def _zip_directory(self, root: Path, profile_slug: str, *, backup_state: dict[str, object] | None = None) -> bytes:
         buffer = io.BytesIO()
+        resolved_root = root.resolve()
         manifest = {
             "version": 3 if backup_state else 2,
             "profile_slug": profile_slug,
@@ -238,9 +238,18 @@ class BackupService:
             if backup_state:
                 archive.writestr(self.PROFILE_STATE_NAME, json.dumps(backup_state, sort_keys=True))
             for file_path in sorted(root.rglob("*")):
+                if file_path.is_symlink():
+                    logger.warning("Skipping symlink while creating backup: %s", file_path)
+                    continue
                 if file_path.is_dir():
                     continue
-                archive.write(file_path, arcname=file_path.relative_to(root))
+                resolved_file = file_path.resolve()
+                try:
+                    relative_name = resolved_file.relative_to(resolved_root)
+                except ValueError:
+                    logger.warning("Skipping backup entry outside profile root: %s", file_path)
+                    continue
+                archive.write(resolved_file, arcname=relative_name)
         return buffer.getvalue()
 
     def _load_archive_bytes(self, backup_path: Path, password: str) -> tuple[bytes, dict[str, object]]:

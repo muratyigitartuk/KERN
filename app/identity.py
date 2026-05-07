@@ -7,9 +7,9 @@ import json
 import secrets
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import unquote, urlencode, urlparse
 
 import httpx
 from cryptography.hazmat.primitives import hashes
@@ -19,7 +19,15 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicNumbers
 from fastapi import HTTPException, Request, WebSocket
 from starlette.responses import Response
 
-from app.auth import has_valid_admin_token, is_allowed_origin, is_loopback_client, is_loopback_host, websocket_admin_token
+from app.auth import (
+    has_valid_admin_token,
+    is_allowed_origin,
+    is_break_glass_host_allowed,
+    is_break_glass_request_allowed,
+    is_loopback_client,
+    is_loopback_host,
+    websocket_admin_token,
+)
 from app.config import settings
 from app.types import AuthContext, ProfileSummary, UserRecord
 
@@ -35,6 +43,21 @@ def _b64url_decode(value: str) -> bytes:
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def sanitize_local_redirect(value: str | None, *, fallback: str = "/dashboard") -> str:
+    candidate = str(value or "").strip()
+    if not candidate:
+        return fallback
+    decoded = unquote(candidate)
+    if any(ord(ch) < 32 for ch in decoded) or "\\" in decoded:
+        return fallback
+    parsed = urlparse(decoded)
+    if parsed.scheme or parsed.netloc:
+        return fallback
+    if not decoded.startswith("/") or decoded.startswith("//"):
+        return fallback
+    return decoded
 
 
 @dataclass(slots=True)
@@ -54,6 +77,8 @@ class IdentityService:
             self.seed_break_glass_admin()
 
     def seed_break_glass_admin(self) -> None:
+        if settings.server_mode and not settings.server_break_glass_enabled:
+            return
         password = str(settings.break_glass_password or "").strip()
         if not password:
             return
@@ -221,13 +246,15 @@ class IdentityService:
         )
 
     def resolve_request_context(self, request: Request) -> AuthContext | None:
-        if is_loopback_client(request) and any(has_valid_admin_token(token) for token in self._request_admin_tokens(request)):
+        if not settings.server_mode and is_loopback_client(request) and any(has_valid_admin_token(token) for token in self._request_admin_tokens(request)):
             return self._admin_token_context()
         session_id = request.cookies.get(self.session_cookie_name())
         if not session_id:
             return None
         context = self.platform.build_auth_context(session_id)
         if context is None:
+            return None
+        if context.is_break_glass and not is_break_glass_request_allowed(request):
             return None
         if context.workspace_slug is None and context.user_id:
             workspace = self._default_workspace(context.user_id)
@@ -238,14 +265,17 @@ class IdentityService:
 
     def resolve_websocket_context(self, websocket: WebSocket) -> AuthContext | None:
         admin_token = websocket_admin_token(websocket)
-        if admin_token and is_loopback_host(websocket.client.host if websocket.client else "") and has_valid_admin_token(admin_token):
+        if not settings.server_mode and admin_token and is_loopback_host(websocket.client.host if websocket.client else "") and has_valid_admin_token(admin_token):
             return self._admin_token_context()
         if not is_allowed_origin(websocket.headers.get("origin")):
             return None
         session_id = websocket.cookies.get(self.session_cookie_name())
         if not session_id:
             return None
-        return self.platform.build_auth_context(session_id)
+        context = self.platform.build_auth_context(session_id)
+        if context and context.is_break_glass and not is_break_glass_host_allowed(websocket.client.host if websocket.client else ""):
+            return None
+        return context
 
     def _request_admin_tokens(self, request: Request) -> list[str]:
         header = request.headers.get("authorization", "")
@@ -263,13 +293,31 @@ class IdentityService:
             raise HTTPException(status_code=401, detail="Invalid break-glass credentials.")
         organization = self.platform.ensure_default_organization()
         workspace = self.platform.get_profile(workspace_slug) if workspace_slug else self._default_workspace()
+        ttl_seconds = settings.session_ttl_hours * 60 * 60
+        if settings.server_mode:
+            ttl_seconds = min(ttl_seconds, 15 * 60)
         session = self.platform.create_session(
             organization_id=organization.id,
             auth_method="break_glass",
             workspace_slug=workspace.slug if workspace else None,
-            ttl_seconds=settings.session_ttl_hours * 60 * 60,
-            metadata={"username": admin.username},
+            ttl_seconds=ttl_seconds,
+            metadata={"username": admin.username, "high_severity": settings.server_mode},
         )
+        if hasattr(self.platform, "record_audit"):
+            self.platform.record_audit(
+                "auth",
+                "break_glass_login",
+                "warning",
+                "Break-glass administrator session created.",
+                profile_slug=workspace.slug if workspace else None,
+                details={
+                    "username": admin.username,
+                    "session_id": session.id,
+                    "server_mode": settings.server_mode,
+                    "organization_id": organization.id,
+                    "workspace_id": workspace.workspace_id if workspace else None,
+                },
+            )
         return session.id, self._session_context_or_raise(session.id)
 
     async def begin_oidc_login(self, *, redirect_to: str = "/dashboard") -> tuple[str, str]:
@@ -281,7 +329,7 @@ class IdentityService:
         payload = {
             "state": state,
             "nonce": nonce,
-            "redirect_to": redirect_to,
+            "redirect_to": sanitize_local_redirect(redirect_to),
             "exp": time.time() + 600,
         }
         cookie_value = self._sign_state(payload)
@@ -338,6 +386,7 @@ class IdentityService:
         domain = email.split("@", 1)[-1].lower()
         organization = self.platform.ensure_default_organization()
         user = self.platform.get_user_by_email(organization.id, email)
+        oidc_subject = str(claims.get("sub") or "")
         if user is None:
             active_users = [item for item in self.platform.list_users(organization.id) if item.status == "active"]
             status = "active" if not active_users and (not allowed_domains or domain in allowed_domains) else "pending"
@@ -345,7 +394,7 @@ class IdentityService:
                 email=email,
                 display_name=display_name,
                 organization_id=organization.id,
-                oidc_subject=str(claims.get("sub") or ""),
+                oidc_subject=oidc_subject,
                 auth_source="oidc",
                 status=status,
             )
@@ -353,9 +402,11 @@ class IdentityService:
                 for workspace in self.platform.list_profiles():
                     self.platform.upsert_workspace_membership(user_id=user.id, workspace_slug=workspace.slug, role="org_owner")
         else:
+            if user.oidc_subject and user.oidc_subject != oidc_subject:
+                raise HTTPException(status_code=403, detail="OIDC subject does not match the existing local account.")
             user = self.platform.bind_user_oidc_identity(
                 user.id,
-                oidc_subject=str(claims.get("sub") or ""),
+                oidc_subject=oidc_subject,
                 display_name=display_name,
             )
         if allowed_domains and domain not in allowed_domains:
@@ -380,7 +431,7 @@ class IdentityService:
             user=user,
             context=self._session_context_or_raise(session.id),
             status="authenticated",
-            message=str(state_payload.get("redirect_to") or "/dashboard"),
+            message=sanitize_local_redirect(str(state_payload.get("redirect_to") or "/dashboard")),
         )
 
     def logout(self, session_id: str | None) -> None:

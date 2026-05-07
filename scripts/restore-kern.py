@@ -60,6 +60,28 @@ def _load_payload(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _validate_update_members(members: list[zipfile.ZipInfo]) -> list[str]:
+    errors: list[str] = []
+    if not members:
+        return ["Bundle archive is empty."]
+    for member in members:
+        name = str(member.filename or "")
+        normalized = name.replace("\\", "/")
+        parts = [part for part in normalized.split("/") if part]
+        if not normalized or normalized.startswith("/") or normalized.startswith("\\"):
+            errors.append(f"Unsafe archive member: {name}")
+            continue
+        if re.match(r"^[A-Za-z]:", normalized):
+            errors.append(f"Windows drive archive path rejected: {name}")
+            continue
+        if ".." in parts:
+            errors.append(f"Path traversal rejected: {name}")
+            continue
+        if (member.external_attr >> 16) & 0o120000 == 0o120000:
+            errors.append(f"Symlink archive member rejected: {name}")
+    return errors
+
+
 def _resolve_password(args: argparse.Namespace) -> str:
     if args.password:
         return str(args.password)
@@ -92,17 +114,19 @@ def _load_update_bundle(path: Path, password: str) -> RestoreArtifact:
     salt = base64.urlsafe_b64decode(str(payload["salt"]).encode("ascii"))
     archive_bytes = Fernet(_derive_key(password, salt)).decrypt(str(payload["ciphertext"]).encode("ascii"))
     with zipfile.ZipFile(io.BytesIO(archive_bytes), "r") as archive:
+        members = archive.infolist()
         names = archive.namelist()
+        errors = _validate_update_members(members)
         manifest = {}
-        if "manifest.json" in names:
+        if not errors and "manifest.json" in names:
             manifest = json.loads(archive.read("manifest.json").decode("utf-8"))
     validation = {
-        "valid": True,
+        "valid": not errors,
         "bundle_kind": "self_contained_update_bundle",
         "entry_count": len(names),
         "entries": names,
         "manifest": manifest,
-        "errors": [],
+        "errors": errors,
     }
     return RestoreArtifact("self_contained_update_bundle", validation, payload, archive_bytes)
 
@@ -143,8 +167,9 @@ def _restore_update_bundle(
     try:
         with zipfile.ZipFile(io.BytesIO(artifact.archive_bytes or b""), "r") as archive:
             names = archive.namelist()
-            if not names:
-                raise RuntimeError("Bundle archive is empty.")
+            errors = _validate_update_members(archive.infolist())
+            if errors:
+                raise RuntimeError("; ".join(errors))
             for member in archive.infolist():
                 target_path = (staged_root / Path(member.filename)).resolve()
                 if staged_root not in target_path.parents and target_path != staged_root:
@@ -234,7 +259,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps({"mode": "validate", "validation": artifact.validation}, indent=2, default=str))
             else:
                 print(f"Validation: {'ok' if artifact.validation.get('valid') else 'failed'}")
-            return 0
+                for error in artifact.validation.get("errors", []):
+                    print(f"ERROR: {error}")
+            return 0 if artifact.validation.get("valid") else 1
+        if not artifact.validation.get("valid"):
+            if args.json:
+                print(json.dumps({"mode": "restore", "validation": artifact.validation}, indent=2, default=str))
+            else:
+                print("Restore aborted: bundle validation failed.")
+                for error in artifact.validation.get("errors", []):
+                    print(f"ERROR: {error}")
+            return 1
         compatibility_errors = _validate_update_bundle_compatibility(artifact, force=bool(args.force))
         if compatibility_errors:
             payload_out = {"mode": "restore", "validation": artifact.validation, "compatibility_errors": compatibility_errors}

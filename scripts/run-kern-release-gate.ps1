@@ -8,6 +8,10 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+$python = Join-Path $root ".venv\Scripts\python.exe"
+if (-not (Test-Path $python)) {
+    $python = "python"
+}
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $releaseRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot } else { Join-Path $root $OutputRoot }
@@ -49,12 +53,17 @@ if (-not $PackagePath) {
 }
 
 $resolvedPackage = (Resolve-Path $PackagePath).Path
+$hygieneRaw = & $python ".\scripts\validate-publish-hygiene.py" --package $resolvedPackage --json
+if ($LASTEXITCODE -ne 0) {
+    throw "Publishing hygiene validation failed.`n$hygieneRaw"
+}
+$hygieneValidation = $hygieneRaw | ConvertFrom-Json
 $packageValidation = Invoke-PowerShellJsonQuiet -ScriptPath ".\scripts\validate-kern-package.ps1" -Arguments @("-PackagePath", $resolvedPackage) -FailureMessage "Package validation failed."
 
 $previousValidationPackage = $env:KERN_VALIDATION_PACKAGE_PATH
 $env:KERN_VALIDATION_PACKAGE_PATH = $resolvedPackage
 try {
-    $validationRaw = & python ".\scripts\validate-kern-ui.py" --launch-local
+    $validationRaw = & $python ".\scripts\validate-kern-ui.py" --launch-local
     if ($LASTEXITCODE -ne 0) {
         throw "Validation pack failed."
     }
@@ -92,6 +101,7 @@ $report = [ordered]@{
     package = $resolvedPackage
     checksum = if (Test-Path $checksumPath) { $checksumPath } else { $null }
     package_validation = $packageValidation
+    publishing_hygiene = $hygieneValidation
     validation_output_dir = $validationOutputDir
     release_ready = $releaseReady
     release_gate = $summary.release_gate

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from app.intent import ParsedIntent, RuleBasedIntentEngine
 from app.planning import HeuristicPlanner, LlamaCppPlanner, LlamaServerPlanner
-from app.types import ActiveContextSummary, ExecutionPlan, IntentCandidate, PlanStep, ToolRequest
+from app.types import ActiveContextSummary, ExecutionPlan, IntentCandidate, ToolRequest
 
 if TYPE_CHECKING:
     from app.llm_client import LlamaServerClient
@@ -48,30 +48,6 @@ class SemanticIntentMatcher:
                 "search_documents",
                 {"query": query.strip(" :.?!")},
                 "The user asked to search documents using a paraphrase.",
-            )
-
-        if any(token in lowered for token in ["show my recent mailbox messages", "read recent email", "show recent email"]):
-            return self._request(
-                text,
-                "query",
-                "read_mailbox_summary",
-                "Read recent mailbox messages.",
-                0.77,
-                "read_mailbox_summary",
-                {"limit": 5},
-                "The user asked to read mailbox messages using a paraphrase.",
-            )
-
-        if any(token in lowered for token in ["sync my mailbox", "check if anything urgent arrived"]):
-            return self._request(
-                text,
-                "action",
-                "sync_mailbox",
-                "Synchronize the mailbox.",
-                0.78,
-                "sync_mailbox",
-                {"limit": 8},
-                "The user asked to synchronize mailbox state using a paraphrase.",
             )
 
         if any(token in lowered for token in ["show recent audit events", "recent audit events", "audit trail"]):
@@ -135,18 +111,6 @@ class SemanticIntentMatcher:
                 "The user asked to create an encrypted backup using a paraphrase.",
             )
 
-        if any(token in lowered for token in ["record this meeting", "start a meeting recording"]):
-            return self._request(
-                text,
-                "action",
-                "start_meeting_recording",
-                "Start local meeting recording.",
-                0.77,
-                "start_meeting_recording",
-                {"title": "Meeting"},
-                "The user asked to start meeting recording using a paraphrase.",
-            )
-
         if any(token in lowered for token in ["create a draft angebot", "make an angebot", "make an invoice", "create an invoice", "create a rechnung"]):
             if any(token in lowered for token in ["invoice", "rechnung"]):
                 intent_name = "create_rechnung"
@@ -206,21 +170,6 @@ class SemanticIntentMatcher:
                 "create_note",
                 {"content": content.strip(" :.?!")},
                 "The user asked to save a note using a paraphrase.",
-            )
-
-        if any(token in lowered for token in ["spin up", "queue up", "put on some"]):
-            query = text.lower()
-            for phrase in ["spin up", "queue up", "put on some", "put on"]:
-                query = query.replace(phrase, "", 1)
-            return self._request(
-                text,
-                "action",
-                "media",
-                "Play media.",
-                0.74,
-                "play_spotify",
-                {"query": query.strip(" :.?!") or "morning jazz", "mode": "search_and_play"},
-                "The user asked for media playback using a paraphrase.",
             )
 
         if any(token in lowered for token in ["brief me", "start my day", "give me the lay of the land"]):
@@ -362,21 +311,18 @@ class CapabilityClassifierMatcher:
     TOKEN_PATTERN = re.compile(r"[a-z0-9_]{2,}")
     ROUTES: tuple[ClassifierRoute, ...] = (
         ClassifierRoute("search_documents", "query", "search_documents", "Search ingested documents.", ("search my documents for backups", "look in my documents for encryption", "find in my docs for contracts"), "_build_search_documents"),
-        ClassifierRoute("read_mailbox_summary", "query", "read_mailbox_summary", "Read recent mailbox messages.", ("show my recent mailbox messages", "read recent email", "show recent email"), "_build_read_mailbox_summary"),
-        ClassifierRoute("sync_mailbox", "action", "sync_mailbox", "Synchronize the mailbox.", ("sync my mailbox", "check if anything urgent arrived", "refresh my email inbox"), "_build_sync_mailbox"),
         ClassifierRoute("read_audit_events", "query", "read_audit_events", "Read recent audit events.", ("show recent audit events", "show the audit trail", "audit events for backup restore"), "_build_read_audit_events"),
         ClassifierRoute("read_current_context", "query", "read_current_context", "Read the current local context.", ("show my current context", "what app am i in", "what is in my clipboard"), "_build_empty"),
         ClassifierRoute("read_runtime_snapshot", "query", "read_runtime_snapshot", "Read the runtime snapshot.", ("give me a runtime snapshot summary", "what is my active profile", "show current memory scope"), "_build_empty"),
         ClassifierRoute("list_backups", "query", "list_backups", "List available backups.", ("list available backups", "show backups", "which backup is newest"), "_build_list_backups"),
         ClassifierRoute("create_backup", "action", "create_backup", "Create an encrypted backup.", ("create an encrypted backup", "make an encrypted backup named weekend-checkpoint", "create backup"), "_build_create_backup"),
-        ClassifierRoute("start_meeting_recording", "action", "start_meeting_recording", "Start local meeting recording.", ("start a meeting recording for frontend review", "record this meeting", "begin recording the meeting"), "_build_start_meeting_recording"),
         ClassifierRoute("create_angebot", "action", "create_angebot", "Create a German offer draft.", ("create a draft angebot for acme", "make an angebot for a client", "prepare an offer draft"), "_build_create_angebot"),
         ClassifierRoute("create_rechnung", "action", "create_rechnung", "Create a German invoice draft.", ("make an invoice for acme", "create a rechnung for the client", "prepare an invoice draft"), "_build_create_rechnung"),
         ClassifierRoute("get_pending_tasks", "query", "tasks", "Read pending tasks.", ("what is still on my plate", "what do i still need to do", "show my pending tasks"), "_build_empty"),
         ClassifierRoute("get_today_calendar", "query", "calendar", "Read today's calendar.", ("what is coming up", "what is next on my agenda", "show today calendar"), "_build_empty"),
         ClassifierRoute("create_note", "action", "create_note", "Create a local note.", ("capture this for me", "write this down", "make a note of this"), "_build_create_note"),
         ClassifierRoute("remember_fact", "action", "remember_fact", "Store a durable fact.", ("keep in mind that my editor is vscode", "remember that i prefer concise answers", "make a note that you should remember this"), "_build_remember_fact"),
-        ClassifierRoute("open_app", "action", "open_app", "Open a desktop app.", ("launch vscode", "fire up outlook", "boot up spotify"), "_build_open_app"),
+        ClassifierRoute("open_app", "action", "open_app", "Open a desktop app.", ("launch vscode", "fire up outlook", "open terminal"), "_build_open_app"),
         ClassifierRoute("search_files", "query", "search_files", "Search workspace files.", ("search the workspace for retention", "look through files for audit", "find files about encryption"), "_build_search_files"),
         ClassifierRoute("focus_mode", "action", "focus_mode", "Start focus mode.", ("put me in focus mode", "start a focus block", "lock me into focus"), "_build_focus_mode"),
         ClassifierRoute("browser_search", "action", "browser_search", "Search the web.", ("find on the web privacy laws", "search online for sqlite tuning", "look this up on the internet"), "_build_browser_search"),
@@ -515,16 +461,6 @@ class CapabilityClassifierMatcher:
     def _build_search_documents(self, text: str, lowered: str, dialogue_context: dict[str, str]) -> dict[str, object]:
         return {"query": self._strip_prefixes(text, ("search my documents for", "search my documents", "look in my documents for", "look in my documents", "find in my docs for", "find in my docs"))}
 
-    def _build_read_mailbox_summary(self, text: str, lowered: str, dialogue_context: dict[str, str]) -> dict[str, object]:
-        return {"limit": 5}
-
-    def _build_sync_mailbox(self, text: str, lowered: str, dialogue_context: dict[str, str]) -> dict[str, object]:
-        return {
-            "limit": 8,
-            "urgent_only": "urgent" in lowered,
-            "today_only": "today" in lowered,
-        }
-
     def _build_read_audit_events(self, text: str, lowered: str, dialogue_context: dict[str, str]) -> dict[str, object]:
         query = self._strip_prefixes(text, ("show recent audit events", "recent audit events", "show the audit trail", "audit trail"))
         return {"query": query, "limit": 8}
@@ -536,18 +472,14 @@ class CapabilityClassifierMatcher:
         match = re.search(r"(?:named|called|labelled|labeled)\s+([a-z0-9._-]+)", lowered)
         return {"label": match.group(1) if match else "Manual backup"}
 
-    def _build_start_meeting_recording(self, text: str, lowered: str, dialogue_context: dict[str, str]) -> dict[str, object]:
-        match = re.search(r"\bfor\s+(.+)$", text, flags=re.IGNORECASE)
-        return {"title": match.group(1).strip(" .") if match else "Meeting"}
-
     def _build_create_angebot(self, text: str, lowered: str, dialogue_context: dict[str, str]) -> dict[str, object]:
         customer = re.split(r"angebot", text, maxsplit=1, flags=re.IGNORECASE)[-1]
-        customer = re.sub(r"^\s*(for|für)\s+", "", customer, flags=re.IGNORECASE).strip(" .")
+        customer = re.sub(r"^\s*(for|fÃ¼r)\s+", "", customer, flags=re.IGNORECASE).strip(" .")
         return {"customer_name": customer or "Kunde"}
 
     def _build_create_rechnung(self, text: str, lowered: str, dialogue_context: dict[str, str]) -> dict[str, object]:
         tail = re.split(r"(?:invoice|rechnung)", text, maxsplit=1, flags=re.IGNORECASE)[-1]
-        customer = re.sub(r"^\s*(for|für)\s+", "", tail, flags=re.IGNORECASE).strip(" .")
+        customer = re.sub(r"^\s*(for|fÃ¼r)\s+", "", tail, flags=re.IGNORECASE).strip(" .")
         return {"customer_name": customer or "Kunde"}
 
     def _build_create_note(self, text: str, lowered: str, dialogue_context: dict[str, str]) -> dict[str, object]:
@@ -819,8 +751,6 @@ class HybridCognitionEngine:
             "documents",
             "doc",
             "docs",
-            "email",
-            "mailbox",
             "backup",
             "audit",
             "meeting",
