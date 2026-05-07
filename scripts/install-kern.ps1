@@ -100,10 +100,9 @@ if ($Managed -and $RegisterTask) {
 }
 
 Write-Host "KERN installed."
-Write-Host "Run: .\\.venv\\Scripts\\Activate.ps1"
-Write-Host "Start: python -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
-Write-Host "Open: http://127.0.0.1:8000"
-Write-Host "First value: confirm the local profile, confirm the recommended local model path, then upload one document and draft a German reply from it."
+Write-Host "Start KERN: start-kern"
+Write-Host "Open the local KERN address shown after startup."
+Write-Host "First run: open the local workspace, upload one document, and ask KERN for a cited draft from that document."
 if ($Managed) {
     Write-Host "Managed mode prepared local roots in .kern\\"
 }

@@ -464,7 +464,7 @@ if ($IncludeVenvForBundle) {
 Invoke-Checked "powershell.exe" $packageArgs $repoRoot
 
 if ($NoStart) {
-    Write-Host "KERN is installed and ready. Start it with: .\scripts\start-kern.ps1 -SkipToolInstall -SkipPythonInstall" -ForegroundColor Green
+    Write-Host "KERN is installed and ready. Start it with: start-kern" -ForegroundColor Green
     exit 0
 }
 

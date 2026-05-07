@@ -14,15 +14,25 @@ KERN is a controlled local work-preparation system for document-grounded enterpr
 
 ## Get Started
 
-### Easiest Windows Run
+### Install KERN
+
+Double-click `Install KERN.cmd`.
+
+If you prefer a terminal:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start-kern.ps1
+.\install-kern
 ```
 
-Open [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard) when the script reports that KERN is running.
+When KERN starts, open the local KERN address shown in the terminal.
 
-The starter script creates the local environment when needed, installs the required Python package, prepares `.env` from `.env.example`, starts the loopback server, and prints the dashboard URL.
+The installer prepares the local environment, creates the local settings file, starts KERN on your machine, and prints the local address.
+
+After the first install, start KERN with:
+
+```powershell
+.\start-kern
+```
 
 For first use, keep `KERN_LLM_ENABLED=false`. KERN will still open and let you test the workspace, governance, backup, and dashboard flows. For grounded language generation, install a local `llama-server` runtime and set these values in `.env`:
 
@@ -37,7 +47,7 @@ KERN_LLAMA_SERVER_MODEL_PATH=C:\models\your-model.gguf
 KERN includes a Windows-first Tauri shell in `src-tauri/`. Use this when you want the dashboard in a desktop window instead of a browser tab.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-desktop-dev.ps1
+.\scripts\run-kern-desktop-dev.ps1
 ```
 
 ## Developer Setup
