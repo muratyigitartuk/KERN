@@ -4,7 +4,6 @@ import { createDashboardRenderer } from "/static/js/dashboard-renderer.js?v=2026
 import { createModalController } from "/static/js/modal-controller.js?v=20260422m";
 import { createSocketClient } from "/static/js/socket-client.js?v=20260422m";
 import { createThemeController } from "/static/js/theme-controller.js?v=20260422m";
-import { createWorkbenchController } from "/static/js/workbench.js?v=20260422m";
 import { applyText, loadLocale, t } from "/static/js/i18n.js?v=20260430a";
 import { secureFetch } from "/static/js/utils.js?v=20260422m";
 
@@ -164,14 +163,11 @@ function applyStaticUiTranslations() {
   setAttr("#uploadNoticeModal .settings-modal__dialog", "aria-label", "upload_notice.aria");
 
   setText("[data-tab='workspace'] .utility-tab__label", "tabs.workspace");
-  setText("[data-tab='admin'] .utility-tab__label", "tabs.admin");
   setText("[data-tab='compliance'] .utility-tab__label", "tabs.compliance");
   setText("[data-tab='intelligence'] .utility-tab__label", "tabs.intelligence");
   setText("[data-tab='evidence'] .utility-tab__label", "tabs.evidence");
   setAttr("[data-tab='workspace']", "title", "tabs.workspace");
   setAttr("[data-tab='workspace']", "aria-label", "tabs.workspace");
-  setAttr("[data-tab='admin']", "title", "tabs.admin");
-  setAttr("[data-tab='admin']", "aria-label", "tabs.admin");
   setAttr("[data-tab='compliance']", "title", "tabs.compliance");
   setAttr("[data-tab='compliance']", "aria-label", "tabs.compliance");
   setAttr("[data-tab='intelligence']", "title", "tabs.intelligence");
@@ -179,22 +175,12 @@ function applyStaticUiTranslations() {
   setAttr("[data-tab='evidence']", "title", "tabs.evidence");
   setAttr("[data-tab='evidence']", "aria-label", "tabs.evidence");
 
-  setText("#adminAccessState .panel-state__pill", "utility.admin.posture");
-  setText("#adminAccessState .panel-state__title", "utility.admin.title");
-  setText("#adminAccessState .panel-state__body", "utility.admin.body");
   setText("#adminRefreshButton", "actions.refresh");
-  setText("#adminCreateWorkspaceButton", "utility.admin.create_workspace");
-  setText("#adminCreateUserButton", "utility.admin.invite_user");
 
   setText("#createTrainingExportButton", "utility.intelligence.create_training_export");
 
-  setParentLeadText("knowledgeBackend", "knowledge.title");
-  setText("#knowledgeBackend", "knowledge.backend_lexical");
-  setText("#knowledgeState", "knowledge.ready");
-  setAttr("#knowledgeQuery", "placeholder", "knowledge.search_placeholder");
-  setText("#knowledgeSearchButton", "knowledge.search");
   setAttr("#conversationSearchInput", "placeholder", "search.placeholder");
-  setAttr("#composerKbSearch", "placeholder", "composer.search_docs");
+  setAttr("#composerDocumentSearch", "placeholder", "composer.search_docs");
 
   setText("#focusText", "brief.default_focus");
   setParentLeadText("contextList", "sections.context");
@@ -206,15 +192,6 @@ function applyStaticUiTranslations() {
   setParentLeadText("planList", "plan.current");
   setParentLeadText("receiptList", "plan.recently_done");
   setParentLeadText("capabilityList", "plan.available_tools");
-  setPreviousGroupLabel("memorySearchInput", "memory.group");
-  setParentLeadText("memorySearchInput", "memory.title");
-  setAttr("#memorySearchInput", "placeholder", "memory.search_placeholder");
-  setAttr("#memoryDateFrom", "title", "memory.from_date");
-  setAttr("#memoryDateTo", "title", "memory.to_date");
-  setText("#memorySearchButton", "memory.search");
-  setParentLeadText("memoryTimeline", "memory.timeline");
-  setParentLeadText("memoryResultsList", "memory.matching_turns");
-
   setPreviousGroupLabel("documentsList", "docs.group");
   setParentLeadText("documentsList", "docs.title");
   setLeadingTextNode(document.getElementById("bulkFileInput")?.parentElement, t("docs.upload"));
@@ -389,8 +366,6 @@ const socketClient = createSocketClient({
       renderer.finalizeLlmStream(message.payload?.rag || false);
     } else if (message.type === "rag_sources") {
       renderer.renderRagSources(message.payload);
-    } else if (message.type === "memory_search_result") {
-      renderer.renderMemorySearchResults(message.hits || []);
     } else if (message.type === "audit_export") {
       // L-18: Type-check payload and defer revocation.
       const payload = typeof message.payload === "string" ? message.payload : JSON.stringify(message.payload);
@@ -416,24 +391,6 @@ function send(payload) {
   return sent;
 }
 
-const workbenchController = utilityEnabled
-  ? createWorkbenchController({ renderer })
-  : {
-      async init() {},
-      async onTabActivated() {},
-      async refreshActiveTab() {},
-    };
-
-if (utilityEnabled) {
-  const baseActivateUtilityTab = renderer.activateUtilityTab;
-  renderer.activateUtilityTab = (tabName) => {
-    baseActivateUtilityTab(tabName);
-    workbenchController.onTabActivated(tabName).catch((error) => {
-      console.error("[KERN] workbench tab activation failed:", error);
-    });
-  };
-}
-
 bindDashboardEvents({
   elements,
   renderer,
@@ -445,10 +402,6 @@ bindDashboardEvents({
   themeController,
   utilityEnabled,
 });
-
-if (utilityEnabled) {
-  await workbenchController.init();
-}
 
 renderer.updateClock();
 window.setInterval(renderer.updateClock, 1000);

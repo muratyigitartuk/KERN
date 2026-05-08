@@ -51,6 +51,7 @@ $requiredEntries = @(
     "docs/troubleshooting-guide.md",
     "docs/windows-deployment.md",
     "docs/validation-pack.md",
+    "docs/validation-walkthrough.md",
     "src-tauri/Cargo.toml",
     "src-tauri/Cargo.lock",
     "src-tauri/build.rs",

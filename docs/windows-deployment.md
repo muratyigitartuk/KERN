@@ -140,7 +140,7 @@ Recommended release-blocking checks on the target machine:
 Runbook:
 
 - `green`: `/health/ready` returns `200`, `audit_chain_ok=true`, no degraded reasons
-- `yellow`: `/health` returns `200` with `status=warning`; investigate task registration, monitoring, or locked-scaffold state
+- `yellow`: `/health` returns `200` with `status=warning`; investigate task registration, monitoring, or locked-profile state
 - `red`: `/health` returns `503` or `500`; stop rollout, inspect preflight and governance export, then restore from the latest `.kernbak` or `.kernbundle`
 
 ## Local data layout

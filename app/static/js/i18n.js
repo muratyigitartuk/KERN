@@ -149,7 +149,7 @@ async function loadLocale(lang) {
     _i18n._strings = await resp.json();
     if (lang === "de") {
       _i18n._strings["composer.upload_file_desc"] = "Lade ein PDF, Word-Dokument, eine Tabelle, einen Mail-Export oder Notizen hoch";
-      _i18n._strings["composer.from_kb_desc"] = "Waehle etwas aus, das du schon hochgeladen hast";
+      _i18n._strings["composer.from_documents_desc"] = "Waehle etwas aus, das du schon hochgeladen hast";
       _i18n._strings["upload.validation.count"] = "Du kannst auf einmal bis zu ${max} Dateien hochladen.";
       _i18n._strings["empty.heading_alt_1"] = "Bereit, wenn du es bist.";
       _i18n._strings["empty.heading_alt_2"] = "Womit legen wir los?";

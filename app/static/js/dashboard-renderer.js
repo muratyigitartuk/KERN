@@ -304,7 +304,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
   }
 
   async function createRemoteWorkspace(workspace) {
-    const payload = await postWorkspaceJson("/admin/workspaces", {
+    const payload = await postWorkspaceJson("/api/workspaces", {
       slug: workspace.id,
       title: workspace.title,
     });
@@ -2043,39 +2043,6 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     );
   }
 
-  function renderKnowledge(snapshot) {
-    if (!elements.knowledgeBackend || !elements.knowledgeState || !elements.knowledgeResults) {
-      return;
-    }
-    const retrieval = snapshot.retrieval_status || {};
-    elements.knowledgeBackend.textContent = humanizeValue(retrieval.backend || "lexical");
-    elements.knowledgeState.textContent = retrieval.reason || t("knowledge.ready");
-    if (elements.knowledgeQuery && elements.knowledgeQuery.value.trim() === "" && snapshot.last_retrieval_query) {
-      elements.knowledgeQuery.value = snapshot.last_retrieval_query;
-    }
-    const hits = snapshot.recent_retrieval_hits || [];
-    elements.knowledgeResults.innerHTML = "";
-    if (!hits.length) {
-      elements.knowledgeResults.appendChild(
-        createStateListItem(
-          snapshot.last_retrieval_query ? t("knowledge.no_results") : t("knowledge.empty_title"),
-          snapshot.last_retrieval_query ? t("knowledge.no_results_detail") : t("knowledge.prompt_search_detail"),
-          snapshot.last_retrieval_query ? "warning" : "empty",
-          snapshot.last_retrieval_query ? t("knowledge.search") : t("knowledge.title")
-        )
-      );
-      return;
-    }
-    hits.forEach((hit) => {
-      const li = document.createElement("li");
-      li.textContent = uiText(
-        `${humanizeValue(hit.source_type, "Dokument")} Â· ${hit.metadata?.title || hit.source_id} Â· Relevanz ${Number(hit.score || 0).toFixed(2)} Â· ${truncate(hit.text || "", 88)}`,
-        `${humanizeValue(hit.source_type, "Document")} Â· ${hit.metadata?.title || hit.source_id} Â· Relevance ${Number(hit.score || 0).toFixed(2)} Â· ${truncate(hit.text || "", 88)}`
-      );
-      elements.knowledgeResults.appendChild(li);
-    });
-  }
-
   function auditLang(deText, enText) {
     return (document.documentElement.lang || "en").toLowerCase().startsWith("de") ? deText : enText;
   }
@@ -2474,24 +2441,24 @@ export function createDashboardRenderer({ elements, send, themeController, passa
   let _selectedDocIds = new Set();
 
   function renderComposerKbPicker(docs) {
-    const list = elements.composerKbList;
+    const list = elements.composerDocumentList;
     if (!list) return;
     list.innerHTML = "";
     if (!docs || docs.length === 0) {
       const empty = document.createElement("li");
-      empty.className = "composer-kb-list__empty";
+      empty.className = "composer-document-list__empty";
       empty.textContent = t("docs.no_documents");
       list.appendChild(empty);
       return;
     }
     docs.forEach((doc) => {
       const li = document.createElement("li");
-      li.className = "composer-kb-list__item";
+      li.className = "composer-document-list__item";
       const title = document.createElement("span");
-      title.className = "composer-kb-list__title";
+      title.className = "composer-document-list__title";
       title.textContent = doc.title || doc.source_id || t("docs.untitled");
       const meta = document.createElement("span");
-      meta.className = "composer-kb-list__meta";
+      meta.className = "composer-document-list__meta";
       meta.textContent = buildDocumentLabel(doc);
       li.appendChild(title);
       li.appendChild(meta);
@@ -2742,7 +2709,8 @@ export function createDashboardRenderer({ elements, send, themeController, passa
       list.appendChild(li);
     });
   }
-`r`n  function renderSnapshot(snapshot) {
+
+  function renderSnapshot(snapshot) {
     currentSnapshot = snapshot;
     applyProductPosture(snapshot);
     const slices = [
@@ -3014,7 +2982,6 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     appendLlmToken,
     finalizeLlmStream,
     renderRagSources,
-    renderMemorySearchResults,
     archiveCurrentConversation() {
       const archived = archiveTurns(currentSnapshot?.conversation_turns || []);
       refreshSessionFilter();

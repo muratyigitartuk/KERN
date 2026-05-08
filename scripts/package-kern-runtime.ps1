@@ -93,6 +93,7 @@ $include = @(
     "docs\\release-checklist.md",
     "docs\\windows-deployment.md",
     "docs\\validation-pack.md",
+    "docs\\validation-walkthrough.md",
     "tests\\fixtures\\validation"
 )
 

@@ -232,7 +232,7 @@ Default uninstall preserves `.kern` unless the operator explicitly removes data.
 ## 12. Known Current Boundaries
 
 - OCR fallback is implemented in code but not validated as a Windows production path
-- this runbook covers the local Windows deployment path; shared multi-user deployments use server mode
+- this runbook covers the local Windows deployment path; shared multi-user deployment is future architecture
 - local LLM/model runtime remains your responsibility on the target machine
 - HF adapter serving is the current reference-quality tuned-model path; merged GGUF remains the later deployment optimization
 - the Windows service wrapper is optional, not the primary internal deployment path

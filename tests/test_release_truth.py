@@ -10,7 +10,7 @@ DOC_PATHS = [
     ROOT / "README.md",
     ROOT / "docs" / "validation-pack.md",
     ROOT / "docs" / "windows-deployment.md",
-    ROOT / "docs" / "corporate-demo-script.md",
+    ROOT / "docs" / "validation-walkthrough.md",
 ]
 HEALTH_SEMANTIC_PATHS = DOC_PATHS
 _KERN_ENV_RE = re.compile(r"KERN_[A-Z0-9_]+")
@@ -42,8 +42,8 @@ def test_public_health_docs_do_not_use_stale_healthy_status() -> None:
     assert offenders == []
 
 
-def test_corporate_demo_script_references_release_and_acceptance_artifacts() -> None:
-    text = (ROOT / "docs" / "corporate-demo-script.md").read_text(encoding="utf-8").lower()
+def test_validation_walkthrough_references_release_and_acceptance_artifacts() -> None:
+    text = (ROOT / "docs" / "validation-walkthrough.md").read_text(encoding="utf-8").lower()
     assert "release gate" in text
     assert "support" in text
 

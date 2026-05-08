@@ -84,7 +84,6 @@ def test_profile_wrapped_secret_requires_unlock_after_restart(tmp_path: Path):
 
 
 def test_backup_service_creates_encrypted_backup_payload(tmp_path: Path):
-    pytest.importorskip("cryptography")
     profile_root = tmp_path / "profiles" / "default"
     profile_root.mkdir(parents=True)
     (profile_root / "note.txt").write_text("sensitive profile payload", encoding="utf-8")
@@ -114,7 +113,6 @@ def test_backup_service_creates_encrypted_backup_payload(tmp_path: Path):
 
 
 def test_platform_rotate_profile_db_key_reopens_encrypted_database(tmp_path: Path):
-    pytest.importorskip("cryptography")
     platform = PlatformStore(connect_platform_db(tmp_path / "kern-system.db"))
     profile = platform.ensure_default_profile(
         profile_root=tmp_path / "profiles",

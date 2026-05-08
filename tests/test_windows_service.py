@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import types
 from importlib import import_module
 from importlib.util import find_spec
 from pathlib import Path
@@ -14,7 +15,41 @@ import pytest
 os.environ.setdefault("KERN_PRODUCT_POSTURE", "personal")
 
 if any(find_spec(name) is None for name in ("win32event", "win32service", "win32serviceutil", "servicemanager")):
-    pytest.skip("pywin32 not installed - skipping Windows service tests", allow_module_level=True)
+    class _ServiceFramework:
+        def __init__(self, args):
+            self.args = args
+
+        def ReportServiceStatus(self, status):
+            self.last_status = status
+
+    sys.modules.setdefault(
+        "win32serviceutil",
+        types.SimpleNamespace(ServiceFramework=_ServiceFramework, HandleCommandLine=lambda _service: None),
+    )
+    sys.modules.setdefault("win32service", types.SimpleNamespace(SERVICE_STOP_PENDING=3))
+    sys.modules.setdefault(
+        "win32event",
+        types.SimpleNamespace(
+            WAIT_OBJECT_0=0,
+            CreateEvent=lambda *_args: object(),
+            SetEvent=lambda _event: None,
+            WaitForSingleObject=lambda *_args: 1,
+        ),
+    )
+    sys.modules.setdefault(
+        "servicemanager",
+        types.SimpleNamespace(
+            EVENTLOG_INFORMATION_TYPE=0,
+            PYS_SERVICE_STARTED=0,
+            Initialize=lambda: None,
+            PrepareToHostSingle=lambda _service: None,
+            StartServiceCtrlDispatcher=lambda: None,
+            LogMsg=lambda *_args: None,
+            LogInfoMsg=lambda *_args: None,
+            LogWarningMsg=lambda *_args: None,
+            LogErrorMsg=lambda *_args: None,
+        ),
+    )
 
 import servicemanager
 import win32event

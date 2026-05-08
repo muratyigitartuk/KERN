@@ -24,8 +24,7 @@ COMPOSE_FILE = PROJECT_ROOT / "docker-compose.yml"
 
 @pytest.fixture
 def dockerfile_content():
-    if not DOCKERFILE.exists():
-        pytest.skip("Dockerfile not found")
+    assert DOCKERFILE.exists(), "Dockerfile is part of the supported container smoke surface."
     return DOCKERFILE.read_text(encoding="utf-8")
 
 
@@ -65,8 +64,7 @@ def test_dockerfile_no_root_user(dockerfile_content):
 
 @pytest.fixture
 def compose_content():
-    if not COMPOSE_FILE.exists():
-        pytest.skip("docker-compose.yml not found")
+    assert COMPOSE_FILE.exists(), "docker-compose.yml is part of the supported container smoke surface."
     return COMPOSE_FILE.read_text(encoding="utf-8")
 
 

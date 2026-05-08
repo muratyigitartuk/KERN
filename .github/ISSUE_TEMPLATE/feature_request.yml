@@ -1,0 +1,38 @@
+name: Feature Request
+description: Propose a document-workspace improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow
+      description: What document work should become better?
+    validations:
+      required: true
+  - type: textarea
+    id: user
+    attributes:
+      label: Operator Or User
+      description: Who needs this and under what policy/audit constraints?
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence And Citation Requirements
+      description: What sources, citations, exports, refusals, or audit records should exist?
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-Goals
+      description: Name anything this request should not add.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope Check
+      options:
+        - label: This is not a SaaS hosting request.
+          required: true
+        - label: This does not depend on removed auth, licensing, or unsupported relationship-mapping surfaces.
+          required: true

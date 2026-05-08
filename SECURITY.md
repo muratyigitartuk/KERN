@@ -14,7 +14,7 @@ Include:
 
 - affected version or commit
 - operating system
-- exact startup mode: desktop, local web, or server mode
+- exact startup mode: desktop shell or local web
 - reproduction steps
 - expected and actual impact
 - any logs with secrets and private content removed

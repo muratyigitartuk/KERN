@@ -303,18 +303,18 @@
                         <span class="composer-plus-menu__desc" data-i18n="composer.upload_file_desc">Add a PDF, Word file, spreadsheet, or notes</span>
                       </div>
                     </button>
-                    <button type="button" class="composer-plus-menu__item" id="composerKbAction" role="menuitem" aria-expanded="false">
+                    <button type="button" class="composer-plus-menu__item" id="composerDocumentAction" role="menuitem" aria-expanded="false">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="composer-plus-menu__icon">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
                       </svg>
                       <div class="composer-plus-menu__body">
-                        <span class="composer-plus-menu__label" data-i18n="composer.from_kb">From knowledge base</span>
-                        <span class="composer-plus-menu__desc" data-i18n="composer.from_kb_desc">Choose one of your saved documents</span>
+                        <span class="composer-plus-menu__label" data-i18n="composer.from_documents">From documents</span>
+                        <span class="composer-plus-menu__desc" data-i18n="composer.from_documents_desc">Choose one of your saved documents</span>
                       </div>
                     </button>
-                    <div id="composerKbPicker" class="composer-kb-picker hidden">
-                      <input type="search" id="composerKbSearch" class="settings-text-input" placeholder="Search documents…" />
-                      <ul id="composerKbList" class="composer-kb-list"></ul>
+                    <div id="composerDocumentPicker" class="composer-document-picker hidden">
+                      <input type="search" id="composerDocumentSearch" class="settings-text-input" placeholder="Search documents…" />
+                      <ul id="composerDocumentList" class="composer-document-list"></ul>
                     </div>
                   </div>
                 </div>
@@ -551,22 +551,24 @@
               <span>File encryption</span>
               <strong id="settingsArtifactEncryption">Not enabled</strong>
             </div>
-            <div class="settings-row settings-row--stack">
+            <form class="settings-row settings-row--stack" autocomplete="off">
               <span>Session PIN</span>
-              <input id="settingsSessionPin" class="settings-text-input" type="password" placeholder="PIN for unlock" />
+              <input class="visually-hidden" type="text" name="kern-profile" autocomplete="username" value="local-profile" tabindex="-1" aria-hidden="true" />
+              <input id="settingsSessionPin" class="settings-text-input" type="password" placeholder="PIN for unlock" autocomplete="current-password" />
               <div class="settings-inline-actions">
                 <button type="button" id="settingsSavePin" class="ghost-button">Save PIN</button>
                 <button type="button" id="settingsLockProfile" class="ghost-button">Lock profile</button>
                 <button type="button" id="settingsUnlockProfile" class="ghost-button">Unlock profile</button>
               </div>
-            </div>
-            <div class="settings-row settings-row--stack">
+            </form>
+            <form class="settings-row settings-row--stack" autocomplete="off">
               <span>Encrypted backup</span>
-              <input id="settingsBackupPassword" class="settings-text-input" type="password" placeholder="Password for backup" />
+              <input class="visually-hidden" type="text" name="kern-backup-profile" autocomplete="username" value="local-profile" tabindex="-1" aria-hidden="true" />
+              <input id="settingsBackupPassword" class="settings-text-input" type="password" placeholder="Password for backup" autocomplete="current-password" />
               <div class="settings-inline-actions">
                 <button type="button" id="settingsCreateBackup" class="ghost-button">Create encrypted backup</button>
               </div>
-            </div>
+            </form>
             <div id="settingsBackupStatusCard" class="settings-story-card">
               <div class="settings-story-card__head">
                 <span class="eyebrow">Recovery posture</span>

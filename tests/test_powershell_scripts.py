@@ -68,8 +68,7 @@ def test_ps1_no_hardcoded_paths(ps1_content):
 
 def test_install_script_exists():
     script = SCRIPTS_DIR / "install-kern-service.ps1"
-    if not script.exists():
-        pytest.skip("install-kern-service.ps1 not found")
+    assert script.exists(), "install-kern-service.ps1 must exist while the service wrapper is shipped."
     content = script.read_text(encoding="utf-8")
     assert "nssm" in content.lower() or "pywin32" in content.lower(), \
         "Install script should reference nssm or pywin32 service installer"
@@ -77,8 +76,7 @@ def test_install_script_exists():
 
 def test_install_script_has_service_name():
     script = SCRIPTS_DIR / "install-kern-service.ps1"
-    if not script.exists():
-        pytest.skip("install-kern-service.ps1 not found")
+    assert script.exists(), "install-kern-service.ps1 must exist while the service wrapper is shipped."
     content = script.read_text(encoding="utf-8")
     assert "KERN" in content or "ServiceName" in content
 
@@ -88,8 +86,7 @@ def test_install_script_has_service_name():
 
 def test_update_script_exists():
     script = SCRIPTS_DIR / "update-kern.ps1"
-    if not script.exists():
-        pytest.skip("update-kern.ps1 not found")
+    assert script.exists(), "update-kern.ps1 must ship with the release scripts."
     content = script.read_text(encoding="utf-8")
     assert "git" in content.lower() or "pull" in content.lower() or "pip" in content.lower(), \
         "Update script should reference git or pip operations"

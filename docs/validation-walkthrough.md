@@ -1,8 +1,8 @@
-# KERN Corporate Demo Script
+# KERN Validation Walkthrough
 
-Use this script for a controlled local/on-prem pilot demo. Do not present server mode as the full product path.
+Use this walkthrough to verify a local KERN build before handing it to another operator. Do not present shared deployment as complete product behavior.
 
-## Pre-Demo Proof
+## Evidence To Open First
 
 Show the validation artifacts first:
 
@@ -22,7 +22,7 @@ python .\scripts\preflight-kern.py --json
 powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-release-gate.ps1
 ```
 
-## Demo Flow
+## Walkthrough
 
 1. Open the dashboard and show readiness.
    - Show local model status.
@@ -59,13 +59,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-release-gate.ps1
    - Show encrypted backup/update bundle validation.
    - Show traversal rejection from the validation evidence.
 
-## Do Not Demo
+## Do Not Claim
 
-- Server mode as full product parity.
+- Shared deployment as complete product parity.
 - OCR reliability.
 - Removed workplace integrations.
 - Broad shared production scale.
 
 ## Closing Statement
 
-KERN is a controlled enterprise work-preparation system for document-grounded local/on-prem workflows. LLMs help with wording only after deterministic evidence preparation and policy checks.
+KERN is a controlled local document workspace for grounded internal knowledge work. LLMs help with wording only after deterministic evidence preparation and policy checks.

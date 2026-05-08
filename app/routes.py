@@ -674,14 +674,14 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
             headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
         )
 
-    @app.get("/admin/workspaces")
+    @app.get("/api/workspaces")
     async def list_workspaces(request: Request) -> JSONResponse:
         _require_roles(request, "org_owner", "org_admin", "auditor")
         runtime: KernRuntime = await _resolve_runtime(request)
         workspaces = await asyncio.to_thread(runtime.platform.list_profiles)
         return _collection_response("workspaces", [workspace.model_dump(mode="json") for workspace in workspaces])
 
-    @app.post("/admin/workspaces")
+    @app.post("/api/workspaces")
     async def create_workspace(request: Request) -> JSONResponse:
         context = _require_roles(request, "org_owner", "org_admin")
         runtime_or_manager = _get_runtime()
@@ -709,138 +709,6 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
             await runtime_or_manager.get_runtime(profile.slug)
         workspace_payload = profile.model_dump(mode="json")
         return _action_response(item_name="workspace", item=workspace_payload)
-
-    @app.get("/admin/workspaces/{workspace_slug}/users")
-    async def list_workspace_users(workspace_slug: str, request: Request) -> JSONResponse:
-        workspace_slug = _validated_workspace_slug(workspace_slug)
-        _require_roles(request, "org_owner", "org_admin", "auditor")
-        runtime: KernRuntime = await _resolve_runtime(request)
-        users = await asyncio.to_thread(runtime.platform.list_workspace_users, workspace_slug)
-        memberships_by_user: dict[str, list[dict[str, object]]] = {}
-        for user in users:
-            memberships = await asyncio.to_thread(runtime.platform.list_workspace_memberships, user.id)
-            memberships_by_user[user.id] = [
-                membership.model_dump(mode="json")
-                for membership in memberships
-                if membership.workspace_slug == workspace_slug
-            ]
-        return _collection_response(
-            "users",
-            [
-                {
-                    **user.model_dump(mode="json"),
-                    "memberships": memberships_by_user.get(user.id, []),
-                }
-                for user in users
-            ],
-            workspace_slug=workspace_slug,
-        )
-
-    @app.get("/admin/users")
-    async def list_users(request: Request) -> JSONResponse:
-        context = _require_roles(request, "org_owner", "org_admin", "auditor")
-        runtime: KernRuntime = await _resolve_runtime(request)
-        users = await asyncio.to_thread(runtime.platform.list_users, context.organization_id)
-        return _collection_response("users", [user.model_dump(mode="json") for user in users])
-
-    @app.post("/admin/users")
-    async def create_user(request: Request) -> JSONResponse:
-        context = _require_roles(request, "org_owner", "org_admin")
-        runtime: KernRuntime = await _resolve_runtime(request)
-        payload = await request.json()
-        email = str(payload.get("email") or "").strip().lower()
-        display_name = str(payload.get("display_name") or email)
-        role = str(payload.get("role") or "member")
-        workspace_slug = _validated_workspace_slug(str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug))
-        user = await asyncio.to_thread(
-            runtime.platform.create_user,
-            email=email,
-            display_name=display_name,
-            organization_id=context.organization_id,
-            status="active",
-        )
-        membership = await asyncio.to_thread(
-            runtime.platform.upsert_workspace_membership,
-            user_id=user.id,
-            workspace_slug=workspace_slug,
-            role=role,
-        )
-        return _action_response(
-            item_name="user",
-            item=user.model_dump(mode="json"),
-            membership=membership.model_dump(mode="json"),
-        )
-
-    @app.post("/admin/users/{user_id}/approve")
-    async def approve_user(user_id: str, request: Request) -> JSONResponse:
-        context = _require_roles(request, "org_owner", "org_admin")
-        runtime: KernRuntime = await _resolve_runtime(request)
-        payload = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
-        workspace_slug = _validated_workspace_slug(str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug))
-        role = str(payload.get("role") or "member")
-        user = await asyncio.to_thread(runtime.platform.set_user_status, user_id, "active")
-        membership = await asyncio.to_thread(
-            runtime.platform.upsert_workspace_membership,
-            user_id=user.id,
-            workspace_slug=workspace_slug,
-            role=role,
-        )
-        await asyncio.to_thread(
-            runtime.platform.record_audit,
-            "users",
-            "approve_user",
-            "success",
-            f"Approved user {user.email}.",
-            profile_slug=workspace_slug,
-            details={"actor_user_id": context.user_id, "approved_user_id": user.id, "role": role},
-        )
-        return _action_response(
-            item_name="user",
-            item=user.model_dump(mode="json"),
-            membership=membership.model_dump(mode="json"),
-        )
-
-    @app.post("/admin/users/{user_id}/suspend")
-    async def suspend_user(user_id: str, request: Request) -> JSONResponse:
-        context = _require_roles(request, "org_owner", "org_admin")
-        runtime: KernRuntime = await _resolve_runtime(request)
-        user = await asyncio.to_thread(runtime.platform.set_user_status, user_id, "suspended")
-        await asyncio.to_thread(
-            runtime.platform.record_audit,
-            "users",
-            "suspend_user",
-            "success",
-            f"Suspended user {user.email}.",
-            profile_slug=runtime.active_profile.slug,
-            details={"actor_user_id": context.user_id, "suspended_user_id": user.id},
-        )
-        return _action_response(item_name="user", item=user.model_dump(mode="json"))
-
-    @app.post("/admin/memberships")
-    async def assign_membership(request: Request) -> JSONResponse:
-        context = _require_roles(request, "org_owner", "org_admin")
-        runtime: KernRuntime = await _resolve_runtime(request)
-        payload = await request.json()
-        user_id = str(payload.get("user_id") or "").strip()
-        workspace_slug = _validated_workspace_slug(str(payload.get("workspace_slug") or context.workspace_slug or runtime.active_profile.slug).strip())
-        role = str(payload.get("role") or "member").strip()
-        membership = await asyncio.to_thread(
-            runtime.platform.upsert_workspace_membership,
-            user_id=user_id,
-            workspace_slug=workspace_slug,
-            role=role,
-        )
-        await asyncio.to_thread(
-            runtime.platform.record_audit,
-            "users",
-            "assign_membership",
-            "success",
-            f"Assigned role {role} in {workspace_slug}.",
-            profile_slug=workspace_slug,
-            details={"actor_user_id": context.user_id, "target_user_id": user_id, "role": role},
-        )
-        membership_payload = membership.model_dump(mode="json")
-        return _action_response(item_name="membership", item=membership_payload)
 
     @app.get("/compliance/retention-policies")
     async def list_retention_policies(request: Request) -> JSONResponse:
@@ -1186,80 +1054,6 @@ def register_routes(app: FastAPI, get_runtime: callable) -> None:
             actor_user_id=context.user_id,
         )
         return _detail_response("world_state", snapshot.model_dump(mode="json"))
-
-    @app.get("/intelligence/workbench")
-    async def intelligence_workbench(request: Request) -> JSONResponse:
-        context = _require_roles(request)
-        runtime: KernRuntime = await _resolve_runtime(request)
-        payload = await asyncio.to_thread(
-            _reasoning_service(runtime).build_worker_workbench,
-            organization_id=context.organization_id,
-            workspace_slug=context.workspace_slug or runtime.active_profile.slug,
-            actor_user_id=context.user_id,
-        )
-        world_state = payload["world_state"]
-        recommendations = payload["recommendations"]
-        focus_hints = payload["focus_hints"]
-        decisions = payload["decisions"]
-        return _detail_response(
-            "workbench",
-            {
-                "world_state": world_state.model_dump(mode="json"),
-                "recommendations": [item.model_dump(mode="json") for item in recommendations],
-                "focus_hints": [item.model_dump(mode="json") for item in focus_hints],
-                "decisions": [item.model_dump(mode="json") for item in decisions],
-            },
-        )
-
-    @app.get("/intelligence/workflows")
-    async def intelligence_workflows(request: Request) -> JSONResponse:
-        context = _require_roles(request)
-        runtime: KernRuntime = await _resolve_runtime(request)
-        workflows = await asyncio.to_thread(
-            _reasoning_service(runtime).list_workflows,
-            organization_id=context.organization_id,
-            workspace_slug=context.workspace_slug or runtime.active_profile.slug,
-            actor_user_id=context.user_id,
-        )
-        return _collection_response("workflows", [item.model_dump(mode="json") for item in workflows])
-
-    @app.get("/intelligence/workflows/{workflow_id}")
-    async def intelligence_workflow_detail(workflow_id: str, request: Request) -> JSONResponse:
-        context = _require_roles(request)
-        runtime: KernRuntime = await _resolve_runtime(request)
-        workflow = await asyncio.to_thread(
-            _reasoning_service(runtime).get_workflow,
-            workflow_id,
-            organization_id=context.organization_id,
-            workspace_slug=context.workspace_slug or runtime.active_profile.slug,
-            actor_user_id=context.user_id,
-        )
-        if workflow is None:
-            raise HTTPException(status_code=404, detail="Workflow not found.")
-        events = await asyncio.to_thread(_ensure_memory(runtime).list_workflow_events, workflow_id)
-        domain_events = await asyncio.to_thread(
-            _ensure_memory(runtime).list_workflow_domain_events,
-            workflow_id=workflow_id,
-            limit=50,
-        )
-        return _detail_response(
-            "workflow",
-            workflow.model_dump(mode="json"),
-            events=[item.model_dump(mode="json") for item in events],
-            domain_events=[item.model_dump(mode="json") for item in domain_events],
-        )
-
-    @app.get("/intelligence/obligations")
-    async def intelligence_obligations(request: Request) -> JSONResponse:
-        context = _require_roles(request)
-        runtime: KernRuntime = await _resolve_runtime(request)
-        obligations = await asyncio.to_thread(
-            _reasoning_service(runtime).list_obligations,
-            organization_id=context.organization_id,
-            workspace_slug=context.workspace_slug or runtime.active_profile.slug,
-            actor_user_id=context.user_id,
-        )
-        return _collection_response("obligations", [item.model_dump(mode="json") for item in obligations])
 
     @app.get("/intelligence/recommendations")
     async def intelligence_recommendations(request: Request) -> JSONResponse:

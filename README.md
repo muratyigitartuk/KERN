@@ -21,6 +21,43 @@ Do not describe this release as fully enterprise-scale. The reserved final enter
 
 Use that name only when the deployment path supports shared company document workflows, group-based access control, durable audit, migrations, backups, rollback, and operator observability end to end.
 
+## Project Scope
+
+KERN is open source document AI infrastructure for companies that want local control first. The current release focuses on:
+
+- local document ingestion and indexing
+- grounded Q&A with citations
+- evidence-first drafting
+- policy checks, audit evidence, backups, restore, and support bundles
+- Windows-first local installation through `install-kern` and `kern`
+
+Out of scope for the current release:
+
+- SaaS hosting
+- chatbot-only wrappers
+- commercial activation or seat enforcement
+- browser sign-in and recovery flows
+- unsupported relationship-mapping features
+- shared enterprise deployment claims before the shared runtime exists
+
+## Roadmap
+
+Near-term work:
+
+- keep the local workspace fast after first install
+- harden upload, evidence export, restore, and support-bundle flows
+- keep documentation aligned with shipped behavior
+- reduce legacy assistant-era surfaces that do not serve document work
+
+Shared deployment work remains future architecture:
+
+- Postgres shared state
+- Redis coordination
+- object storage for documents and artifacts
+- background workers
+- identity and group-based permissions
+- durable audit, migrations, observability, backup, and rollback
+
 ## Get Started
 
 ### Install KERN
@@ -76,19 +113,21 @@ Before opening a change:
 
 ```powershell
 python -m compileall app tests -q
-node --check app\static\js\workbench.js
+node --check app\static\app.js
+node --check app\static\js\dashboard-renderer.js
+node --check app\static\js\dashboard-events.js
 python -m pytest -q
 ```
 
-## Release And Demo Validation
+## Release Validation
 
-Use the release gate before shipping a package or demoing to external reviewers:
+Use the release gate before shipping a package or handing a build to reviewers:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-release-gate.ps1
 ```
 
-The corporate demo script is in [docs/corporate-demo-script.md](docs/corporate-demo-script.md).
+The local validation walkthrough is in [docs/validation-walkthrough.md](docs/validation-walkthrough.md).
 
 ## Desktop Packaging
 

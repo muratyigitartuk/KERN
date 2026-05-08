@@ -1082,17 +1082,6 @@ export function bindDashboardEvents({
     }
   });
 
-  elements.knowledgeSearchButton?.addEventListener("click", () => {
-    send({ type: "search_knowledge", settings: { query: elements.knowledgeQuery.value.trim() } });
-  });
-
-  elements.knowledgeQuery?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      send({ type: "search_knowledge", settings: { query: elements.knowledgeQuery.value.trim() } });
-    }
-  });
-
   elements.localModeToggle?.addEventListener("change", () => {
     send({ type: "update_settings", settings: { local_mode_enabled: elements.localModeToggle.checked } });
   });
@@ -1259,16 +1248,16 @@ export function bindDashboardEvents({
     if (elements.composerFileInput) elements.composerFileInput.value = "";
   });
 
-  elements.composerKbAction?.addEventListener("click", (e) => {
+  elements.composerDocumentAction?.addEventListener("click", (e) => {
     e.stopPropagation();
-    const isOpen = !elements.composerKbPicker?.classList.contains("hidden");
-    elements.composerKbPicker?.classList.toggle("hidden", isOpen);
-    elements.composerKbAction?.setAttribute("aria-expanded", String(!isOpen));
+    const isOpen = !elements.composerDocumentPicker?.classList.contains("hidden");
+    elements.composerDocumentPicker?.classList.toggle("hidden", isOpen);
+    elements.composerDocumentAction?.setAttribute("aria-expanded", String(!isOpen));
   });
 
-  elements.composerKbSearch?.addEventListener("input", () => {
-    const q = elements.composerKbSearch.value.toLowerCase();
-    elements.composerKbList?.querySelectorAll(".composer-kb-list__item").forEach((item) => {
+  elements.composerDocumentSearch?.addEventListener("input", () => {
+    const q = elements.composerDocumentSearch.value.toLowerCase();
+    elements.composerDocumentList?.querySelectorAll(".composer-document-list__item").forEach((item) => {
       item.style.display = item.textContent.toLowerCase().includes(q) ? "" : "none";
     });
   });
@@ -1521,26 +1510,4 @@ export function bindDashboardEvents({
     send({ type: "dismiss_all_alerts" });
   });
 
-  const memorySearchButton = document.getElementById("memorySearchButton");
-  const memorySearchInput = document.getElementById("memorySearchInput");
-  const memoryDateFrom = document.getElementById("memoryDateFrom");
-  const memoryDateTo = document.getElementById("memoryDateTo");
-
-  function doMemorySearch() {
-    const query = memorySearchInput?.value.trim();
-    if (!query) return;
-    send({
-      type: "search_memory_history",
-      settings: {
-        query,
-        date_from: memoryDateFrom?.value || null,
-        date_to: memoryDateTo?.value || null,
-      },
-    });
-  }
-
-  memorySearchButton?.addEventListener("click", doMemorySearch);
-  memorySearchInput?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") doMemorySearch();
-  });
 }

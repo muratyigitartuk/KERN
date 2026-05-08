@@ -51,7 +51,6 @@ jobs:
         shell: pwsh
         run: |
           node --check app\static\app.js
-          node --check app\static\js\workbench.js
           node --check app\static\js\dashboard-renderer.js
           node --check app\static\js\dashboard-events.js
 

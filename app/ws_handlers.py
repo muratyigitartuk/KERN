@@ -34,7 +34,6 @@ _WS_BUCKETS: dict[str, list[float]] = {}
 _SCHEDULE_ACTION_TYPES = frozenset({"custom_prompt", "generate_report"})
 _EXPENSIVE_COMMANDS = frozenset({
     "submit_text",
-    "search_knowledge",
     "ingest_files",
     "create_backup",
     "restore_backup",
@@ -288,7 +287,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, work
                 "restore_backup",
                 "export_audit",
                 "ingest_files",
-                "search_knowledge",
                 "review_action_item",
                 "reminder_action",
                 "create_schedule",
@@ -657,44 +655,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, work
                 await runtime._refresh_platform_snapshot()
                 runtime.orchestrator.mark_dirty("runtime")
                 await runtime.broadcast_if_changed(force=True, reason="backup_restore_finished")
-            elif command.type == "search_knowledge":
-                query = str(command.settings.get("query", "") or "").strip()
-                try:
-                    hits = runtime.retrieval_service.retrieve(query, scope=runtime.orchestrator.snapshot.memory_scope, limit=8)
-                    if (
-                        settings.policy_mode == "corporate"
-                        and settings.policy_restrict_sensitive_reads
-                    ):
-                        filtered_hits = [
-                            hit for hit in hits
-                            if not runtime.policy.is_sensitive_classification(str(hit.metadata.get("classification") or ""))
-                        ]
-                        if hasattr(runtime.retrieval_service, "replace_last_hits"):
-                            runtime.retrieval_service.replace_last_hits(filtered_hits)
-                        else:  # pragma: no cover - compatibility with older retrieval service shapes
-                            runtime.retrieval_service._last_hits = filtered_hits
-                        if len(filtered_hits) != len(hits):
-                            runtime.orchestrator.snapshot.last_action = "Sensitive knowledge hits are restricted in corporate mode."
-                    else:
-                        runtime.orchestrator.snapshot.last_action = (
-                            f"Searched knowledge for '{query}'." if query else "Cleared knowledge search."
-                        )
-                    await runtime._refresh_platform_snapshot()
-                    runtime.orchestrator.mark_dirty("context", "runtime")
-                    await runtime.broadcast_if_changed(force=True, reason="knowledge_search")
-                except Exception as exc:
-                    logger.exception("Knowledge search failed.")
-                    runtime.platform.record_audit(
-                        "runtime",
-                        "knowledge_search_error",
-                        "failure",
-                        f"Knowledge search failed: {exc}",
-                        profile_slug=runtime.active_profile.slug,
-                        details={"exception": type(exc).__name__},
-                    )
-                    _set_redacted_error(runtime, "Knowledge search could not be completed.")
-                    runtime.orchestrator.mark_dirty("runtime")
-                    await runtime.broadcast_if_changed(force=True, reason="knowledge_search_error")
             elif command.type == "reminder_action":
                 reminder_id = int(command.settings.get("reminder_id", 0))
                 action = str(command.settings.get("action", "")).strip()
@@ -880,16 +840,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, work
                 await runtime._refresh_platform_snapshot()
                 runtime.orchestrator.mark_dirty("runtime")
                 await runtime.broadcast_if_changed(force=True, reason="schedule_retried")
-            elif command.type == "search_memory_history":
-                query = str(command.settings.get("query", "")).strip()
-                date_from = str(command.settings.get("date_from", "") or "").strip() or None
-                date_to = str(command.settings.get("date_to", "") or "").strip() or None
-                if query and hasattr(runtime, "memory") and runtime.memory:
-                    hits = runtime.memory.search_conversation_history(query, date_from=date_from, date_to=date_to, limit=30)
-                    runtime.orchestrator.snapshot.memory_timeline = runtime.memory.build_topic_timeline(query, limit=40)
-                    await runtime.broadcast_if_changed(force=True, reason="memory_search")
-                    if not await _safe_send_json(websocket, {"type": "memory_search_result", "hits": hits, "query": query}):
-                        return
             elif command.type == "dismiss_all_alerts":
                 if hasattr(runtime, "_pending_proactive_alerts"):
                     for alert in list(runtime._pending_proactive_alerts):

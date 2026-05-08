@@ -25,7 +25,7 @@ The bundled workspace ships with a small document set that models one realistic 
 - service policy
 - pricing addendum
 
-All bundled content is clearly labeled as sample/demo content.
+All bundled content is clearly labeled as sample content.
 
 ## What happens on start
 
@@ -51,7 +51,7 @@ This avoids leaving obvious sample content mixed into the primary working surfac
 Use the sample workspace when:
 
 - validating a fresh install
-- demonstrating the pilot workflow
+- validating the pilot workflow
 - checking the product on a machine before loading company files
 
 Then switch to the real local-document path for actual pilot work.

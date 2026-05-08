@@ -497,7 +497,7 @@ def _manual_review_items() -> list[str]:
         "Check dark/light screenshots for visual drift, modal composition, and clipping.",
         "Review update and failure-card screenshots for business-readable wording and consistent gating.",
         "Review trust/governance screenshots for truthful status labels and confirmation behavior.",
-        "Inspect busy-day screenshots for search, schedule, and memory surfaces that look syntactically correct but semantically weak.",
+        "Inspect busy-day screenshots for document, schedule, and memory surfaces that look syntactically correct but semantically weak.",
         "Inspect console and network logs for repeated or noisy client-side errors that did not break the run.",
     ]
 
@@ -845,30 +845,6 @@ def _run_busy_day(base_url: str, lane_dir: Path) -> LaneResult:
         """.strip()
     )
     lane.ok("Document totals", "Domain totals reflected uploaded fixture content.")
-
-    session.run_code(
-        """
-        await page.click('#utilityToggle');
-        await page.click('.utility-tab[data-tab="context"]');
-        await page.fill('#knowledgeQuery', 'ACME');
-        await page.click('#knowledgeSearchButton');
-        await page.waitForFunction(() => document.querySelector('#knowledgeResults')?.children.length >= 1, { timeout: 15000 });
-        """.strip()
-    )
-    lane.ok("Knowledge search", "Knowledge search returned at least one hit from the fixture corpus.", _display_path(session.screenshot("busy-knowledge")))
-
-    try:
-        session.run_code(
-            """
-            await page.click('.utility-tab[data-tab="memory"]');
-            await page.fill('#memorySearchInput', 'release notes');
-            await page.click('#memorySearchButton');
-            await page.waitForFunction(() => document.querySelectorAll('[data-testid="memory-result-row"]').length >= 1, { timeout: 15000 });
-            """.strip()
-        )
-        lane.ok("Memory search", "Memory search returned the seeded memory result.", _display_path(session.screenshot("busy-memory")))
-    except Exception as exc:  # noqa: BLE001
-        lane.warn("Memory search", str(exc), _display_path(session.screenshot("busy-memory-warn")))
 
     session.run_code(
         """

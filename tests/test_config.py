@@ -303,8 +303,7 @@ class TestMultipleErrors:
 class TestEnvExample:
     def test_env_example_parses_without_error(self):
         env_example = Path(".env.example")
-        if not env_example.exists():
-            pytest.skip(".env.example not found")
+        assert env_example.exists(), ".env.example must ship with the repo."
 
         parsed = {}
         for line in env_example.read_text(encoding="utf-8").splitlines():

@@ -318,29 +318,6 @@ class ReasoningService:
         )
         return self._recommendations_for_snapshot(snapshot, actor_user_id=actor_user_id)
 
-    def build_worker_workbench(
-        self,
-        *,
-        organization_id: str | None,
-        workspace_slug: str | None,
-        actor_user_id: str | None,
-    ) -> dict[str, object]:
-        snapshot = self.world_state(
-            organization_id=organization_id,
-            workspace_slug=workspace_slug,
-            actor_user_id=actor_user_id,
-        )
-        recommendations = self._recommendations_for_snapshot(snapshot, actor_user_id=actor_user_id)
-        return {
-            "world_state": snapshot,
-            "recommendations": recommendations,
-            "focus_hints": [self._focus_hint_for_recommendation(item) for item in recommendations[:6]],
-            "decisions": self.memory.list_decision_records(
-                workspace_slug=workspace_slug or self.profile.slug,
-                actor_user_id=actor_user_id,
-            ),
-        }
-
     def get_recommendation(
         self,
         recommendation_id: str,
@@ -561,12 +538,13 @@ class ReasoningService:
         workspace_slug: str | None,
         actor_user_id: str | None,
     ) -> list[FocusHint]:
-        payload = self.build_worker_workbench(
+        snapshot = self.world_state(
             organization_id=organization_id,
             workspace_slug=workspace_slug,
             actor_user_id=actor_user_id,
         )
-        return list(payload["focus_hints"])
+        recommendations = self._recommendations_for_snapshot(snapshot, actor_user_id=actor_user_id)
+        return [self._focus_hint_for_recommendation(item) for item in recommendations[:6]]
 
     def get_preparation_packet(
         self,
