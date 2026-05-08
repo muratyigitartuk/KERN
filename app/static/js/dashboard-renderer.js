@@ -106,7 +106,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
 
   function truncate(text, limit = 40) {
     if (!text) return "";
-    return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+    return text.length > limit ? `${text.slice(0, limit - 1)}â€¦` : text;
   }
 
   function readJsonStorage(key, fallback) {
@@ -317,9 +317,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
   }
 
   async function selectRemoteWorkspace(workspace) {
-    return postWorkspaceJson("/auth/session/select-workspace", {
-      workspace_slug: workspace.id,
-    });
+    return { workspace_slug: workspace.id };
   }
 
   function rememberWorkspace(workspace, options = {}) {
@@ -770,7 +768,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
       </button>
       <button type="button" class="session-action-menu__item session-action-menu__item--danger" data-session-action="delete">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>
-        <span>${labelText("session.delete", "Delete", "Löschen")}</span>
+        <span>${labelText("session.delete", "Delete", "LÃ¶schen")}</span>
       </button>
     `;
     sessionActionMenu.addEventListener("click", (event) => {
@@ -821,12 +819,12 @@ export function createDashboardRenderer({ elements, send, themeController, passa
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"/><path d="M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>
         </div>
         <div class="session-confirm-toast__copy">
-          <strong id="sessionConfirmTitle">${labelText("session.delete_confirm_title", "Delete conversation?", "Gespräch löschen?")}</strong>
+          <strong id="sessionConfirmTitle">${labelText("session.delete_confirm_title", "Delete conversation?", "GesprÃ¤ch lÃ¶schen?")}</strong>
           <p id="sessionConfirmBody">${labelText("session.delete_confirm_body", "\"${title}\" will be removed from the sidebar.", "\"${title}\" wird aus dieser Seitenleiste entfernt.")}</p>
         </div>
         <div class="session-confirm-toast__actions">
           <button type="button" class="ghost-button" data-session-confirm="cancel">${labelText("confirm.cancel", "Cancel", "Abbrechen")}</button>
-          <button type="button" class="solid-button" data-session-confirm="delete">${labelText("session.delete", "Delete", "Löschen")}</button>
+          <button type="button" class="solid-button" data-session-confirm="delete">${labelText("session.delete", "Delete", "LÃ¶schen")}</button>
         </div>
       </div>
     `;
@@ -870,7 +868,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     const toast = ensureSessionConfirmToast();
     const session = buildSidebarSessions(currentSnapshot?.conversation_turns || []).find((entry) => entry.id === turnId);
     toast.dataset.turnId = turnId;
-    const title = session?.title || labelText("session.untitled", "Untitled conversation", "Unbenanntes Gespräch");
+    const title = session?.title || labelText("session.untitled", "Untitled conversation", "Unbenanntes GesprÃ¤ch");
     toast.querySelector("#sessionConfirmBody").textContent = labelText(
       "session.delete_confirm_body",
       "\"${title}\" will be removed from the sidebar.",
@@ -916,7 +914,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
 
   function humanizeValue(value, fallback = null) {
     if (value == null || value === "") {
-      return fallback ?? uiText("Nicht verfügbar", "Not available");
+      return fallback ?? uiText("Nicht verfÃ¼gbar", "Not available");
     }
     return titleCase(String(value).replace(/[_-]+/g, " "));
   }
@@ -1648,7 +1646,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
         li.appendChild(
           createSessionButton(
             truncate(turn.text, 52),
-            `${roleLabel}${turn.timestamp ? ` · ${formatTimestamp(turn.timestamp)}` : ""}`,
+            `${roleLabel}${turn.timestamp ? ` Â· ${formatTimestamp(turn.timestamp)}` : ""}`,
             () => {
               elements.commandInput.value = turn.role === "user" ? turn.text : elements.commandInput.value;
               autoResizeCommandInput();
@@ -1699,7 +1697,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     const firstUserTurn = items.find((turn) => turn.role === "user");
     const latestTurn = items.at(-1);
     const sessionTitle = firstUserTurn ? truncate(firstUserTurn.text, 52) : t("session.current");
-    const sessionMeta = `${items.length} turns${latestTurn?.timestamp ? ` · ${formatTimestamp(latestTurn.timestamp)}` : ""}`;
+    const sessionMeta = `${items.length} turns${latestTurn?.timestamp ? ` Â· ${formatTimestamp(latestTurn.timestamp)}` : ""}`;
 
     const li = document.createElement("li");
     li.appendChild(
@@ -2071,8 +2069,8 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     hits.forEach((hit) => {
       const li = document.createElement("li");
       li.textContent = uiText(
-        `${humanizeValue(hit.source_type, "Dokument")} · ${hit.metadata?.title || hit.source_id} · Relevanz ${Number(hit.score || 0).toFixed(2)} · ${truncate(hit.text || "", 88)}`,
-        `${humanizeValue(hit.source_type, "Document")} · ${hit.metadata?.title || hit.source_id} · Relevance ${Number(hit.score || 0).toFixed(2)} · ${truncate(hit.text || "", 88)}`
+        `${humanizeValue(hit.source_type, "Dokument")} Â· ${hit.metadata?.title || hit.source_id} Â· Relevanz ${Number(hit.score || 0).toFixed(2)} Â· ${truncate(hit.text || "", 88)}`,
+        `${humanizeValue(hit.source_type, "Document")} Â· ${hit.metadata?.title || hit.source_id} Â· Relevance ${Number(hit.score || 0).toFixed(2)} Â· ${truncate(hit.text || "", 88)}`
       );
       elements.knowledgeResults.appendChild(li);
     });
@@ -2137,7 +2135,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
             tone: "success",
             icon: "upload",
             label: auditLang("Upload", "Upload"),
-            title: auditLang("Dokumente hinzugefügt", "Documents added"),
+            title: auditLang("Dokumente hinzugefÃ¼gt", "Documents added"),
             detail: auditLang(
               `${indexedCount} von ${processedCount} hochgeladenen Dateien sind jetzt durchsuchbar.`,
               `${indexedCount} of ${processedCount} uploaded files are now ready to search.`
@@ -2147,9 +2145,9 @@ export function createDashboardRenderer({ elements, send, themeController, passa
             tone: "warning",
             icon: "warning",
             label: auditLang("Upload", "Upload"),
-            title: auditLang("Dateien geprüft", "Files checked"),
+            title: auditLang("Dateien geprÃ¼ft", "Files checked"),
             detail: auditLang(
-              `${processedCount} Dateien wurden geprüft. Diesmal wurde nichts Neues in die Suche aufgenommen.`,
+              `${processedCount} Dateien wurden geprÃ¼ft. Diesmal wurde nichts Neues in die Suche aufgenommen.`,
               `${processedCount} files were checked. Nothing new was added to search this time.`
             ),
           };
@@ -2178,7 +2176,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     return {
       tone: event.status || "neutral",
       icon: category === "network" ? "connected" : "activity",
-      label: labelMap[category] || auditLang("Aktivität", "Activity"),
+      label: labelMap[category] || auditLang("AktivitÃ¤t", "Activity"),
       title: action ? action.replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()) : auditLang("Aktualisierung", "Update"),
       detail: cleanMessage || auditLang("Es liegt eine neue lokale Statusmeldung vor.", "A new local status update is available."),
     };
@@ -2410,29 +2408,29 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     const restoreAttempt = status.last_restore_attempt_at ? formatDateTime(status.last_restore_attempt_at) : "";
     let tone = "empty";
     let pill = uiText("Offen", "Pending");
-    let title = uiText("Für diesen Arbeitsbereich gibt es noch keine verschlüsselte Sicherung.", "No encrypted backup has been saved for this workspace yet.");
-    let body = uiText("Erstellen Sie die erste Sicherung, damit eine Wiederherstellung später möglich ist.", "Create the first backup so this workspace can be restored later.");
+    let title = uiText("FÃ¼r diesen Arbeitsbereich gibt es noch keine verschlÃ¼sselte Sicherung.", "No encrypted backup has been saved for this workspace yet.");
+    let body = uiText("Erstellen Sie die erste Sicherung, damit eine Wiederherstellung spÃ¤ter mÃ¶glich ist.", "Create the first backup so this workspace can be restored later.");
 
     if (locked) {
       tone = "warning";
       pill = uiText("Gesperrt", "Locked");
       title = uiText("Entsperren Sie das aktive Profil, um Sicherungen und Wiederherstellungen anzusehen.", "Unlock the active profile to review backups and restore attempts.");
-      body = uiText("Solange das Profil gesperrt ist, blendet KERN persönliche Wiederherstellungsdetails aus.", "While the profile is locked, KERN hides personal recovery details.");
+      body = uiText("Solange das Profil gesperrt ist, blendet KERN persÃ¶nliche Wiederherstellungsdetails aus.", "While the profile is locked, KERN hides personal recovery details.");
     } else if (status.latest_backup_result === "failed") {
       tone = "warning";
       pill = uiText("Achtung", "Attention");
-      title = uiText("Die letzte verschlüsselte Sicherung konnte nicht abgeschlossen werden.", "The last encrypted backup could not be completed.");
-      body = status.latest_backup_error || uiText("Prüfen Sie den Speicherort und starten Sie die Sicherung erneut.", "Check the save location and try the backup again.");
+      title = uiText("Die letzte verschlÃ¼sselte Sicherung konnte nicht abgeschlossen werden.", "The last encrypted backup could not be completed.");
+      body = status.latest_backup_error || uiText("PrÃ¼fen Sie den Speicherort und starten Sie die Sicherung erneut.", "Check the save location and try the backup again.");
     } else if (totalBackups > 0) {
       tone = status.last_restore_result === "failed" ? "warning" : "success";
-      pill = status.last_restore_result === "failed" ? uiText("Wiederherstellung prüfen", "Restore issue") : uiText("Bereit", "Ready");
+      pill = status.last_restore_result === "failed" ? uiText("Wiederherstellung prÃ¼fen", "Restore issue") : uiText("Bereit", "Ready");
       title = uiText(
-        `${totalBackups} verschlüsselte Sicherung${totalBackups === 1 ? "" : "en"} sind für diesen Arbeitsbereich verfügbar.`,
+        `${totalBackups} verschlÃ¼sselte Sicherung${totalBackups === 1 ? "" : "en"} sind fÃ¼r diesen Arbeitsbereich verfÃ¼gbar.`,
         `${totalBackups} encrypted backup${totalBackups === 1 ? "" : "s"} are available for this workspace.`
       );
       body = lastBackupAt
         ? uiText(`Die letzte Sicherung wurde am ${lastBackupAt} gespeichert.`, `The most recent backup was saved on ${lastBackupAt}.`)
-        : uiText("Für diesen Arbeitsbereich liegen verschlüsselte Sicherungen vor.", "Encrypted backups are available for this workspace.");
+        : uiText("FÃ¼r diesen Arbeitsbereich liegen verschlÃ¼sselte Sicherungen vor.", "Encrypted backups are available for this workspace.");
     }
 
     elements.settingsBackupStatusCard.dataset.tone = tone;
@@ -2698,7 +2696,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
       if (alert.interruption_class) metaParts.push(String(alert.interruption_class).replaceAll("_", " "));
       if (typeof alert.confidence === "number") metaParts.push(t("alerts.confidence", { count: Math.round(alert.confidence * 100) }));
       if (alert.reason) metaParts.push(alert.reason);
-      meta.textContent = metaParts.join(" · ");
+      meta.textContent = metaParts.join(" Â· ");
       const message = document.createElement("span");
       message.className = "proactive-alert__message";
       message.textContent = alert.message || "";
@@ -2744,461 +2742,7 @@ export function createDashboardRenderer({ elements, send, themeController, passa
       list.appendChild(li);
     });
   }
-
-  let _kgInstance = null;
-
-  function renderKnowledgeGraph(graphData) {
-    const canvas = document.getElementById("kgCanvas");
-    const block = document.getElementById("kgCanvasBlock");
-    const status = document.getElementById("kgStatus");
-    if (!canvas) return;
-    const nodes = graphData.nodes || [];
-    const links = graphData.links || [];
-    if (!nodes.length) {
-      if (block) block.style.display = "none";
-      if (status) status.textContent = t("empty.no_knowledge_graph");
-      return;
-    }
-    if (block) block.style.display = "";
-    if (status) status.textContent = t("kg.status", { nodes: nodes.length, links: links.length });
-    import("/static/js/knowledge-graph.js").then(({ KnowledgeGraph }) => {
-      if (!_kgInstance) {
-        _kgInstance = new KnowledgeGraph(canvas);
-      }
-      _kgInstance.load(graphData);
-    }).catch((err) => {
-      console.error("[KERN] knowledge graph load failed:", err);
-      if (status) status.textContent = t("kg.unavailable");
-    });
-  }
-
-  function renderKnowledgeGraphSearch(entities) {
-    const block = document.getElementById("kgResultsBlock");
-    const list = document.getElementById("kgResultsList");
-    if (!list) return;
-    if (!entities || !entities.length) {
-      if (block) block.style.display = "none";
-      return;
-    }
-    if (block) block.style.display = "";
-    list.innerHTML = "";
-    entities.forEach((e) => {
-      const li = document.createElement("li");
-      li.className = "detail-list__item";
-      li.dataset.testid = "kg-result-row";
-      li.textContent = `[${e.type}] ${e.name}`;
-      list.appendChild(li);
-    });
-  }
-
-  function renderMemoryTimeline(timeline) {
-    const block = document.getElementById("memoryTimelineBlock");
-    const container = document.getElementById("memoryTimeline");
-    const countEl = document.getElementById("memoryTimelineCount");
-    if (!container) return;
-    if (!timeline || !timeline.length) {
-      if (block) block.style.display = "none";
-      return;
-    }
-    if (block) block.style.display = "";
-    if (countEl) countEl.textContent = t("memory.dates_count", { count: timeline.length });
-    container.innerHTML = "";
-    timeline.forEach((group) => {
-      const groupEl = document.createElement("div");
-      groupEl.className = "memory-timeline__group";
-      const dot = document.createElement("span");
-      dot.className = "memory-timeline__dot";
-      const dateEl = document.createElement("div");
-      dateEl.className = "memory-timeline__date";
-      dateEl.textContent = group.date || t("misc.unknown");
-      const entriesEl = document.createElement("div");
-      entriesEl.className = "memory-timeline__entries";
-      (group.entries || []).slice(0, 4).forEach((entry) => {
-        const entryEl = document.createElement("div");
-        entryEl.className = "memory-timeline__entry";
-        const content = String(entry.content || "").slice(0, 160);
-        entryEl.textContent = content + (entry.content && entry.content.length > 160 ? "…" : "");
-        entriesEl.appendChild(entryEl);
-      });
-      groupEl.appendChild(dot);
-      groupEl.appendChild(dateEl);
-      groupEl.appendChild(entriesEl);
-      container.appendChild(groupEl);
-    });
-  }
-
-  function renderMemorySearchResults(hits) {
-    const block = document.getElementById("memoryResultsBlock");
-    const list = document.getElementById("memoryResultsList");
-    if (!list) return;
-    if (!hits || !hits.length) {
-      if (block) block.style.display = "none";
-      return;
-    }
-    if (block) block.style.display = "";
-    list.innerHTML = "";
-    hits.forEach((hit) => {
-      const li = document.createElement("li");
-      li.className = "detail-list__item";
-      li.dataset.testid = "memory-result-row";
-      const date = hit.date || hit.created_at?.slice(0, 10) || "";
-      const content = String(hit.content || "").slice(0, 160);
-      li.textContent = `[${date}] ${content}${hit.content && hit.content.length > 160 ? "…" : ""}`;
-      list.appendChild(li);
-    });
-  }
-
-  function renderPlatformInfo(snapshot) {
-    const profile = snapshot.active_profile || {};
-    const session = snapshot.profile_session || {};
-    const locked = session.unlocked === false;
-    const stateLabel = locked ? `${t("ops.locked")}${session.locked_reason ? ` / ${session.locked_reason}` : ""}` : t("ops.unlocked");
-    elements.settingsProfileName.textContent = profile.title ? `${profile.title} (${profile.slug})` : profile.slug || "default";
-    elements.settingsProfileState.textContent = stateLabel;
-    elements.settingsMemoryScope.textContent = humanizeValue(snapshot.memory_scope || "profile");
-    if (elements.settingsChatStyleMode && document.activeElement !== elements.settingsChatStyleMode) {
-      elements.settingsChatStyleMode.value = snapshot.chat_style_mode || "natural";
-    }
-    if (elements.settingsChatCustomPrompt) {
-      const nextPrompt = snapshot.chat_custom_prompt || "";
-      if (elements.settingsChatCustomPrompt.dataset.dirty === "true") {
-        if (elements.settingsChatCustomPrompt.value === nextPrompt) {
-          elements.settingsChatCustomPrompt.dataset.dirty = "false";
-        }
-      } else if (elements.settingsChatCustomPrompt.value !== nextPrompt) {
-        elements.settingsChatCustomPrompt.value = nextPrompt;
-      }
-    }
-    elements.settingsDocumentsRoot.textContent = shortSettingPath(snapshot.storage_roots?.documents, t("settings.not_configured"));
-    elements.settingsArchiveRoot.textContent = shortSettingPath(snapshot.storage_roots?.archives, t("settings.not_configured"));
-    elements.settingsBackupRoot.textContent = shortSettingPath(snapshot.storage_roots?.backups, t("settings.not_configured"));
-    if (elements.settingsReadinessStatus) {
-      const readiness = snapshot.readiness_summary || {};
-      const counts = [];
-      if (readiness.errors) {
-        counts.push(uiText(`${readiness.errors} Fehler`, `${readiness.errors} error${readiness.errors === 1 ? "" : "s"}`));
-      }
-      if (readiness.warnings) {
-        counts.push(uiText(`${readiness.warnings} Hinweis${readiness.warnings === 1 ? "" : "e"}`, `${readiness.warnings} warning${readiness.warnings === 1 ? "" : "s"}`));
-      }
-      elements.settingsReadinessStatus.textContent = readiness.headline
-        ? counts.length
-          ? `${readiness.headline} (${counts.join(", ")})`
-          : readiness.headline
-        : t("settings.readiness_checking");
-    }
-    elements.settingsAuditState.textContent = snapshot.audit_enabled
-      ? snapshot.recent_audit_events?.length
-        ? t("audit.enabled_live")
-        : t("audit.enabled")
-      : t("audit.disabled");
-    elements.settingsAuditChain.textContent = snapshot.audit_chain_ok
-      ? t("audit.verified")
-      : `${t("sync.degraded")}${snapshot.audit_chain_reason ? ` / ${truncate(snapshot.audit_chain_reason, 52)}` : ""}`;
-    elements.settingsDbEncryption.textContent = snapshot.security_status?.db_encryption_enabled
-      ? uiText(
-          `${humanizeValue(snapshot.security_status.db_encryption_mode || "encrypted")} aktiv`,
-          `${humanizeValue(snapshot.security_status.db_encryption_mode || "encrypted")} active`
-        )
-      : t("misc.off");
-    elements.settingsKeyVersion.textContent = String(snapshot.security_status?.key_version || 0);
-    elements.settingsArtifactEncryption.textContent = snapshot.security_status?.artifact_encryption_enabled
-      ? uiText(
-          `${humanizeValue(snapshot.security_status.artifact_encryption_status || t("overview.encrypted"))}${snapshot.security_status?.artifact_encryption_migration_state ? ` · ${humanizeValue(snapshot.security_status.artifact_encryption_migration_state)}` : ""}`,
-          `${humanizeValue(snapshot.security_status.artifact_encryption_status || t("overview.encrypted"))}${snapshot.security_status?.artifact_encryption_migration_state ? ` · ${humanizeValue(snapshot.security_status.artifact_encryption_migration_state)}` : ""}`
-        )
-      : t("misc.disabled");
-    elements.settingsSupportBundlePath.textContent = snapshot.support_bundle_path
-      ? shortSettingPath(snapshot.support_bundle_path)
-      : t("settings.support_bundle_none");
-    elements.settingsSupportBundleLastExport.textContent = snapshot.support_bundle_last_export_at
-      ? formatDateTime(snapshot.support_bundle_last_export_at)
-      : t("settings.not_exported");
-    elements.settingsUpdateChannel.textContent = humanizeValue(snapshot.update_channel || "stable");
-    renderBackupStatus(snapshot);
-    if (elements.settingsLicenseCard) {
-      const license = snapshot.license_summary || {};
-      const tone = license.status === "active" || license.status === "trial" ? "success" : license.status === "expired" || license.status === "invalid" ? "warning" : "empty";
-      const licensePillMap = {
-        unlicensed: t("settings.license_status_unlicensed"),
-        trial: t("settings.license_status_trial"),
-        active: t("settings.license_status_active"),
-        expired: t("settings.license_status_expired"),
-        invalid: t("settings.license_status_invalid"),
-      };
-      const facts = [
-        `${t("settings.license_plan")} ${license.plan || t("settings.not_configured")}`,
-        `${t("settings.license_mode")} ${license.activation_mode || "offline_license_file"}`,
-        `${t("settings.license_install")} ${license.install_id || t("settings.not_configured")}`,
-      ];
-      if (license.expires_at) {
-        facts.push(`${t("settings.license_expires")} ${formatDate(new Date(license.expires_at), { year: "numeric", month: "short", day: "numeric" })}`);
-      }
-      if (license.grace_state) {
-        facts.push(license.grace_state);
-      }
-      elements.settingsLicenseCard.dataset.tone = tone;
-      elements.settingsLicensePill.textContent = licensePillMap[license.status || "unlicensed"] || titleCase(license.status || "unlicensed");
-      const commerciallyActive = license.status === "active" || license.status === "trial";
-      elements.settingsLicenseTitle.textContent = commerciallyActive
-        ? t("settings.license_active_title")
-        : t("settings.license_optional_title");
-      elements.settingsLicenseBody.textContent = license.message || t("settings.license_default_body");
-      elements.settingsLicenseFacts.innerHTML = "";
-      facts.forEach((fact) => {
-        const li = document.createElement("li");
-        li.textContent = fact;
-        elements.settingsLicenseFacts.appendChild(li);
-      });
-    }
-    if (elements.composerAttachFile) {
-      elements.composerAttachFile.disabled = false;
-      elements.composerAttachFile.setAttribute("aria-disabled", "false");
-      elements.composerAttachFile.title = t("composer.upload_file_desc");
-    }
-    if (elements.settingsUpdateCard) {
-      const updateState = snapshot.update_state || {};
-      const tone = updateState.last_status === "failed" ? "warning" : updateState.last_status === "rollback_performed" ? "warning" : "success";
-      const updatePillMap = {
-        idle: t("settings.update_status_idle"),
-        succeeded: t("settings.update_status_succeeded"),
-        failed: t("settings.update_status_failed"),
-        rollback_performed: t("settings.update_status_rollback"),
-      };
-      const facts = [
-        `${t("settings.update_channel_label")} ${updateState.channel || snapshot.update_channel || "stable"}`,
-        `${t("settings.update_last_backup")} ${updateState.last_backup_at ? formatDateTime(updateState.last_backup_at) : t("settings.not_exported")}`,
-        `${t("settings.update_last_restore")} ${updateState.last_restore_attempt_at ? formatDateTime(updateState.last_restore_attempt_at) : t("settings.never")}`,
-      ];
-      if (updateState.last_error) {
-        facts.push(`${t("settings.update_last_error")} ${truncate(updateState.last_error, 80)}`);
-      }
-      elements.settingsUpdateCard.dataset.tone = tone;
-      elements.settingsUpdatePill.textContent = updatePillMap[updateState.last_status || "idle"] || titleCase(updateState.last_status || "idle");
-      elements.settingsUpdateTitle.textContent = uiText(
-        updateState.policy === "Manual stable-channel updates only."
-          ? "Es werden nur manuelle Stable-Updates verwendet."
-          : updateState.policy || t("settings.update_default_title"),
-        updateState.policy || t("settings.update_default_title")
-      );
-      elements.settingsUpdateBody.textContent = uiText(
-        updateState.message === "Manual stable-channel updates only."
-          ? "Updates laufen nur im Stable-Kanal und werden hier bewusst manuell angestoßen."
-          : updateState.message || t("settings.update_default_body"),
-        updateState.message || t("settings.update_default_body")
-      );
-      elements.settingsUpdateFacts.innerHTML = "";
-      facts.forEach((fact) => {
-        const li = document.createElement("li");
-        li.textContent = fact;
-        elements.settingsUpdateFacts.appendChild(li);
-      });
-    }
-    renderOverview(snapshot);
-    const totals = snapshot.domain_totals || {};
-    setOptionalText(elements.settingsDocumentCount, String(totals.documents || 0));
-    setOptionalText(elements.settingsBusinessCount, String(totals.business_documents || 0));
-    setOptionalText(elements.settingsSyncCount, String(totals.sync_targets || 0));
-    setOptionalText(elements.systemProfileName, profile.slug || "default");
-    setOptionalText(elements.systemProfileState, stateLabel);
-    setOptionalText(elements.systemMemoryScope, humanizeValue(snapshot.memory_scope || "profile"));
-    setOptionalDisabled(elements.settingsCreateBackup, locked);
-    setOptionalDisabled(elements.settingsLockProfile, locked);
-    setOptionalDisabled(elements.settingsUnlockProfile, !locked);
-    setOptionalDisabled(elements.utilityToggle, locked);
-    if (elements.exportLogsLink) {
-      elements.exportLogsLink.setAttribute("aria-disabled", locked ? "true" : "false");
-      elements.exportLogsLink.tabIndex = locked ? -1 : 0;
-      elements.exportLogsLink.style.pointerEvents = locked ? "none" : "auto";
-      elements.exportLogsLink.style.opacity = locked ? "0.48" : "1";
-      elements.exportLogsLink.title = locked ? t("misc.export_logs_disabled") : t("misc.export_logs_enabled");
-    }
-    if (elements.settingsExportSupportBundle) {
-      elements.settingsExportSupportBundle.disabled = locked;
-    }
-    if (elements.settingsRerunReadiness) {
-      elements.settingsRerunReadiness.disabled = false;
-    }
-
-    renderList(
-      elements.jobsList,
-      snapshot.background_jobs || [],
-      (job) => `${job.title} / ${job.status}${job.detail ? ` / ${job.detail}` : ""}`,
-      t("jobs.none")
-    );
-    renderList(
-      elements.auditList,
-      snapshot.recent_audit_events || [],
-      (event) => `[${event.category}] ${event.message}`,
-      t("audit.no_events")
-    );
-    renderList(
-      elements.backupTargetsList,
-      snapshot.backup_targets || [],
-      (target) => `${target.label} / ${target.kind} / ${target.path}`,
-      t("backup.no_targets")
-    );
-    renderList(
-      elements.domainNotesList,
-      Object.entries(snapshot.domain_statuses || {}).map(([domain, status]) => ({ domain, status })),
-      (item) => {
-        const state = item.status.ready ? (item.status.degraded ? t("sync.degraded").toLowerCase() : t("sync.ready").toLowerCase()) : t("misc.blocked");
-        return `${item.domain} / ${state} / ${item.status.reason}`;
-      },
-      t("settings.domain_notes_empty")
-    );
-    renderDocumentsBrowser(snapshot.recent_documents || []);
-    renderComposerKbPicker(snapshot.recent_documents || []);
-    renderBusinessDocuments(snapshot.business_documents || []);
-    renderList(
-      elements.syncTargetsList,
-      snapshot.sync_targets || [],
-      (target) => `${target.label} / ${target.status === "upload_only" ? t("sync.remote_export") : target.kind} / ${target.status || t("sync.ready").toLowerCase()}${target.last_sync_at ? ` / ${formatTimestamp(target.last_sync_at)}` : ""}${target.last_failure ? ` / ${truncate(target.last_failure, 36)}` : ""}`,
-      t("sync.none")
-    );
-    renderList(
-      elements.recoveryList,
-      snapshot.recovery_checkpoints || [],
-      (checkpoint) => `${checkpoint.job_id} / ${checkpoint.stage}`,
-      t("recovery.none")
-    );
-    renderList(
-      elements.backupFilesList,
-      snapshot.available_backups || [],
-      (path) => truncate(path, 68),
-      t("backup.no_files")
-    );
-  }
-
-  function setActionLock(locked) {
-    elements.sendButton.disabled = locked;
-    elements.confirmButton.disabled = locked;
-    elements.cancelButton.disabled = locked;
-    if (elements.knowledgeSearchButton) {
-      elements.knowledgeSearchButton.disabled = locked;
-    }
-    if (elements.knowledgeQuery) {
-      elements.knowledgeQuery.disabled = locked;
-    }
-    elements.promptButtons.forEach((button) => {
-      button.disabled = locked;
-    });
-    const disabledReason = locked ? t("actions.unlock_required") : "";
-    elements.sendButton.title = disabledReason;
-    if (elements.knowledgeSearchButton) {
-      elements.knowledgeSearchButton.title = disabledReason;
-    }
-  }
-
-  function renderProfileLock(snapshot) {
-    if (!elements.profileLockPanel) {
-      return;
-    }
-    const session = snapshot?.profile_session || {};
-    const locked = session.unlocked === false;
-    elements.profileLockPanel.classList.toggle("hidden", !locked);
-    if (elements.conversationShell) {
-      elements.conversationShell.classList.toggle("hidden", locked);
-    }
-    if (elements.failurePanel) {
-      elements.failurePanel.classList.toggle("hidden", locked || !(snapshot?.active_failures || []).length);
-    }
-    if (!locked) {
-      return;
-    }
-    const workspaceTitle = snapshot?.active_profile?.title || snapshot?.active_profile?.slug || "workspace";
-    if (elements.profileLockTitle) {
-      elements.profileLockTitle.textContent = uiText(
-        `${workspaceTitle} entsperren, um weiterzumachen.`,
-        `Unlock ${workspaceTitle} to continue.`
-      );
-    }
-    if (elements.profileLockBody) {
-      elements.profileLockBody.textContent = session.locked_reason
-        ? uiText(
-            `${session.locked_reason} Geben Sie die Profil-PIN ein, um Dokumente, Gespräche und Einstellungen wiederherzustellen.`,
-            `${session.locked_reason} Enter the profile PIN to restore documents, conversations, and settings.`
-          )
-        : uiText(
-            "Geben Sie die Profil-PIN ein, um Dokumente, Gespräche und Einstellungen wiederherzustellen.",
-            "Enter the profile PIN to restore documents, conversations, and settings."
-          );
-    }
-    if (elements.profileLockMessage) {
-      elements.profileLockMessage.textContent = t("actions.unlock_required");
-    }
-  }
-
-  function renderRuntimeSlice(snapshot) {
-    ensureSidebarShellControls();
-    const currentState = snapshot.assistant_state || "idle";
-    if (elements.statusText) {
-      elements.statusText.textContent = snapshot.last_action || t("status.waiting");
-    }
-    if (elements.reactorState) {
-      elements.reactorState.textContent = currentState.toUpperCase();
-    }
-    if (elements.statusDot) {
-      elements.statusDot.classList.toggle("status-pill__dot--active", ["responding", "capturing", "processing"].includes(currentState));
-    }
-
-    if (elements.localModeToggle) {
-      elements.localModeToggle.checked = Boolean(snapshot.local_mode_enabled);
-    }
-    if (elements.deviceProfileMeta) {
-      elements.deviceProfileMeta.textContent = snapshot.verification_state || t("misc.no_verified_actions");
-    }
-    renderTrustBadge(snapshot.network_status || {});
-    renderAuditLog(snapshot.recent_audit_events || [], snapshot.network_status || {});
-    renderProactiveAlerts(snapshot.proactive_alerts || []);
-    renderMemoryTimeline(snapshot.memory_timeline || []);
-    renderPlatformInfo(snapshot);
-    renderKnowledge(snapshot);
-    renderProfileLock(snapshot);
-    renderSidebarWorkspaces(snapshot);
-    renderSidebarSystemStatus(snapshot);
-    renderFailures(snapshot);
-    setActionLock(Boolean(snapshot.action_in_progress) || snapshot.profile_session?.unlocked === false);
-    renderList(elements.activityLog, snapshot.action_history || [], (item) => `[${item.category}] ${item.message}`);
-    renderPlan(snapshot.active_plan);
-    renderModelInfo(snapshot);
-    renderThemeState();
-    setOptionalText(elements.checkMemory, snapshot.startup_checks?.memory || t("misc.unknown"));
-    setOptionalText(elements.checkCognition, snapshot.startup_checks?.cognition || snapshot.cognition_backend || t("misc.unknown"));
-  }
-
-  function renderConversationSlice(snapshot) {
-    const shouldAutoFollow = isThreadNearBottom();
-    const archivedSession = selectedArchivedSessionId
-      ? getArchivedSessions().find((session) => session.id === selectedArchivedSessionId)
-      : null;
-    renderThread(archivedSession?.turns || snapshot.conversation_turns || [], shouldAutoFollow);
-    renderSidebarSessionList(snapshot.conversation_turns || [], "");
-    if (elements.conversationSearchModal && !elements.conversationSearchModal.classList.contains("hidden")) {
-      renderConversationSearch(elements.conversationSearchInput?.value || "");
-    }
-
-    if (snapshot.pending_confirmation) {
-      elements.confirmationText.textContent = snapshot.pending_confirmation.prompt;
-      elements.confirmationBox.classList.remove("hidden");
-    } else {
-      elements.confirmationBox.classList.add("hidden");
-    }
-  }
-
-  function renderContextSlice(snapshot) {
-    renderContext(snapshot.active_context_summary);
-    setOptionalText(elements.proactiveReason, snapshot.proactive_prompt?.reason || t("proactive.no_prompt"));
-    setOptionalText(elements.proactiveText, snapshot.proactive_prompt?.message || t("proactive.quiet"));
-
-    if (snapshot.morning_brief?.focus_suggestion) {
-      setOptionalText(elements.focusText, snapshot.morning_brief.focus_suggestion);
-      return;
-    }
-    setOptionalText(elements.focusText, t("brief.default_focus"));
-  }
-
-  function renderSnapshot(snapshot) {
+`r`n  function renderSnapshot(snapshot) {
     currentSnapshot = snapshot;
     applyProductPosture(snapshot);
     const slices = [
@@ -3471,8 +3015,6 @@ export function createDashboardRenderer({ elements, send, themeController, passa
     finalizeLlmStream,
     renderRagSources,
     renderMemorySearchResults,
-    renderKnowledgeGraph,
-    renderKnowledgeGraphSearch,
     archiveCurrentConversation() {
       const archived = archiveTurns(currentSnapshot?.conversation_turns || []);
       refreshSessionFilter();

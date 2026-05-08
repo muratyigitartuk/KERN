@@ -3,15 +3,6 @@
  */
 
 /**
- * @deprecated No-op retained for call-site compatibility. Token exchange
- * is now handled server-side via httpOnly session cookies.
- */
-export function bootstrapAdminAuthToken() {
-  // Clean up any legacy localStorage token from previous versions.
-  localStorage.removeItem("kern.admin.token");
-}
-
-/**
  * Escape HTML special characters to prevent XSS when inserting into innerHTML.
  * @param {string} str
  * @returns {string}

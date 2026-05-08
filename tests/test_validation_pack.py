@@ -3,7 +3,6 @@ from pathlib import Path
 from app.tools.base import Tool
 from app.types import ToolRequest, ToolResult
 from app.validation_pack import (
-    VALIDATION_ADMIN_TOKEN,
     ValidationPackError,
     _extract_markdown_link_paths,
     _http_post_upload,
@@ -46,8 +45,6 @@ def test_dashboard_renderer_exposes_validation_testids() -> None:
     assert 'conversation-search-result' in source
     assert 'schedule-row' in source
     assert 'proactive-alert-row' in source
-    assert 'kg-result-row' in source
-    assert 'memory-result-row' in source
 
 
 def test_rollout_dashboard_defaults_to_production_posture() -> None:
@@ -99,17 +96,14 @@ def test_http_post_upload_bootstraps_csrf_header(monkeypatch, tmp_path: Path) ->
             return _FakeResponse(payload={"indexed": len(files)})
 
     monkeypatch.setattr("app.validation_pack.httpx.Client", _FakeClient)
-    monkeypatch.setenv("KERN_ADMIN_AUTH_TOKEN", "test-token")
-
     payload = _http_post_upload("http://127.0.0.1:8123", [upload_file])
 
     assert payload["indexed"] == 1
-    expected_auth = {"Authorization": f"Bearer {VALIDATION_ADMIN_TOKEN}"}
-    assert calls[0] == ("GET", "http://127.0.0.1:8123/health", expected_auth)
+    assert calls[0] == ("GET", "http://127.0.0.1:8123/health", {})
     assert calls[1] == (
         "POST",
         "http://127.0.0.1:8123/upload",
-        {"x-csrf-token": "csrf-token", **expected_auth},
+        {"x-csrf-token": "csrf-token"},
     )
 
 
@@ -143,8 +137,6 @@ def test_http_post_upload_raises_when_csrf_cookie_missing(monkeypatch, tmp_path:
             raise AssertionError("Upload POST should not be attempted without a CSRF token.")
 
     monkeypatch.setattr("app.validation_pack.httpx.Client", _FakeClient)
-    monkeypatch.setenv("KERN_ADMIN_AUTH_TOKEN", "test-token")
-
     try:
         _http_post_upload("http://127.0.0.1:8123", [upload_file])
     except ValidationPackError as exc:

@@ -43,7 +43,6 @@ from app.tools.scheduler_tools import CreateScheduleTool, ListSchedulesTool, Man
 from app.tools.german_business import CreateAngebotTool, CreateDsgvoReminderTool, CreateRechnungTool, DraftBehoerdeLetterTool, TaxSupportTool
 from app.tools.local_runtime import GenerateMorningBriefTool, ReadStatusTool, SetPreferenceTool
 from app.tools.memory_tools import BuildTopicTimelineTool, RecallMemoryTool, RememberFactTool, SearchConversationHistoryTool
-from app.tools.knowledge_tools import BuildKnowledgeGraphTool, QueryKnowledgeGraphTool
 from app.tools.notes import ListNotesTool, NoteTool
 from app.tools.reminders import CreateReminderTool, DismissReminderTool, SnoozeReminderTool
 from app.tools.routines import RunRoutineTool
@@ -65,7 +64,6 @@ from app.tools.workspace import ReadFileExcerptTool, SearchFilesTool
 from app.types import (
     ActionHistoryEntry,
     AssistantTurn,
-    AuthContext,
     ConversationTurn,
     FreeformIntentRecord,
     ExecutionPlan,
@@ -93,7 +91,7 @@ class _NullPlatformStore:
     """Stub platform store for personal/test use only. Logs a warning on first use."""
 
     def __init__(self) -> None:
-        logger.warning("Audit logging disabled â€” running without platform store")
+        logger.warning("Audit logging disabled Ã¢â‚¬â€ running without platform store")
 
     def record_audit(self, *args, **kwargs) -> None:
         return None
@@ -168,7 +166,6 @@ class KernOrchestrator:
         backup_service: BackupService | None = None,
         scheduler_service=None,
         file_watcher=None,
-        knowledge_graph_service=None,
         current_context_service=None,
     ) -> None:
         self.event_hub = event_hub
@@ -217,7 +214,6 @@ class KernOrchestrator:
         self.backup_service = backup_service or BackupService()
         self.scheduler_service = scheduler_service
         self.file_watcher = file_watcher
-        self.knowledge_graph_service = knowledge_graph_service
         self.model_router = ModelRouter(
             mode=settings.model_mode,
             fast_model=settings.fast_model_path,
@@ -322,13 +318,6 @@ class KernOrchestrator:
             "watch_folder": WatchFolderTool(lambda: self.file_watcher),
             "search_conversation_history": SearchConversationHistoryTool(self.memory),
             "build_topic_timeline": BuildTopicTimelineTool(self.memory),
-            **(
-                {
-                    "query_knowledge_graph": QueryKnowledgeGraphTool(self.knowledge_graph_service),
-                    "build_knowledge_graph": BuildKnowledgeGraphTool(self.knowledge_graph_service, document_service),
-                }
-                if self.knowledge_graph_service else {}
-            ),
             "create_angebot": CreateAngebotTool(german_business_service),
             "create_rechnung": CreateRechnungTool(german_business_service),
             "draft_behoerde_letter": DraftBehoerdeLetterTool(german_business_service),
@@ -459,14 +448,14 @@ class KernOrchestrator:
             scheduler_service=self.scheduler_service,
         )
 
-    def _reasoning_context(self, auth_context: AuthContext | None) -> tuple[str | None, str, str | None]:
+    def _reasoning_context(self, workspace_context: object | None) -> tuple[str | None, str, str | None]:
         workspace_slug = (
-            auth_context.workspace_slug
-            if auth_context is not None and auth_context.workspace_slug
+            workspace_context.workspace_slug
+            if workspace_context is not None and workspace_context.workspace_slug
             else self.active_profile.slug
         )
-        organization_id = auth_context.organization_id if auth_context is not None else None
-        actor_user_id = auth_context.user_id if auth_context is not None else None
+        organization_id = workspace_context.organization_id if workspace_context is not None else None
+        actor_user_id = workspace_context.user_id if workspace_context is not None else None
         return organization_id, workspace_slug, actor_user_id
 
     def _build_preparation_reply(self, packet) -> str:
@@ -752,10 +741,10 @@ class KernOrchestrator:
         transcript: str,
         *,
         trigger: str,
-        auth_context: AuthContext | None,
+        workspace_context: object | None,
         allow_llm_generation: bool,
     ) -> AssistantTurn | None:
-        organization_id, workspace_slug, actor_user_id = self._reasoning_context(auth_context)
+        organization_id, workspace_slug, actor_user_id = self._reasoning_context(workspace_context)
         routed = await asyncio.to_thread(
             self._reasoning_service().route_freeform_for_transcript,
             transcript,
@@ -1018,7 +1007,6 @@ class KernOrchestrator:
             "schedule",
             "reminder",
             "backup",
-            "license",
             "summarize",
             "compare",
         )
@@ -1043,7 +1031,7 @@ class KernOrchestrator:
         if not value or len(value) <= 2:
             return True
         if len(value.split()) == 1 and len(value) <= 10:
-            if not re.search(r"[aeiouÃ¤Ã¶Ã¼]", value):
+            if not re.search(r"[aeiouÃƒÂ¤ÃƒÂ¶ÃƒÂ¼]", value):
                 return True
             known_short_words = {
                 "hi",
@@ -1063,7 +1051,7 @@ class KernOrchestrator:
                 "summarize",
                 "explain",
             }
-            if re.fullmatch(r"[a-zÃ¤Ã¶Ã¼ÃŸ]{3,10}", value) and value not in known_short_words:
+            if re.fullmatch(r"[a-zÃƒÂ¤ÃƒÂ¶ÃƒÂ¼ÃƒÅ¸]{3,10}", value) and value not in known_short_words:
                 return True
         return False
 
@@ -1138,10 +1126,10 @@ class KernOrchestrator:
         transcript: str,
         *,
         trigger: str,
-        auth_context: AuthContext | None,
+        workspace_context: object | None,
         allow_llm_generation: bool,
     ) -> AssistantTurn | None:
-        organization_id, workspace_slug, actor_user_id = self._reasoning_context(auth_context)
+        organization_id, workspace_slug, actor_user_id = self._reasoning_context(workspace_context)
         task_intent = await asyncio.to_thread(
             self._reasoning_service().classify_task_intent_for_transcript,
             transcript,
@@ -1232,10 +1220,10 @@ class KernOrchestrator:
         transcript: str,
         *,
         trigger: str,
-        auth_context: AuthContext | None,
+        workspace_context: object | None,
         allow_llm_generation: bool,
     ) -> AssistantTurn | None:
-        organization_id, workspace_slug, actor_user_id = self._reasoning_context(auth_context)
+        organization_id, workspace_slug, actor_user_id = self._reasoning_context(workspace_context)
         packet = await asyncio.to_thread(
             self._reasoning_service().get_preparation_packet_for_transcript,
             transcript,
@@ -1304,7 +1292,7 @@ class KernOrchestrator:
         transcript: str,
         trigger: str = "manual_ui",
         *,
-        auth_context: AuthContext | None = None,
+        workspace_context: object | None = None,
         allow_llm_fallback: bool = True,
     ) -> AssistantTurn:
         if self.snapshot.action_in_progress:
@@ -1342,7 +1330,7 @@ class KernOrchestrator:
             freeform_turn = await self._try_freeform_guidance(
                 effective_transcript,
                 trigger=trigger,
-                auth_context=auth_context,
+                workspace_context=workspace_context,
                 allow_llm_generation=allow_llm_fallback,
             )
             if freeform_turn is not None:
@@ -1350,7 +1338,7 @@ class KernOrchestrator:
             document_turn = await self._try_document_guidance(
                 effective_transcript,
                 trigger=trigger,
-                auth_context=auth_context,
+                workspace_context=workspace_context,
                 allow_llm_generation=allow_llm_fallback,
             )
             if document_turn is not None:
@@ -1358,7 +1346,7 @@ class KernOrchestrator:
             reasoning_turn = await self._try_reasoning_guidance(
                 effective_transcript,
                 trigger=trigger,
-                auth_context=auth_context,
+                workspace_context=workspace_context,
                 allow_llm_generation=allow_llm_fallback,
             )
             if reasoning_turn is not None:

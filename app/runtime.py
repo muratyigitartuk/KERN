@@ -12,7 +12,6 @@ from pathlib import Path
 
 from app.action_planner import ActionPlanner
 from app.artifacts import ArtifactStore
-from app.knowledge_graph import KnowledgeGraphService
 from app.backup import BackupService
 from app.config import settings
 from app.database import connect
@@ -25,10 +24,8 @@ from app.documents import DocumentService
 from app.events import EventHub
 from app.german_business import GermanBusinessService
 from app.embeddings import EmbeddingService
-from app.identity import IdentityService
 from app.llm import Brain
 from app.llm_client import LlamaServerClient
-from app.license_service import LicenseService
 from app.local_data import LocalDataService
 from app.memory import MemoryRepository
 from app.orchestrator import KernOrchestrator
@@ -45,10 +42,8 @@ from app.syncing import SyncService
 from app.tools.calendar import CalendarService
 from app.tools.tasks import TaskService
 from app.types import (
-    AuthContext,
     DomainStatus,
     FailureStateSnapshot,
-    LicenseSummarySnapshot,
     ModelFallbackState,
     OnboardingSnapshot,
     ProfileSession,
@@ -81,7 +76,6 @@ class KernRuntime:
         self.defer_retrieval_refresh_after_upload = True
         platform_connection = connect_platform_db(settings.system_db_path)
         self.platform = PlatformStore(platform_connection, audit_enabled=settings.audit_enabled)
-        self.identity_service = IdentityService(self.platform)
         existing_profile = self.platform.get_profile(profile_slug)
         if existing_profile is not None:
             self.active_profile = existing_profile
@@ -127,7 +121,6 @@ class KernRuntime:
         self.policy = policy
         self.backup_service = BackupService()
         self.profile_session = ProfileSession(profile_slug=self.active_profile.slug, unlocked=not self.platform.is_profile_locked(self.active_profile.slug))
-        self.license_service = LicenseService()
         self.profile_connection = None
         self.memory = None
         self.local_data = None
@@ -157,7 +150,6 @@ class KernRuntime:
         self._calendar_watcher: CalendarWatcher | None = None
         self._document_watcher: DocumentWatcher | None = None
         self._pending_proactive_alerts: list[dict] = []
-        self.knowledge_graph_service = None
         self.action_planner = ActionPlanner()
         allowed_hosts = {host.strip() for host in settings.network_allowed_hosts.split(",") if host.strip()}
         self.network_monitor = NetworkMonitor(
@@ -255,7 +247,6 @@ class KernRuntime:
             local_data_note=f"Profile root: {self.active_profile.profile_root}",
             model_note=self._preferred_runtime_label(),
             workflow_note="Primary workflow: draft a German business reply from local documents.",
-            activation_note="",
             storage_path=self.active_profile.documents_root,
             model_path=self._preferred_runtime_path(),
         )
@@ -302,37 +293,6 @@ class KernRuntime:
         ]
         return summary, checks
 
-    def _license_summary_snapshot(self) -> LicenseSummarySnapshot:
-        evaluation = self.license_service.evaluate()
-        if evaluation.production_access:
-            self.clear_failure("license_required", "license_expired", "license_invalid")
-        else:
-            failure_id = "license_expired" if evaluation.status == "expired" else "license_invalid" if evaluation.status == "invalid" else "license_required"
-            self.record_failure(
-                error_code=failure_id,
-                title="Production access is blocked",
-                message=evaluation.message,
-                blocked_scope="production workspace",
-                next_action=evaluation.renewal_hint or "Install a valid offline license.",
-                retry_available=True,
-                retry_action="rerun_license_check",
-                technical_detail=evaluation.source_path,
-                source="license",
-            )
-        return LicenseSummarySnapshot(
-            status=evaluation.status,
-            plan=evaluation.plan,
-            activation_mode=evaluation.activation_mode,
-            expires_at=evaluation.expires_at,
-            grace_state=evaluation.grace_state,
-            message=evaluation.message,
-            renewal_hint=evaluation.renewal_hint,
-            production_access=evaluation.production_access,
-            sample_access=evaluation.sample_access,
-            install_id=evaluation.install_id,
-            source_path=evaluation.source_path,
-        )
-
     def _update_state_snapshot(self) -> UpdateStateSnapshot:
         state = load_update_state()
         self.local_data.update_update_history_state(**state)
@@ -370,31 +330,11 @@ class KernRuntime:
             message=message,
         )
 
-    def ensure_production_access(self, *, blocked_scope: str) -> bool:
-        evaluation = self.license_service.evaluate()
-        if evaluation.production_access:
-            self.clear_failure("license_required", "license_expired", "license_invalid")
-            return True
-        error_code = "license_expired" if evaluation.status == "expired" else "license_invalid" if evaluation.status == "invalid" else "license_required"
-        self.record_failure(
-            error_code=error_code,
-            title="Production access is blocked",
-            message=evaluation.message,
-            blocked_scope=blocked_scope,
-            next_action=evaluation.renewal_hint or "Import a valid offline license.",
-            retry_available=True,
-            retry_action="rerun_license_check",
-            technical_detail=evaluation.source_path,
-            source="license",
-        )
-        return False
-
     def start_sample_workspace(self) -> list[object]:
         records = self.sample_workspace_service.seed()
         self.orchestrator.snapshot.last_action = "Sample workspace is ready."
         self.orchestrator.snapshot.response_text = "Sample documents are ready. Review the grounded drafting flow before switching to your own files."
         self.orchestrator.mark_dirty("runtime")
-        self.clear_failure("license_required")
         return records
 
     def start_real_workspace(self) -> int:
@@ -540,7 +480,7 @@ class KernRuntime:
     def _close_profile_stack(self) -> None:
         self._stop_watchers()
         if self.profile_connection is not None:
-            with contextlib.suppress(Exception):  # cleanup â€” best-effort
+            with contextlib.suppress(Exception):  # cleanup Ã¢â‚¬â€ best-effort
                 self.profile_connection.close()
         self.profile_connection = None
         self.memory = None
@@ -563,11 +503,11 @@ class KernRuntime:
         self._refresh_platform_snapshot_sync()
 
     @contextlib.asynccontextmanager
-    async def workspace_context(self, auth_context: AuthContext | None):
+    async def workspace_context(self, workspace_context: object | None):
         async with self._workspace_lock:
             target_workspace = (
-                auth_context.workspace_slug
-                if auth_context is not None and auth_context.workspace_slug
+                workspace_context.workspace_slug
+                if workspace_context is not None and workspace_context.workspace_slug
                 else self.active_profile.slug
             )
             if target_workspace:
@@ -577,7 +517,7 @@ class KernRuntime:
     def _stop_watchers(self) -> None:
         file_watcher = getattr(self, "_file_watcher", None)
         if file_watcher is not None:
-            with contextlib.suppress(Exception):  # cleanup â€” best-effort
+            with contextlib.suppress(Exception):  # cleanup Ã¢â‚¬â€ best-effort
                 file_watcher.stop()
         self._file_watcher = None
         self._calendar_watcher = None
@@ -657,9 +597,6 @@ class KernRuntime:
             self._document_watcher = DocumentWatcher(document_service, self.active_profile.slug, settings.proactive_scan_interval)
         else:
             self._stop_watchers()
-        self.knowledge_graph_service = KnowledgeGraphService(connection, self.active_profile.slug) if not use_locked_scaffold else None
-        if self.knowledge_graph_service and document_service:
-            document_service.knowledge_graph = self.knowledge_graph_service
         self.profile_connection = connection
         self.memory = memory
         self.local_data = local_data
@@ -697,7 +634,6 @@ class KernRuntime:
             backup_service=self.backup_service,
             scheduler_service=self.scheduler_service,
             file_watcher=self._file_watcher,
-            knowledge_graph_service=self.knowledge_graph_service,
             current_context_service=self.current_context_service,
         )
 
@@ -927,7 +863,7 @@ class KernRuntime:
                         final_root=final_root,
                         profile_slug=self.active_profile.slug,
                     )
-                    with contextlib.suppress(Exception):  # cleanup â€” best-effort
+                    with contextlib.suppress(Exception):  # cleanup Ã¢â‚¬â€ best-effort
                         self.backup_service.cleanup_restore_plan(plan)
                 self.platform.update_job(
                     job.id,
@@ -1007,8 +943,6 @@ class KernRuntime:
         }
         snapshot.onboarding = self._build_onboarding_snapshot()
         snapshot.readiness_summary, snapshot.readiness_checks = self.build_readiness_snapshot()
-        snapshot.license_summary = self._license_summary_snapshot()
-        snapshot.license_state = snapshot.license_summary.status
         snapshot.update_state = self._update_state_snapshot()
         snapshot.memory_scope = self.local_data.get_preference("memory_scope", "profile") or "profile"
         snapshot.policy_mode = settings.policy_mode
@@ -1241,8 +1175,6 @@ class KernRuntime:
             self._background_errors.append(f"scheduler_tick:{exc}")
 
     async def _execute_scheduled_task(self, task: dict) -> dict:
-        if not self.ensure_production_access(blocked_scope="scheduled task execution"):
-            raise RuntimeError("Scheduled task execution is blocked by license state.")
         action_type = str(task.get("action_type", "custom_prompt") or "custom_prompt")
         payload = task.get("action_payload", {}) or {}
         if action_type == "custom_prompt":

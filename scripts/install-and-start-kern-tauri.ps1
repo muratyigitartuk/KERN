@@ -530,7 +530,6 @@ $env:KERN_DESKTOP_RUNTIME_ROOT = $repoRoot
 $env:KERN_DESKTOP_PYTHON = $python
 $env:KERN_DESKTOP_MODE = "true"
 $env:KERN_PRODUCT_POSTURE = "production"
-$env:KERN_DISABLE_AUTH_FOR_LOOPBACK = "true"
 
 Invoke-Checked "powershell.exe" @(
     "-ExecutionPolicy", "Bypass",

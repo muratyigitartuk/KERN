@@ -72,7 +72,6 @@ In the same first session:
 
 1. confirm the local profile roots in the onboarding flow
 2. confirm the recommended local model path
-3. import the offline license if this machine is moving beyond sample evaluation
 4. either:
    - start the bundled sample workspace for a safe first validation, or
    - upload one real local document
@@ -197,12 +196,10 @@ Support handoff:
 - include the package smoke, restore smoke, or uninstall smoke report if the issue came from that path
 - do not send raw company documents unless the operator has explicitly approved a local diagnostic export
 
-## 9. Licensing And Sample Evaluation
+## 9. Sample Evaluation
 
 Use the product shell for:
 
-- importing or replacing the offline license file
-- checking expiry and install binding state
 - validating the bundled sample workspace before loading real company documents
 - switching from sample mode back to the real local-document path
 
@@ -247,7 +244,6 @@ Related guides:
 - [restore-guide.md](restore-guide.md)
 - [uninstall-data-deletion.md](uninstall-data-deletion.md)
 - [troubleshooting-guide.md](troubleshooting-guide.md)
-- [activation-renewal-guide.md](activation-renewal-guide.md)
 - [update-rollback-guide.md](update-rollback-guide.md)
 - [sample-workspace-guide.md](sample-workspace-guide.md)
 - [pilot-acceptance-checklist.md](pilot-acceptance-checklist.md)

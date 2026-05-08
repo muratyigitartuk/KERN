@@ -37,7 +37,6 @@ Required lanes:
 
 - `shell_smoke`
 - `trust_governance`
-- `license_sample_flow`
 - `sample_to_real_transition`
 - `package_validation`
 - `package_smoke_install`
@@ -54,7 +53,6 @@ Advisory lane:
 Review the latest screenshots and summaries for:
 
 - onboarding wording
-- license gating clarity
 - support and update cards
 - sample workspace labeling
 - failure-card wording
@@ -82,4 +80,3 @@ The supported pilot path remains:
 - one controlled Windows machine
 - one local model path
 - manual stable-channel updates only
-- offline license import only

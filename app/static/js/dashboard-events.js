@@ -398,7 +398,7 @@ export function bindDashboardEvents({
     const ids = Array.isArray(event?.detail?.documentIds) ? event.detail.documentIds : [];
     setComposerDocumentContext(ids);
   });
-  // H-18: Removed local escapeHtml — using shared escapeHTML from utils.js.
+  // H-18: Removed local escapeHtml â€” using shared escapeHTML from utils.js.
   const escapeHtml = escapeHTML;
 
   function summarizeQueue(items = []) {
@@ -977,42 +977,6 @@ export function bindDashboardEvents({
     });
   });
 
-  elements.settingsRefreshLicense?.addEventListener("click", () => {
-    send({ type: "rerun_license_check" });
-  });
-
-  elements.settingsImportLicense?.addEventListener("click", () => {
-    elements.settingsLicenseFileInput?.click();
-  });
-
-  elements.settingsLicenseFileInput?.addEventListener("change", async (event) => {
-    const input = event.target;
-    const file = input?.files?.[0];
-    if (!file) {
-      return;
-    }
-    const form = new FormData();
-    form.append("license_file", file);
-    try {
-      const response = await secureFetch("/api/license/import", {
-        method: "POST",
-        body: form,
-      });
-      if (!response.ok) {
-        const detail = await response.json().catch(() => ({}));
-        throw new Error(detail?.detail || t("settings.license_import_failed"));
-      }
-      send({ type: "rerun_license_check" });
-    } catch (error) {
-      console.error("[KERN] license import failed:", error);
-      window.alert(error?.message || t("settings.license_import_failed"));
-    } finally {
-      if (elements.settingsLicenseFileInput) {
-        elements.settingsLicenseFileInput.value = "";
-      }
-    }
-  });
-
   elements.settingsExportSupportBundle?.addEventListener("click", async () => {
     try {
       const response = await secureFetch("/support/export", { method: "POST" });
@@ -1555,28 +1519,6 @@ export function bindDashboardEvents({
   const dismissAllAlertsButton = document.getElementById("dismissAllAlertsButton");
   dismissAllAlertsButton?.addEventListener("click", () => {
     send({ type: "dismiss_all_alerts" });
-  });
-
-  const kgSearchButton = document.getElementById("kgSearchButton");
-  const kgSearchInput = document.getElementById("kgSearchInput");
-  const kgBuildButton = document.getElementById("kgBuildButton");
-
-  kgSearchButton?.addEventListener("click", () => {
-    const q = kgSearchInput?.value.trim();
-    if (q) send({ type: "search_knowledge_graph", settings: { query: q } });
-  });
-  kgSearchInput?.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") kgSearchButton?.click();
-  });
-  kgBuildButton?.addEventListener("click", () => {
-    send({ type: "submit_text", text: t("kg.build_prompt") });
-  });
-
-  // Load graph when Intelligence tab is activated
-  document.querySelectorAll(".utility-tab[data-tab='intelligence']").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      send({ type: "get_knowledge_graph", settings: {} });
-    });
   });
 
   const memorySearchButton = document.getElementById("memorySearchButton");

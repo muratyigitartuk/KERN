@@ -521,20 +521,6 @@
               <span>Readiness</span>
               <strong id="settingsReadinessStatus">Checking</strong>
             </div>
-            <div class="settings-story-card" id="settingsLicenseCard">
-              <div class="settings-story-card__head">
-                <span class="eyebrow">License</span>
-                <span id="settingsLicensePill" class="settings-story-card__pill">Unlicensed</span>
-              </div>
-              <strong id="settingsLicenseTitle" class="settings-story-card__title">Offline licensing is optional for this local install.</strong>
-              <p id="settingsLicenseBody" class="settings-story-card__body">KERN runs locally on this machine whether or not an offline license file is installed. Import one only if this pilot package uses commercial tracking.</p>
-              <ul id="settingsLicenseFacts" class="settings-story-card__facts"></ul>
-              <div class="settings-inline-actions">
-                <input id="settingsLicenseFileInput" type="file" accept=".json,.license" hidden />
-                <button type="button" id="settingsImportLicense" class="ghost-button">Import offline license</button>
-                <button type="button" id="settingsRefreshLicense" class="ghost-button">Recheck license</button>
-              </div>
-            </div>
             <div class="settings-row settings-row--stack">
               <span>Readiness action</span>
               <div class="settings-inline-actions">
@@ -705,7 +691,6 @@
       </section>
     </div>
 
-    <script type="module" src="/static/js/auth-shell.js?v=20260430a"></script>
     <script type="module" src="/static/app.js?v=20260430a"></script>
   </body>
 </html>

@@ -28,9 +28,9 @@ class _FakeWebSocket:
         self._send_exc = send_exc
         self.accepted = False
         self.client = SimpleNamespace(host="127.0.0.1")
-        self.headers = {"authorization": "Bearer test-token"}
+        self.headers = {}
         self.query_params = {}
-        self.state = SimpleNamespace(auth_context=SimpleNamespace(roles=["break_glass_admin"], is_break_glass=True))
+        self.state = SimpleNamespace(workspace_context=SimpleNamespace(roles=[]))
 
     async def accept(self) -> None:
         self.accepted = True
@@ -66,7 +66,7 @@ def test_websocket_endpoint_does_not_poison_snapshot_on_transport_error():
     websocket = _FakeWebSocket(RuntimeError('WebSocket is not connected. Need to call "accept" first.'))
     runtime = _FakeRuntime()
 
-    asyncio.run(websocket_endpoint(websocket, runtime, auth_checked=True))
+    asyncio.run(websocket_endpoint(websocket, runtime, workspace_checked=True))
 
     assert websocket.accepted is True
     assert runtime.orchestrator.snapshot.response_text == "stable"

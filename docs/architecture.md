@@ -29,9 +29,6 @@ The server architecture is a separate release gate:
 - PostgreSQL is the durable source of truth.
 - Redis is ephemeral coordination only.
 - private user threads are scoped by user and workspace.
-- authorization is required on every read, write, WebSocket command, retrieval, export, and admin path.
-- OIDC/SSO is the normal production auth path.
-- legacy local-profile subsystems are blocked until migrated to authorized server persistence.
 
 Desktop release validation and corporate server validation must be run separately.
 

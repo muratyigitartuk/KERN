@@ -9,12 +9,10 @@ Show the validation artifacts first:
 - Release gate: `output/releases/release-gate-20260506-204151/summary.md`
 - Runtime package: `output/releases/release-gate-20260506-204151/kern-internal-runtime-20260506-204151.zip`
 - Package checksum: `output/releases/release-gate-20260506-204151/kern-internal-runtime-20260506-204151.zip.sha256`
-- Enterprise acceptance: `output/enterprise-acceptance/run-20260506-203115/summary.md`
 
 State the release truth:
 
 - Supported now: controlled local Windows pilot.
-- Restricted: one-organization server thread/auth mode.
 - Not claimed: SaaS, broad multi-tenant, or full 500-user shared production.
 
 ## Command Sequence
@@ -22,7 +20,6 @@ State the release truth:
 ```powershell
 python .\scripts\preflight-kern.py --json
 powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-release-gate.ps1
-.\.venv\Scripts\python.exe .\scripts\enterprise_acceptance.py
 ```
 
 ## Demo Flow
@@ -46,7 +43,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-release-gate.ps1
    - Show that KERN refuses to invent missing facts.
 
 5. Show prompt-injection handling.
-   - Use the hostile document case from enterprise acceptance.
+   - Use the hostile document case from the validation pack.
    - Show that the document instruction is treated as untrusted content.
 
 6. Show policy gates.
@@ -60,14 +57,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-release-gate.ps1
 
 8. Show backup/update safety.
    - Show encrypted backup/update bundle validation.
-   - Show traversal rejection from the enterprise acceptance report.
+   - Show traversal rejection from the validation evidence.
 
 ## Do Not Demo
 
 - Server mode as full product parity.
 - OCR reliability.
 - Removed workplace integrations.
-- OAuth communication integrations.
 - Broad shared production scale.
 
 ## Closing Statement

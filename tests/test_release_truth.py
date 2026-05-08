@@ -8,8 +8,6 @@ ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "app" / "config.py"
 DOC_PATHS = [
     ROOT / "README.md",
-    ROOT / "docs" / "deployment-checklist.md",
-    ROOT / "docs" / "security-governance.md",
     ROOT / "docs" / "validation-pack.md",
     ROOT / "docs" / "windows-deployment.md",
     ROOT / "docs" / "corporate-demo-script.md",
@@ -47,7 +45,6 @@ def test_public_health_docs_do_not_use_stale_healthy_status() -> None:
 def test_corporate_demo_script_references_release_and_acceptance_artifacts() -> None:
     text = (ROOT / "docs" / "corporate-demo-script.md").read_text(encoding="utf-8").lower()
     assert "release gate" in text
-    assert "enterprise acceptance" in text
     assert "support" in text
 
 

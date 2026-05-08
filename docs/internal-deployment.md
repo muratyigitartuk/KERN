@@ -97,7 +97,6 @@ Use the related operator docs for those flows:
 
 This branch now also exposes:
 
-- offline license state and import
 - update / rollback visibility inside settings
 - bundled sample workspace inside onboarding
 
@@ -106,12 +105,10 @@ That means a pilot operator can:
 1. install KERN
 2. verify readiness
 3. validate the workflow with the sample workspace if needed
-4. import the offline license
 5. move to real local documents
 
 Use these docs alongside the deployment guide:
 
-- [activation-renewal-guide.md](activation-renewal-guide.md)
 - [update-rollback-guide.md](update-rollback-guide.md)
 - [sample-workspace-guide.md](sample-workspace-guide.md)
 

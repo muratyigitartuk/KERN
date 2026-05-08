@@ -113,17 +113,10 @@ class Settings:
     db_encryption_mode: str = _normalize_db_encryption_mode(_env("KERN_DB_ENCRYPTION_MODE", default="fernet"), "fernet")
     artifact_encryption_enabled: bool = _as_bool(_env("KERN_ARTIFACT_ENCRYPTION_ENABLED"), True)
     key_derivation_version: str = _env("KERN_KEY_DERIVATION_VERSION", default="v1") or "v1"
-    profile_key_rotation_required: bool = _as_bool(_env("KERN_PROFILE_KEY_ROTATION_REQUIRED"), False)
     transcript_model: str | None = _env("KERN_TRANSCRIPT_MODEL") or None
     sync_mode: str = _env("KERN_SYNC_MODE", default="off") or "off"
     nextcloud_url: str | None = _env("KERN_NEXTCLOUD_URL") or None
     update_channel: str = _env("KERN_UPDATE_CHANNEL", default="stable") or "stable"
-    license_root: Path = Path(
-        _env("KERN_LICENSE_ROOT")
-        or str(Path(_env("KERN_ROOT_PATH", default=".kern")).resolve() / "licenses")
-    ).resolve()
-    license_public_key: str | None = _env("KERN_LICENSE_PUBLIC_KEY") or None
-    license_public_key_path: Path | None = Path(_env("KERN_LICENSE_PUBLIC_KEY_PATH")).resolve() if _env("KERN_LICENSE_PUBLIC_KEY_PATH") else None
     pwa_enabled: bool = _as_bool(_env("KERN_PWA_ENABLED"), False)
     llama_server_url: str = _env("KERN_LLAMA_SERVER_URL", default="http://127.0.0.1:8080") or "http://127.0.0.1:8080"
     llama_server_timeout: float = float(_env("KERN_LLAMA_SERVER_TIMEOUT", default="120.0") or "120.0")
@@ -179,42 +172,13 @@ class Settings:
     ocr_lang: str = _env("KERN_OCR_LANG", default="de") or "de"
     ocr_low_confidence_threshold: float = float(_env("KERN_OCR_LOW_CONFIDENCE_THRESHOLD", default="0.80") or "0.80")
     ocr_min_text_chars_per_page: int = int(_env("KERN_OCR_MIN_TEXT_CHARS_PER_PAGE", default="32") or "32")
-    # Admin dashboard (8.10)
-    admin_dashboard_enabled: bool = _as_bool(_env("KERN_ADMIN_DASHBOARD_ENABLED"), False)
     desktop_mode: bool = _as_bool(_env("KERN_DESKTOP_MODE"), False)
-    server_mode: bool = _as_bool(_env("KERN_SERVER_MODE"), False)
     postgres_dsn: str | None = _env("KERN_POSTGRES_DSN") or None
     redis_url: str | None = _env("KERN_REDIS_URL") or None
     object_storage_root: str | None = _env("KERN_OBJECT_STORAGE_ROOT") or None
     encryption_key_provider: str | None = _env("KERN_ENCRYPTION_KEY_PROVIDER") or None
     public_base_url: str | None = _env("KERN_PUBLIC_BASE_URL") or None
     proxy_headers_enabled: bool = _as_bool(_env("KERN_PROXY_HEADERS_ENABLED"), False)
-    server_break_glass_enabled: bool = _as_bool(_env("KERN_SERVER_BREAK_GLASS_ENABLED"), False)
-    break_glass_ip_allowlist: str = _env("KERN_BREAK_GLASS_IP_ALLOWLIST", default="") or ""
-    admin_auth_token: str | None = _env("KERN_ADMIN_AUTH_TOKEN") or None
-    disable_auth_for_loopback: bool = _as_bool(_env("KERN_DISABLE_AUTH_FOR_LOOPBACK"), False)
-    loopback_nonce: str = _env("KERN_LOOPBACK_NONCE", default="codex-loopback") or "codex-loopback"
-    session_cookie_name: str = _env("KERN_SESSION_COOKIE_NAME", default="kern_session") or "kern_session"
-    session_secret: str | None = _env("KERN_SESSION_SECRET") or _env("KERN_ADMIN_AUTH_TOKEN") or None
-    session_ttl_hours: int = int(_env("KERN_SESSION_TTL_HOURS", default="8") or "8")
-    session_idle_minutes: int = int(_env("KERN_SESSION_IDLE_MINUTES", default="60") or "60")
-    oidc_enabled: bool = _as_bool(_env("KERN_OIDC_ENABLED"), False)
-    oidc_issuer_url: str | None = _env("KERN_OIDC_ISSUER_URL") or None
-    oidc_client_id: str | None = _env("KERN_OIDC_CLIENT_ID") or None
-    oidc_client_secret: str | None = _env("KERN_OIDC_CLIENT_SECRET") or None
-    oidc_redirect_uri: str | None = _env("KERN_OIDC_REDIRECT_URI") or None
-    oidc_scopes: str = _env("KERN_OIDC_SCOPES", default="openid profile email") or "openid profile email"
-    oidc_allowed_email_domains: str = _env("KERN_OIDC_ALLOWED_EMAIL_DOMAINS", default="") or ""
-    oidc_required_group: str | None = _env("KERN_OIDC_REQUIRED_GROUP") or None
-    oidc_email_claim: str = _env("KERN_OIDC_EMAIL_CLAIM", default="email") or "email"
-    oidc_name_claim: str = _env("KERN_OIDC_NAME_CLAIM", default="name") or "name"
-    oidc_groups_claim: str = _env("KERN_OIDC_GROUPS_CLAIM", default="groups") or "groups"
-    break_glass_username: str = _env("KERN_BREAK_GLASS_USERNAME", default="breakglass") or "breakglass"
-    break_glass_password: str | None = _env("KERN_BREAK_GLASS_PASSWORD") or None
-
-    @property
-    def session_ttl_seconds(self) -> int:
-        return self.session_ttl_hours * 60 * 60
 
 
 def _build_settings() -> Settings:

@@ -94,7 +94,7 @@ function translateWorkbenchPayloadText(value) {
 }
 
 function humanizeToken(value, fallback = null) {
-  if (value == null || value === "") return fallback || wt("Nicht verfügbar", "Not available");
+  if (value == null || value === "") return fallback || wt("Nicht verfÃ¼gbar", "Not available");
   return String(value)
     .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -111,33 +111,21 @@ function prettyRole(role) {
   const map = {
     org_owner: wt("Inhaber", "Owner"),
     org_admin: wt("Administrator", "Administrator"),
-    auditor: wt("Prüfer", "Auditor"),
-    member: wt("Mitglied", "Member"),
-    break_glass_admin: wt("Notfallzugriff", "Emergency access"),
-  };
+    auditor: wt("PrÃ¼fer", "Auditor"),
+    member: wt("Mitglied", "Member"),  };
   return map[role] || humanizeToken(role);
 }
 
 function prettyRoles(roles = []) {
   return roles.length ? roles.map(prettyRole).join(", ") : wt("Keine Rolle vergeben", "No role assigned");
 }
-
-function prettyAuthSource(value) {
-  const map = {
-    password: wt("Passwort-Anmeldung", "Password sign-in"),
-    session: wt("Aktive Sitzung", "Active session"),
-    bootstrap: wt("Ersteinrichtung", "Bootstrap setup"),
-    break_glass: wt("Notfallzugriff", "Emergency access"),
-  };
-  return map[value] || humanizeToken(value, wt("Lokale Anmeldung", "Local sign-in"));
-}
-
+`r`n
 function prettyStatus(value) {
   const map = {
     active: wt("Aktiv", "Active"),
-    available: wt("Verfügbar", "Available"),
+    available: wt("VerfÃ¼gbar", "Available"),
     pending: wt("Wartet", "Pending"),
-    approved: wt("Bestätigt", "Approved"),
+    approved: wt("BestÃ¤tigt", "Approved"),
     rejected: wt("Abgelehnt", "Rejected"),
     completed: wt("Abgeschlossen", "Completed"),
     requested: wt("Angefragt", "Requested"),
@@ -159,7 +147,7 @@ function prettyScope(value) {
     workspace: wt("Arbeitsbereich", "Workspace"),
     profile: wt("Profil", "Profile"),
     profile_plus_archive: wt("Profil und Archiv", "Profile and archive"),
-    personal_only: wt("Nur persönlich", "Personal only"),
+    personal_only: wt("Nur persÃ¶nlich", "Personal only"),
   };
   return map[value] || humanizeToken(value, wt("Arbeitsbereich", "Workspace"));
 }
@@ -167,7 +155,7 @@ function prettyScope(value) {
 function prettyDataClass(value) {
   const map = {
     regulated_business: wt("Regelgebundenes Dokument", "Regulated document"),
-    personal: wt("Persönliche Daten", "Personal data"),
+    personal: wt("PersÃ¶nliche Daten", "Personal data"),
     finance: wt("Finanzdaten", "Finance data"),
     hr: wt("Personaldaten", "HR data"),
     unclassified: wt("Nicht klassifiziert", "Unclassified"),
@@ -177,8 +165,8 @@ function prettyDataClass(value) {
 
 function prettyDecision(value) {
   const map = {
-    exportable: wt("Export möglich", "Can be exported"),
-    erasable: wt("Kann gelöscht werden", "Can be erased"),
+    exportable: wt("Export mÃ¶glich", "Can be exported"),
+    erasable: wt("Kann gelÃ¶scht werden", "Can be erased"),
     not_exportable: wt("Nicht exportierbar", "Not exportable"),
     retention_bound: wt("Aufbewahrung gilt", "Retention applies"),
     pseudonymize_only: wt("Nur pseudonymisieren", "Pseudonymize only"),
@@ -305,7 +293,6 @@ export function createWorkbenchController({ renderer }) {
   }
 
   function hasRole(...roles) {
-    if (state.session?.is_break_glass) return true;
     return roles.some((role) => currentRoles().includes(role));
   }
 
@@ -337,18 +324,29 @@ export function createWorkbenchController({ renderer }) {
         .split(",")
         .map((value) => value.trim())
         .filter(Boolean);
-      const visible = !allowed.length || state.session?.is_break_glass || allowed.some((role) => roles.has(role));
+      const visible = !allowed.length || allowed.some((role) => roles.has(role));
       tab.classList.toggle("is-role-hidden", !visible);
       tab.toggleAttribute("hidden", !visible);
     });
   }
 
   async function refreshSession() {
-    state.session = await fetchJson("/auth/session");
+    const workspacesPayload = await fetchJson("/admin/workspaces");
+    const workspaces = workspacesPayload.items || workspacesPayload.workspaces || [];
+    const activeWorkspace = workspaces[0] || {};
+    state.session = {
+      user: { id: "local-user", email: "local-user" },
+      user_id: "local-user",
+      user_email: "local-user",
+      workspace_slug: activeWorkspace.slug || "default",
+      workspace_title: activeWorkspace.title || activeWorkspace.slug || "Default",
+      roles: ["org_owner", "org_admin", "auditor", "member"],
+      workspaces,
+    };
     populateWorkspaceOptions(state.session.workspaces || []);
     applyRoleVisibility();
     if (dom.workspaceSummaryTitle) {
-      dom.workspaceSummaryTitle.textContent = state.session.workspace_title || state.session.workspace_slug || wt("Kein Arbeitsbereich ausgewählt", "No workspace selected");
+      dom.workspaceSummaryTitle.textContent = state.session.workspace_title || state.session.workspace_slug || wt("Kein Arbeitsbereich ausgewÃ¤hlt", "No workspace selected");
     }
     if (dom.workspaceSummaryBody) {
       const email = state.session.user?.email || state.session.user_email || wt("Anonym", "Anonymous");
@@ -365,10 +363,10 @@ export function createWorkbenchController({ renderer }) {
     await refreshSession();
     const workspaces = state.session.workspaces || [];
     renderMetricGrid(dom.workspaceMetricGrid, [
-      { label: wt("Arbeitsbereiche", "Workspaces"), value: String(workspaces.length), detail: wt("In dieser Sitzung verfügbar", "Available in this session") },
-      { label: wt("Aktiv", "Selected"), value: state.session.workspace_title || state.session.workspace_slug || wt("Keiner", "None"), detail: prettyAuthSource(state.session.auth_method || "session") },
+      { label: wt("Arbeitsbereiche", "Workspaces"), value: String(workspaces.length), detail: wt("In dieser Sitzung verfÃ¼gbar", "Available in this session") },
+      { label: wt("Aktiv", "Selected"), value: state.session.workspace_title || state.session.workspace_slug || wt("Keiner", "None"), detail: wt("Lokaler Arbeitsbereich", "Local workspace") },
       { label: wt("Rollen", "Roles"), value: String(currentRoles().length || 0), detail: prettyRoles(currentRoles()) },
-      { label: wt("Sitzungen", "Sessions"), value: String((state.session.sessions || []).length), detail: wt("Gerade angemeldet", "Currently signed in") },
+      { label: wt("Sitzungen", "Sessions"), value: "0", detail: wt("Gerade angemeldet", "Currently signed in") },
     ]);
     renderList(
       dom.workspaceAccessList,
@@ -391,22 +389,20 @@ export function createWorkbenchController({ renderer }) {
       setStateCard(dom.adminAccessState, wt("Verwaltung ist hier nicht freigeschaltet.", "Admin controls are not available here."), wt("Dieses Konto sieht nur die Bereiche, die im aktuellen Arbeitsbereich erlaubt sind.", "This account can only see the surfaces allowed in the current workspace."), "error");
       renderMetricGrid(dom.adminMetricGrid, []);
       [dom.adminWorkspaceList, dom.adminPendingUsersList, dom.adminUsersList, dom.adminSessionsList].forEach((element) =>
-        renderList(element, [], () => "", wt("Für diese Rolle nicht freigegeben.", "Not available for this role."))
+        renderList(element, [], () => "", wt("FÃ¼r diese Rolle nicht freigegeben.", "Not available for this role."))
       );
       return;
     }
-    const [workspacesPayload, usersPayload, sessionsPayload] = await Promise.all([
+    const [workspacesPayload, usersPayload] = await Promise.all([
       fetchJson("/admin/workspaces"),
       fetchJson("/admin/users"),
-      fetchJson("/admin/sessions"),
-    ]);
+      ]);
     const workspaces = workspacesPayload.items || workspacesPayload.workspaces || [];
     const users = usersPayload.items || usersPayload.users || [];
-    const sessions = sessionsPayload.items || sessionsPayload.sessions || [];
     const pendingUsers = users.filter((user) => String(user.status || "").toLowerCase() === "pending");
     populateWorkspaceOptions(workspaces);
     renderMetricGrid(dom.adminMetricGrid, [
-      { label: wt("Arbeitsbereiche", "Workspaces"), value: String(workspaces.length), detail: wt("Für dieses Team angelegt", "Set up for this team") },
+      { label: wt("Arbeitsbereiche", "Workspaces"), value: String(workspaces.length), detail: wt("FÃ¼r dieses Team angelegt", "Set up for this team") },
       { label: wt("Personen", "People"), value: String(users.length), detail: wt("Mit Zugriff auf das System", "With access to the system") },
       { label: wt("Wartend", "Pending"), value: String(pendingUsers.length), detail: wt("Warten auf Freigabe", "Waiting for approval") },
       { label: wt("Sitzungen", "Sessions"), value: String(sessions.length), detail: wt("Derzeit aktiv", "Currently active") },
@@ -434,7 +430,7 @@ export function createWorkbenchController({ renderer }) {
             <strong>${escapeHTML(user.display_name || user.email || user.id)}</strong>
             <span class="workbench-pill" data-tone="warning">${escapeHTML(prettyStatus(user.status || "pending"))}</span>
           </div>
-          ${rowMeta([user.email, prettyAuthSource(user.auth_source)])}
+          ${rowMeta([user.email])}
           ${actionButtons([
             { type: "approve-user", label: wt("Freigeben", "Approve"), primary: true, dataset: { userId: user.id } },
             { type: "suspend-user", label: wt("Sperren", "Suspend"), dataset: { userId: user.id } },
@@ -452,26 +448,11 @@ export function createWorkbenchController({ renderer }) {
             <strong>${escapeHTML(user.display_name || user.email || user.id)}</strong>
             <span class="workbench-pill" data-tone="${String(user.status).toLowerCase() === "active" ? "success" : "warning"}">${escapeHTML(prettyStatus(user.status || "info"))}</span>
           </div>
-          ${rowMeta([user.email, prettyAuthSource(user.auth_source)])}
+          ${rowMeta([user.email])}
           ${String(user.status).toLowerCase() === "active" ? actionButtons([{ type: "suspend-user", label: wt("Sperren", "Suspend"), dataset: { userId: user.id } }]) : ""}
         </li>
       `,
       wt("Noch keine Personen vorhanden.", "No people are available yet.")
-    );
-    renderList(
-      dom.adminSessionsList,
-      sessions,
-      (session) => `
-        <li>
-          <div class="workbench-row-title">
-            <strong>${escapeHTML(session.user_id || wt("Dienstsitzung", "Service session"))}</strong>
-            <span class="workbench-pill" data-tone="${session.revoked_at ? "danger" : "success"}">${session.revoked_at ? prettyStatus("revoked") : prettyStatus("active")}</span>
-          </div>
-          ${rowMeta([session.workspace_slug, formatDate(session.last_activity_at), prettyAuthSource(session.auth_method)])}
-          ${session.revoked_at ? "" : actionButtons([{ type: "revoke-session", label: wt("Beenden", "End session"), dataset: { sessionId: session.id } }])}
-        </li>
-      `,
-      wt("Es wurden keine aktiven Sitzungen gefunden.", "No active sessions were found.")
     );
   }
 
@@ -482,10 +463,10 @@ export function createWorkbenchController({ renderer }) {
       { label: wt("Konto", "Account"), value: state.session.user?.email || state.session.user_email || wt("Unbekannt", "Unknown"), detail: wt("Gerade angemeldet", "Currently signed in") },
     ];
     if (isMemberOnly()) {
-      setStateCard(dom.complianceStateCard, wt("Hier stehen nur eigene Datenschutz-Aktionen bereit.", "Only self-service compliance actions are available here."), wt("Dieses Konto kann eigene Exporte anfordern und Löschanfragen starten, aber keine teamweiten Regeln verwalten.", "This account can request its own exports and erasure actions, but cannot manage team-wide rules."), "warning");
+      setStateCard(dom.complianceStateCard, wt("Hier stehen nur eigene Datenschutz-Aktionen bereit.", "Only self-service compliance actions are available here."), wt("Dieses Konto kann eigene Exporte anfordern und LÃ¶schanfragen starten, aber keine teamweiten Regeln verwalten.", "This account can request its own exports and erasure actions, but cannot manage team-wide rules."), "warning");
       renderMetricGrid(dom.complianceMetricGrid, selfServiceCards);
       [dom.complianceRetentionList, dom.complianceHoldList, dom.complianceErasureList, dom.complianceExportList, dom.complianceInventoryList, dom.regulatedCandidateList, dom.regulatedDocumentWorkbenchList].forEach((element) =>
-        renderList(element, [], () => "", wt("Für diese Liste ist eine Freigabe durch Verwaltung nötig.", "An admin review is required for this list."))
+        renderList(element, [], () => "", wt("FÃ¼r diese Liste ist eine Freigabe durch Verwaltung nÃ¶tig.", "An admin review is required for this list."))
       );
       return;
     }
@@ -508,8 +489,8 @@ export function createWorkbenchController({ renderer }) {
     renderMetricGrid(dom.complianceMetricGrid, [
       { label: wt("Aufbewahrung", "Retention"), value: String(policies.length), detail: wt("Regeln je Datentyp", "Rules by data type") },
       { label: wt("Sperren", "Legal holds"), value: String(holds.filter((item) => item.active).length), detail: wt("Gerade aktiv", "Currently active") },
-      { label: wt("Löschanfragen", "Erasure queue"), value: String(erasures.length), detail: wt("Warten auf Prüfung", "Waiting for review") },
-      { label: wt("Exporte", "Exports"), value: String(exports.length), detail: wt("Nachweisfähige Vorgänge", "Evidence-ready jobs") },
+      { label: wt("LÃ¶schanfragen", "Erasure queue"), value: String(erasures.length), detail: wt("Warten auf PrÃ¼fung", "Waiting for review") },
+      { label: wt("Exporte", "Exports"), value: String(exports.length), detail: wt("NachweisfÃ¤hige VorgÃ¤nge", "Evidence-ready jobs") },
     ]);
     renderList(dom.complianceRetentionList, policies, (policy) => `
       <li>
@@ -517,7 +498,7 @@ export function createWorkbenchController({ renderer }) {
           <strong>${escapeHTML(prettyDataClass(policy.data_class))}</strong>
           <span class="workbench-pill" data-tone="${policy.legal_hold_enabled ? "warning" : "success"}">${policy.retention_days} ${wt("Tage", "days")}</span>
         </div>
-        ${rowMeta([policy.legal_hold_enabled ? wt("Mit Sperrregel verknüpft", "Can be blocked by a legal hold") : wt("Ohne Sperrregel", "No legal-hold trigger"), formatDate(policy.updated_at)])}
+        ${rowMeta([policy.legal_hold_enabled ? wt("Mit Sperrregel verknÃ¼pft", "Can be blocked by a legal hold") : wt("Ohne Sperrregel", "No legal-hold trigger"), formatDate(policy.updated_at)])}
       </li>
     `, wt("Noch keine Aufbewahrungsregeln eingerichtet.", "No retention rules are set up yet."));
     renderList(dom.complianceHoldList, holds, (hold) => `
@@ -536,16 +517,16 @@ export function createWorkbenchController({ renderer }) {
           <span class="workbench-pill" data-tone="${request.status === "completed" ? "success" : request.status === "blocked" ? "danger" : "warning"}">${escapeHTML(prettyStatus(request.status || "requested"))}</span>
         </div>
         ${rowMeta([request.workspace_slug, humanizeToken(request.legal_hold_decision), humanizeToken(request.retention_decision), formatDate(request.updated_at)])}
-        ${request.status === "requested" ? actionButtons([{ type: "execute-erasure", label: wt("Jetzt ausführen", "Run now"), primary: true, dataset: { requestId: request.id } }]) : ""}
+        ${request.status === "requested" ? actionButtons([{ type: "execute-erasure", label: wt("Jetzt ausfÃ¼hren", "Run now"), primary: true, dataset: { requestId: request.id } }]) : ""}
       </li>
-    `, wt("Es gibt gerade keine offenen Löschanfragen.", "There are no erasure requests in the queue."));
+    `, wt("Es gibt gerade keine offenen LÃ¶schanfragen.", "There are no erasure requests in the queue."));
     renderList(dom.complianceExportList, exports, (item) => `
       <li>
         <div class="workbench-row-title">
           <strong>${escapeHTML(item.workspace_slug || item.target_user_id || item.id)}</strong>
           <span class="workbench-pill" data-tone="${item.status === "completed" ? "success" : "warning"}">${escapeHTML(prettyStatus(item.status || "requested"))}</span>
         </div>
-        ${rowMeta([item.workspace_slug ? wt("Export für Arbeitsbereich", "Workspace export") : wt("Export für Person", "Subject export"), formatDate(item.updated_at)])}
+        ${rowMeta([item.workspace_slug ? wt("Export fÃ¼r Arbeitsbereich", "Workspace export") : wt("Export fÃ¼r Person", "Subject export"), formatDate(item.updated_at)])}
         ${actionButtons([{ type: "inspect-export", label: wt("Ansehen", "Open details"), dataset: { exportId: item.id } }])}
       </li>
     `, wt("Es wurden noch keine Exporte erzeugt.", "No export jobs have been created yet."));
@@ -556,7 +537,7 @@ export function createWorkbenchController({ renderer }) {
           <span class="workbench-pill" data-tone="warning">${escapeHTML(prettyDataClass(candidate.data_class || "regulated_business"))}</span>
         </div>
         ${rowMeta([humanizeToken(candidate.category), humanizeToken(candidate.retention_state), formatDate(candidate.updated_at)])}
-        ${actionButtons([{ type: "finalize-regulated", label: wt("Final übernehmen", "Finalize"), primary: true, dataset: { documentId: candidate.id, title: candidate.title || candidate.id } }])}
+        ${actionButtons([{ type: "finalize-regulated", label: wt("Final Ã¼bernehmen", "Finalize"), primary: true, dataset: { documentId: candidate.id, title: candidate.title || candidate.id } }])}
       </li>
     `, wt("Zurzeit warten keine Dokumente auf die finale Einstufung.", "No regulated-document candidates are waiting."));
     renderList(dom.regulatedDocumentWorkbenchList, regulated, (item) => `
@@ -576,7 +557,7 @@ export function createWorkbenchController({ renderer }) {
         </div>
         ${rowMeta([info.exportable ? prettyDecision("exportable") : prettyDecision("not_exportable"), info.erasable ? prettyDecision("erasable") : prettyDecision("retention_bound"), info.pseudonymize_only ? prettyDecision("pseudonymize_only") : null])}
       </li>
-    `, wt("Es wurden keine Datenklassen zurückgegeben.", "No inventory records were returned."));
+    `, wt("Es wurden keine Datenklassen zurÃ¼ckgegeben.", "No inventory records were returned."));
   }
 
   async function renderIntelligence() {
@@ -606,20 +587,20 @@ export function createWorkbenchController({ renderer }) {
         label: wt("Muster", "Patterns"),
         value: String(venomStats.total_patterns || 0),
         detail: venomStats.promoted_patterns != null
-          ? wt(`${venomStats.promoted_patterns} übernommen / ${venomStats.llm_calls_saved || 0} Aufrufe gespart`, `${venomStats.promoted_patterns} promoted / ${venomStats.llm_calls_saved || 0} calls saved`)
+          ? wt(`${venomStats.promoted_patterns} Ã¼bernommen / ${venomStats.llm_calls_saved || 0} Aufrufe gespart`, `${venomStats.promoted_patterns} promoted / ${venomStats.llm_calls_saved || 0} calls saved`)
           : (governanceRole ? wt("Noch keine Musterstatistik", "No pattern stats available") : wt("Lokale Hinweisdaten", "Local advisory stats")),
       },
     ]);
     setStateCard(
       dom.intelligenceStateCard,
-      recommendations[0]?.title || wt("Eine Aufgabe ist bereit zur Prüfung.", "Prepared work is ready to review."),
+      recommendations[0]?.title || wt("Eine Aufgabe ist bereit zur PrÃ¼fung.", "Prepared work is ready to review."),
       recommendations[0]
         ? wt(
-            `${prettyStatus(recommendations[0].readiness_status || "ready_now")} · ${humanizeToken(recommendations[0].recommendation_type || "prepared_work")} · Relevanz ${recommendations[0].ranking_explanation?.score || 0}`,
-            `${prettyStatus(recommendations[0].readiness_status || "ready_now")} · ${humanizeToken(recommendations[0].recommendation_type || "prepared_work")} · Score ${recommendations[0].ranking_explanation?.score || 0}`
+            `${prettyStatus(recommendations[0].readiness_status || "ready_now")} Â· ${humanizeToken(recommendations[0].recommendation_type || "prepared_work")} Â· Relevanz ${recommendations[0].ranking_explanation?.score || 0}`,
+            `${prettyStatus(recommendations[0].readiness_status || "ready_now")} Â· ${humanizeToken(recommendations[0].recommendation_type || "prepared_work")} Â· Score ${recommendations[0].ranking_explanation?.score || 0}`
           )
         : governanceRole
-          ? wt("Gerade liegt nichts über der lokalen Relevanzschwelle.", "Nothing is currently ranked above the local relevance threshold.")
+          ? wt("Gerade liegt nichts Ã¼ber der lokalen Relevanzschwelle.", "Nothing is currently ranked above the local relevance threshold.")
           : wt("KERN bereitet hier arbeitsfertigen Kontext vor. Gemeinsame Freigaben bleiben bewusst manuell.", "KERN prepares worker-ready context here. Shared review stays manual by design."),
       recommendations[0]?.readiness_status === "blocked" || recommendations[0]?.risk_level === "high" ? "warning" : "success"
     );
@@ -635,14 +616,14 @@ export function createWorkbenchController({ renderer }) {
           item.preparation_scope ? wt(`Vorbereitung: ${prettyScope(item.preparation_scope)}`, `Prep: ${prettyScope(item.preparation_scope)}`) : null,
           item.ranking_explanation?.score != null ? wt(`Relevanz ${item.ranking_explanation.score}`, `Score ${item.ranking_explanation.score}`) : null,
         ])}
-        <p class="panel-state__body">${escapeHTML(item.reason || wt("Noch keine kurze Begründung vorhanden.", "No short explanation is available yet."))}</p>
+        <p class="panel-state__body">${escapeHTML(item.reason || wt("Noch keine kurze BegrÃ¼ndung vorhanden.", "No short explanation is available yet."))}</p>
         ${actionButtons([
           { type: "inspect-preparation", label: wt("Details ansehen", "Open details"), primary: true, dataset: { recommendationId: item.id } },
           ...(item.recommendation_type === "suggested_draft" || item.recommendation_type === "follow_up_candidate"
             ? [{ type: "draft-preparation", label: wt("Entwurf erstellen", "Draft wording"), dataset: { recommendationId: item.id } }]
             : []),
-          { type: "keep-personal", label: wt("Nur für mich", "Keep personal"), dataset: { recommendationId: item.id } },
-          { type: "promote-preparation", label: wt("Zur Prüfung weitergeben", "Send for review"), dataset: { recommendationId: item.id } },
+          { type: "keep-personal", label: wt("Nur fÃ¼r mich", "Keep personal"), dataset: { recommendationId: item.id } },
+          { type: "promote-preparation", label: wt("Zur PrÃ¼fung weitergeben", "Send for review"), dataset: { recommendationId: item.id } },
           ...(item.missing_inputs?.length ? [{ type: "ask-missing-info", label: wt("Fehlende Infos anfragen", "Ask for missing info"), dataset: { recommendationId: item.id } }] : []),
           { type: "mark-not-relevant", label: wt("Nicht relevant", "Not relevant"), dataset: { recommendationId: item.id } },
         ])}
@@ -676,7 +657,7 @@ export function createWorkbenchController({ renderer }) {
           item.score != null ? wt(`Relevanz ${item.score}`, `Score ${item.score}`) : null,
           item.risk_level ? wt(`Risiko ${humanizeToken(item.risk_level)}`, `Risk ${humanizeToken(item.risk_level)}`) : null,
         ])}
-        <p class="panel-state__body">${escapeHTML((item.why_now || []).join(" ") || wt("Noch keine kurze Erklärung vorhanden.", "No short explanation is available yet."))}</p>
+        <p class="panel-state__body">${escapeHTML((item.why_now || []).join(" ") || wt("Noch keine kurze ErklÃ¤rung vorhanden.", "No short explanation is available yet."))}</p>
         ${actionButtons(item.recommendation_id ? [{ type: "inspect-preparation", label: wt("Details ansehen", "Open details"), dataset: { recommendationId: item.recommendation_id } }] : [])}
       </li>
     `, wt("Momentan gibt es keine Fokus-Hinweise.", "No focus hints are active right now."));
@@ -687,7 +668,7 @@ export function createWorkbenchController({ renderer }) {
           <span class="workbench-pill" data-tone="success">${escapeHTML(humanizeToken(item.decision_value || wt("gespeichert", "recorded")))}</span>
         </div>
         ${rowMeta([humanizeToken(item.source_type), item.source_id, formatDate(item.created_at)])}
-        <p class="panel-state__body">${escapeHTML(item.rationale || wt("Es wurde noch keine Begründung gespeichert.", "No rationale has been recorded yet."))}</p>
+        <p class="panel-state__body">${escapeHTML(item.rationale || wt("Es wurde noch keine BegrÃ¼ndung gespeichert.", "No rationale has been recorded yet."))}</p>
       </li>
     `, wt("Es gibt noch keine gespeicherten Entscheidungen.", "No decision history has been recorded yet."));
     renderList(dom.promotionCandidatesList, candidates, (candidate) => `
@@ -698,29 +679,29 @@ export function createWorkbenchController({ renderer }) {
         </div>
         ${rowMeta([
           candidate.provenance?.workspace_slug,
-          candidate.provenance?.policy_safe === false ? wt("Manuelle Prüfung nötig", "Manual review needed") : wt("Regelkonform", "Policy-safe"),
-          candidate.ranking_explanation?.prior_approvals != null ? wt(`${candidate.ranking_explanation.prior_approvals} frühere Freigaben`, `${candidate.ranking_explanation.prior_approvals} prior approvals`) : null,
+          candidate.provenance?.policy_safe === false ? wt("Manuelle PrÃ¼fung nÃ¶tig", "Manual review needed") : wt("Regelkonform", "Policy-safe"),
+          candidate.ranking_explanation?.prior_approvals != null ? wt(`${candidate.ranking_explanation.prior_approvals} frÃ¼here Freigaben`, `${candidate.ranking_explanation.prior_approvals} prior approvals`) : null,
         ])}
         ${actionButtons([
           { type: "review-promotion", label: wt("Freigeben", "Approve"), primary: true, dataset: { memoryId: candidate.id, decision: "approved" } },
-          { type: "review-promotion", label: wt("Nur persönlich", "Personal only"), dataset: { memoryId: candidate.id, decision: "personal_only" } },
+          { type: "review-promotion", label: wt("Nur persÃ¶nlich", "Personal only"), dataset: { memoryId: candidate.id, decision: "personal_only" } },
           { type: "review-promotion", label: wt("Ablehnen", "Reject"), dataset: { memoryId: candidate.id, decision: "rejected" } },
         ])}
       </li>
-    `, governanceRole ? wt("Es warten keine Inhalte auf eine Freigabe.", "No promotion candidates are waiting.") : wt("Diese Freigabe ist nur für Governance-Rollen sichtbar.", "Promotion review is restricted to governance roles."));
+    `, governanceRole ? wt("Es warten keine Inhalte auf eine Freigabe.", "No promotion candidates are waiting.") : wt("Diese Freigabe ist nur fÃ¼r Governance-Rollen sichtbar.", "Promotion review is restricted to governance roles."));
     renderList(dom.trainingExamplesList, examples, (example) => `
       <li>
         <div class="workbench-row-title">
-          <strong>${escapeHTML(`${humanizeToken(example.source_type)} · ${example.source_id}`)}</strong>
+          <strong>${escapeHTML(`${humanizeToken(example.source_type)} Â· ${example.source_id}`)}</strong>
           <span class="workbench-pill" data-tone="${example.status === "approved" ? "success" : example.status === "rejected" ? "danger" : "warning"}">${escapeHTML(prettyStatus(example.status))}</span>
         </div>
-        ${rowMeta([example.workspace_slug, prettyDataClass(example.metadata?.data_class), example.approved_for_training ? wt("Für Training freigegeben", "Approved for training") : wt("Noch nicht freigegeben", "Not approved yet")])}
+        ${rowMeta([example.workspace_slug, prettyDataClass(example.metadata?.data_class), example.approved_for_training ? wt("FÃ¼r Training freigegeben", "Approved for training") : wt("Noch nicht freigegeben", "Not approved yet")])}
         ${actionButtons([
           { type: "review-example", label: wt("Freigeben", "Approve"), primary: true, dataset: { exampleId: example.id, status: "approved" } },
           { type: "review-example", label: wt("Ablehnen", "Reject"), dataset: { exampleId: example.id, status: "rejected" } },
         ])}
       </li>
-    `, governanceRole ? wt("Es stehen keine Trainingsbeispiele an.", "No training examples are queued.") : wt("Diese Prüfung ist nur für Governance-Rollen sichtbar.", "Training example review is restricted to governance roles."));
+    `, governanceRole ? wt("Es stehen keine Trainingsbeispiele an.", "No training examples are queued.") : wt("Diese PrÃ¼fung ist nur fÃ¼r Governance-Rollen sichtbar.", "Training example review is restricted to governance roles."));
     renderList(dom.trainingExportsList, exports, (item) => `
       <li>
         <div class="workbench-row-title">
@@ -729,12 +710,12 @@ export function createWorkbenchController({ renderer }) {
         </div>
         ${rowMeta([
           item.workspace_slug,
-          item.validation_count != null ? wt(`${item.validation_count} zur Prüfung`, `${item.validation_count} validation`) : null,
-          item.compliance_filter_report ? wt(`${item.compliance_filter_report.excluded_personal || 0} persönliche Inhalte entfernt`, `${item.compliance_filter_report.excluded_personal || 0} personal items filtered`) : null,
+          item.validation_count != null ? wt(`${item.validation_count} zur PrÃ¼fung`, `${item.validation_count} validation`) : null,
+          item.compliance_filter_report ? wt(`${item.compliance_filter_report.excluded_personal || 0} persÃ¶nliche Inhalte entfernt`, `${item.compliance_filter_report.excluded_personal || 0} personal items filtered`) : null,
         ])}
         ${actionButtons([{ type: "inspect-training-export", label: wt("Ansehen", "Open details"), dataset: { exportId: item.id } }])}
       </li>
-    `, governanceRole ? wt("Es wurden noch keine Trainingspakete erzeugt.", "No training exports have been generated yet.") : wt("Diese Ansicht ist nur für Governance-Rollen sichtbar.", "Training export review is restricted to governance roles."));
+    `, governanceRole ? wt("Es wurden noch keine Trainingspakete erzeugt.", "No training exports have been generated yet.") : wt("Diese Ansicht ist nur fÃ¼r Governance-Rollen sichtbar.", "Training export review is restricted to governance roles."));
   }
 
   async function renderEvidence() {
@@ -747,7 +728,7 @@ export function createWorkbenchController({ renderer }) {
     const trainingExports = trainingPayload.items || trainingPayload.training_exports || [];
     renderMetricGrid(dom.evidenceMetricGrid, [
       { label: wt("System", "Health"), value: humanizeToken(health.status || wt("unbekannt", "unknown")), detail: wt(`Seit ${health.uptime_seconds || 0}s aktiv`, `${health.uptime_seconds || 0}s uptime`) },
-      { label: wt("Prüfpfad", "Audit chain"), value: health.audit_chain_ok ? wt("In Ordnung", "Healthy") : wt("Prüfen", "Review"), detail: health.profile_locked ? wt("Arbeitsbereich ist gesperrt", "Workspace is locked") : wt("Arbeitsbereich ist entsperrt", "Workspace is unlocked") },
+      { label: wt("PrÃ¼fpfad", "Audit chain"), value: health.audit_chain_ok ? wt("In Ordnung", "Healthy") : wt("PrÃ¼fen", "Review"), detail: health.profile_locked ? wt("Arbeitsbereich ist gesperrt", "Workspace is locked") : wt("Arbeitsbereich ist entsperrt", "Workspace is unlocked") },
       { label: wt("Nachweis-Exporte", "Compliance exports"), value: String(exports.length), detail: wt("Bereit zum Nachvollziehen", "Ready for traceability") },
       { label: wt("Trainingspakete", "Training exports"), value: String(trainingExports.length), detail: wt("Offline bereitgestellt", "Prepared offline") },
     ]);
@@ -757,20 +738,20 @@ export function createWorkbenchController({ renderer }) {
           <strong>${escapeHTML(item.workspace_slug || item.target_user_id || item.id)}</strong>
           <span class="workbench-pill" data-tone="${item.status === "completed" ? "success" : "warning"}">${escapeHTML(prettyStatus(item.status || "requested"))}</span>
         </div>
-        ${rowMeta([item.workspace_slug ? wt("Export für Arbeitsbereich", "Workspace export") : wt("Export für Person", "Subject export"), formatDate(item.updated_at)])}
+        ${rowMeta([item.workspace_slug ? wt("Export fÃ¼r Arbeitsbereich", "Workspace export") : wt("Export fÃ¼r Person", "Subject export"), formatDate(item.updated_at)])}
         ${actionButtons([{ type: "inspect-export", label: wt("Ansehen", "Open details"), dataset: { exportId: item.id } }])}
       </li>
-    `, wt("Es sind noch keine Nachweis-Exporte verfügbar.", "No compliance exports are available."));
+    `, wt("Es sind noch keine Nachweis-Exporte verfÃ¼gbar.", "No compliance exports are available."));
     renderList(dom.evidenceTrainingManifestList, trainingExports, (item) => `
       <li>
         <div class="workbench-row-title">
           <strong>${escapeHTML(item.id || item.workspace_slug || wt("Trainingspaket", "Training export"))}</strong>
           <span class="workbench-pill" data-tone="success">${escapeHTML(item.train_count != null ? wt(`${item.train_count} Training`, `${item.train_count} train`) : prettyStatus("ready_now"))}</span>
         </div>
-        ${rowMeta([item.workspace_slug, item.validation_count != null ? wt(`${item.validation_count} zur Prüfung`, `${item.validation_count} validation`) : null, formatDate(item.created_at)])}
+        ${rowMeta([item.workspace_slug, item.validation_count != null ? wt(`${item.validation_count} zur PrÃ¼fung`, `${item.validation_count} validation`) : null, formatDate(item.created_at)])}
         ${actionButtons([{ type: "inspect-training-export", label: wt("Ansehen", "Open details"), dataset: { exportId: item.id } }])}
       </li>
-    `, wt("Es sind noch keine Trainingspakete verfügbar.", "No training dataset manifests are available."));
+    `, wt("Es sind noch keine Trainingspakete verfÃ¼gbar.", "No training dataset manifests are available."));
   }
 
   async function renderTab(tabName) {
@@ -792,7 +773,7 @@ export function createWorkbenchController({ renderer }) {
       setStateCard(
         target,
         error.status === 403 ? wt("Dieser Bereich ist im aktuellen Arbeitsbereich nicht freigegeben.", "This area is not available in the current workspace.") : wt("Dieser Bereich konnte nicht geladen werden.", "This page could not be loaded."),
-        error.message || wt("KERN konnte diese Ansicht gerade nicht öffnen.", "KERN could not open this view right now."),
+        error.message || wt("KERN konnte diese Ansicht gerade nicht Ã¶ffnen.", "KERN could not open this view right now."),
         "error"
       );
     }
@@ -810,11 +791,6 @@ export function createWorkbenchController({ renderer }) {
     }
     if (action === "suspend-user") {
       await fetchJson(`/admin/users/${dataset.userId}/suspend`, { method: "POST" });
-      await renderAdmin();
-      return;
-    }
-    if (action === "revoke-session") {
-      await fetchJson(`/admin/sessions/${dataset.sessionId}/revoke`, { method: "POST" });
       await renderAdmin();
       return;
     }
@@ -863,8 +839,8 @@ export function createWorkbenchController({ renderer }) {
         dom.evidenceStateCard,
         detail.item?.workspace_slug || detail.item?.target_user_id || wt("Exportdetails", "Export details"),
         wt(
-          `${exportStatus} · ${exportTime} · Datei ${exportFile}`,
-          `${exportStatus} · ${exportTime} · File ${exportFile}`
+          `${exportStatus} Â· ${exportTime} Â· Datei ${exportFile}`,
+          `${exportStatus} Â· ${exportTime} Â· File ${exportFile}`
         ),
         detail.item?.status === "completed" ? "success" : "warning"
       );
@@ -877,8 +853,8 @@ export function createWorkbenchController({ renderer }) {
         dom.intelligenceStateCard,
         detail.item?.id || dataset.exportId,
         wt(
-          `${manifest.train_count || 0} Trainingsbeispiele · ${manifest.validation_count || 0} zur Prüfung · ${manifest.dedup_count || 0} Dubletten entfernt · ${manifest.compliance_filter_report?.excluded_personal || 0} persönliche Inhalte ausgeschlossen`,
-          `${manifest.train_count || 0} training examples · ${manifest.validation_count || 0} for review · ${manifest.dedup_count || 0} duplicates removed · ${manifest.compliance_filter_report?.excluded_personal || 0} personal items excluded`
+          `${manifest.train_count || 0} Trainingsbeispiele Â· ${manifest.validation_count || 0} zur PrÃ¼fung Â· ${manifest.dedup_count || 0} Dubletten entfernt Â· ${manifest.compliance_filter_report?.excluded_personal || 0} persÃ¶nliche Inhalte ausgeschlossen`,
+          `${manifest.train_count || 0} training examples Â· ${manifest.validation_count || 0} for review Â· ${manifest.dedup_count || 0} duplicates removed Â· ${manifest.compliance_filter_report?.excluded_personal || 0} personal items excluded`
         ),
         "success"
       );
@@ -894,8 +870,8 @@ export function createWorkbenchController({ renderer }) {
         dom.intelligenceStateCard,
         packet.title || dataset.recommendationId,
         wt(
-          `${packet.summary || "Noch keine Zusammenfassung vorhanden."} · ${prettyStatus(packet.readiness_status || "ready_now")} · ${missing.length} fehlende Angaben · ${claims.length} belegte Punkte · ${events.length} Aktivitäten · ${prettyScope(packet.preparation_scope || packet.evidence_pack?.scope || "workspace")}`,
-          `${packet.summary || "No summary yet."} · ${prettyStatus(packet.readiness_status || "ready_now")} · ${missing.length} missing inputs · ${claims.length} supported points · ${events.length} activity references · ${prettyScope(packet.preparation_scope || packet.evidence_pack?.scope || "workspace")}`
+          `${packet.summary || "Noch keine Zusammenfassung vorhanden."} Â· ${prettyStatus(packet.readiness_status || "ready_now")} Â· ${missing.length} fehlende Angaben Â· ${claims.length} belegte Punkte Â· ${events.length} AktivitÃ¤ten Â· ${prettyScope(packet.preparation_scope || packet.evidence_pack?.scope || "workspace")}`,
+          `${packet.summary || "No summary yet."} Â· ${prettyStatus(packet.readiness_status || "ready_now")} Â· ${missing.length} missing inputs Â· ${claims.length} supported points Â· ${events.length} activity references Â· ${prettyScope(packet.preparation_scope || packet.evidence_pack?.scope || "workspace")}`
         ),
         packet.readiness_status === "blocked" ? "warning" : "success"
       );
@@ -912,8 +888,8 @@ export function createWorkbenchController({ renderer }) {
         dom.intelligenceStateCard,
         draft.subject || draft.title || wt("Vorbereiteter Entwurf", "Prepared draft"),
         wt(
-          `${wt("Modus", "Mode")} ${humanizeToken(detail.render_mode || draft.mode || "deterministic_scaffold")} · ${(draft.body || "Noch kein Text erzeugt.")}`.slice(0, 320),
-          `${wt("Modus", "Mode")} ${humanizeToken(detail.render_mode || draft.mode || "deterministic_scaffold")} · ${(draft.body || "No text generated yet.")}`.slice(0, 320)
+          `${wt("Modus", "Mode")} ${humanizeToken(detail.render_mode || draft.mode || "deterministic_scaffold")} Â· ${(draft.body || "Noch kein Text erzeugt.")}`.slice(0, 320),
+          `${wt("Modus", "Mode")} ${humanizeToken(detail.render_mode || draft.mode || "deterministic_scaffold")} Â· ${(draft.body || "No text generated yet.")}`.slice(0, 320)
         ),
         "success"
       );
@@ -955,7 +931,7 @@ export function createWorkbenchController({ renderer }) {
         dom.intelligenceStateCard,
         packet.title || dataset.recommendationId,
         prompts.length
-          ? wt(`Bitte noch klären: ${prompts.join(" | ")}`, `Still needed: ${prompts.join(" | ")}`)
+          ? wt(`Bitte noch klÃ¤ren: ${prompts.join(" | ")}`, `Still needed: ${prompts.join(" | ")}`)
           : wt("Aktuell fehlen keine weiteren Angaben.", "No additional information is needed right now."),
         prompts.length ? "warning" : "success"
       );
@@ -981,7 +957,7 @@ export function createWorkbenchController({ renderer }) {
       setStateCard(
         dom.intelligenceStateCard,
         workflow.workflow_type || dataset.workflowId,
-        `${workflow.last_event || "No event"} · next ${workflow.next_expected_step || "none"} · ${detail.events?.length || 0} recorded event(s)`,
+        `${workflow.last_event || "No event"} Â· next ${workflow.next_expected_step || "none"} Â· ${detail.events?.length || 0} recorded event(s)`,
         workflow.status === "blocked" ? "warning" : "success"
       );
     }

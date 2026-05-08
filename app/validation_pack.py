@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import base64
 import json
 import logging
 import os
@@ -13,14 +12,11 @@ import sys
 import tempfile
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from app.csrf import CSRF_COOKIE_NAME, CSRF_HEADER_NAME
 
 
@@ -34,17 +30,13 @@ NPX_BIN = shutil.which("npx") or shutil.which("npx.cmd") or "npx"
 POWERSHELL_BIN = shutil.which("powershell") or shutil.which("powershell.exe")
 REQUIRED_RELEASE_LANES = (
     "shell_smoke",
-    "trust_governance",
-    "license_sample_flow",
-    "sample_to_real_transition",
-    "package_validation",
+    "trust_governance",    "package_validation",
     "package_smoke_install",
     "update_restore_smoke",
     "uninstall_smoke",
     "regression_visuals",
 )
 ADVISORY_RELEASE_LANES = ("busy_day_advisory",)
-VALIDATION_ADMIN_TOKEN = os.environ.get("KERN_VALIDATION_ADMIN_TOKEN", "validation-token").strip() or "validation-token"
 
 
 class ValidationPackError(RuntimeError):
@@ -108,14 +100,6 @@ class RuntimeHandle:
                 self.process.wait(timeout=5)
         self.process = None
 
-
-@dataclass(slots=True)
-class LicenseFixtureSet:
-    directory: Path
-    public_key: str
-    valid_license: Path
-    expired_license: Path
-    invalid_license: Path
 
 
 class PlaywrightCliSession:
@@ -208,81 +192,6 @@ def _extract_markdown_link_paths(text: str) -> list[Path]:
     return [Path(match) for match in matches]
 
 
-def _canonical_json(payload: dict[str, Any]) -> bytes:
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-
-
-def _sign_license_payload(key: Ed25519PrivateKey, payload: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "payload": payload,
-        "signature": base64.b64encode(key.sign(_canonical_json(payload))).decode("ascii"),
-    }
-
-
-def _prepare_license_fixtures(directory: Path) -> LicenseFixtureSet:
-    directory.mkdir(parents=True, exist_ok=True)
-    key = Ed25519PrivateKey.generate()
-    public_key = base64.b64encode(
-        key.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
-    ).decode("ascii")
-    now = datetime.now(timezone.utc)
-    valid_payload = {
-        "plan": "Pilot",
-        "activation_mode": "offline_license_file",
-        "issued_at": now.isoformat(),
-        "expires_at": (now.replace(microsecond=0) + timedelta(days=14)).isoformat(),
-        "status": "active",
-        "sample_access": True,
-        "features": ["grounded_drafting", "support_bundle"],
-    }
-    expired_payload = {
-        "plan": "Pilot",
-        "activation_mode": "offline_license_file",
-        "issued_at": (now.replace(microsecond=0) - timedelta(days=30)).isoformat(),
-        "expires_at": (now.replace(microsecond=0) - timedelta(days=2)).isoformat(),
-        "status": "active",
-        "sample_access": True,
-        "features": ["grounded_drafting", "support_bundle"],
-    }
-    valid_license = directory / "valid-license.json"
-    expired_license = directory / "expired-license.json"
-    invalid_license = directory / "invalid-license.json"
-    valid_license.write_text(json.dumps(_sign_license_payload(key, valid_payload), indent=2), encoding="utf-8")
-    expired_license.write_text(json.dumps(_sign_license_payload(key, expired_payload), indent=2), encoding="utf-8")
-    invalid_body = _sign_license_payload(key, valid_payload)
-    invalid_body["signature"] = base64.b64encode(b"invalid-signature").decode("ascii")
-    invalid_license.write_text(json.dumps(invalid_body, indent=2), encoding="utf-8")
-    return LicenseFixtureSet(
-        directory=directory,
-        public_key=public_key,
-        valid_license=valid_license,
-        expired_license=expired_license,
-        invalid_license=invalid_license,
-    )
-
-
-def _load_license_fixtures_from_env() -> LicenseFixtureSet | None:
-    raw = os.environ.get("KERN_VALIDATION_LICENSE_DIR", "").strip()
-    if not raw:
-        return None
-    directory = Path(raw)
-    valid = directory / "valid-license.json"
-    expired = directory / "expired-license.json"
-    invalid = directory / "invalid-license.json"
-    if not all(path.exists() for path in (valid, expired, invalid)):
-        return None
-    return LicenseFixtureSet(
-        directory=directory,
-        public_key=os.environ.get("KERN_LICENSE_PUBLIC_KEY", "").strip(),
-        valid_license=valid,
-        expired_license=expired,
-        invalid_license=invalid,
-    )
-
-
 def _utc_now_stamp() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
@@ -325,7 +234,6 @@ def _runtime_env(
             "KERN_ARCHIVE_ROOT": str(env_root / "archives"),
             "KERN_POLICY_MODE": policy_mode,
             "KERN_PRODUCT_POSTURE": product_posture,
-            "KERN_ADMIN_AUTH_TOKEN": VALIDATION_ADMIN_TOKEN,
             "KERN_SEED_DEFAULTS": "true",
             "KERN_PWA_ENABLED": "false",
             "KERN_DISABLE_DOTENV": "true",
@@ -341,9 +249,8 @@ def _runtime_env(
         env.update(extra_env)
     return env
 
-
 def _admin_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {VALIDATION_ADMIN_TOKEN}"}
+    return {}
 
 
 def _http_get_json(url: str, *, expected_status: int | None = 200) -> tuple[int, Any]:
@@ -588,9 +495,9 @@ def _display_path(path: Path) -> str:
 def _manual_review_items() -> list[str]:
     return [
         "Check dark/light screenshots for visual drift, modal composition, and clipping.",
-        "Review license, update, and failure-card screenshots for business-readable wording and consistent gating.",
+        "Review update and failure-card screenshots for business-readable wording and consistent gating.",
         "Review trust/governance screenshots for truthful status labels and confirmation behavior.",
-        "Inspect busy-day screenshots for search, KG, schedule, and memory surfaces that look syntactically correct but semantically weak.",
+        "Inspect busy-day screenshots for search, schedule, and memory surfaces that look syntactically correct but semantically weak.",
         "Inspect console and network logs for repeated or noisy client-side errors that did not break the run.",
     ]
 
@@ -893,15 +800,15 @@ def _run_busy_day(base_url: str, lane_dir: Path) -> LaneResult:
             """
             await page.waitForFunction(() => document.querySelector('#connectionState')?.textContent?.includes('Connected'), { timeout: 20000 });
             if (document.querySelector('#onboardingCard') || document.querySelector('#onboardingModal')) {
-              throw new Error('First-run onboarding should not be present after license gating.');
+              throw new Error('First-run onboarding should not be present.');
             }
             """.strip()
         )
         lane.ok(
-            "Production license gate",
-            "Busy-day upload is intentionally gated until an offline license is imported, without blocking the workspace behind onboarding.",
+            "Production workspace gate",
+            "Busy-day upload remains available without blocking the workspace behind onboarding.",
             "upload.json",
-            _display_path(session.screenshot("busy-license-gate")),
+            _display_path(session.screenshot("busy-workspace-gate")),
         )
         session.close()
         return lane
@@ -963,21 +870,6 @@ def _run_busy_day(base_url: str, lane_dir: Path) -> LaneResult:
     except Exception as exc:  # noqa: BLE001
         lane.warn("Memory search", str(exc), _display_path(session.screenshot("busy-memory-warn")))
 
-    try:
-        session.run_code(
-            """
-            await page.click('.utility-tab[data-tab="knowledge"]');
-            await page.click('#kgBuildButton');
-            await page.waitForTimeout(2500);
-            await page.fill('#kgSearchInput', 'ACME');
-            await page.click('#kgSearchButton');
-            await page.waitForFunction(() => document.querySelectorAll('[data-testid="kg-result-row"]').length >= 1, { timeout: 15000 });
-            """.strip()
-        )
-        lane.ok("Knowledge graph search", "Knowledge graph build/search completed with at least one result.", _display_path(session.screenshot("busy-kg")))
-    except Exception as exc:  # noqa: BLE001
-        lane.warn("Knowledge graph search", str(exc), _display_path(session.screenshot("busy-kg-warn")))
-
     session.run_code(
         """
         await page.click('.utility-tab[data-tab="schedule"]');
@@ -1036,8 +928,6 @@ def _run_visual_regressions(base_url: str, lane_dir: Path) -> LaneResult:
     capture("visual-utility-context")
     session.run_code("await page.click('.utility-tab[data-tab=\"schedule\"]');")
     capture("visual-utility-schedule")
-    session.run_code("await page.click('.utility-tab[data-tab=\"knowledge\"]');")
-    capture("visual-utility-kg")
     session.run_code("await page.click('#closeUtilityModal');")
     session.run_code("await page.click('#openConversationSearch');")
     capture("visual-conversation-search")
@@ -1045,174 +935,6 @@ def _run_visual_regressions(base_url: str, lane_dir: Path) -> LaneResult:
     lane.ok("Visual capture set", "Captured the fixed screenshot set for dark/light and modal surfaces.", *captures)
     lane.artifacts.append(_display_path(session.console("visuals")))
     lane.artifacts.append(_display_path(session.network("visuals")))
-    session.close()
-    return lane
-
-
-def _run_license_sample_flow(base_url: str, lane_dir: Path, fixtures: LicenseFixtureSet | None) -> LaneResult:
-    lane = LaneResult(lane="license_sample_flow")
-    if fixtures is None:
-        lane.fail("License fixtures missing", "No validation license fixtures were available for the offline licensing lane.")
-        return lane
-
-    status_code, payload = _http_get_json(f"{base_url}/api/license", expected_status=None)
-    initial_json = lane_dir / "license-initial.json"
-    _save_json(initial_json, payload)
-    if status_code == 200 and isinstance(payload, dict) and payload.get("state") == "unlicensed":
-        lane.ok("Unlicensed default", "The runtime starts unlicensed and keeps sample evaluation available.", _display_path(initial_json))
-    else:
-        lane.fail("Unlicensed default", f"Expected unlicensed initial state, got {payload!r}", "license-initial.json")
-
-    session = PlaywrightCliSession(session="license-flow", workdir=lane_dir)
-    session.open(base_url)
-    session.resize(1440, 1100)
-    session.run_code(
-        """
-        await page.waitForFunction(() => document.querySelector('#connectionState')?.textContent?.includes('Connected'), { timeout: 20000 });
-        await page.click('#openSettings');
-        await page.click('[data-settings-section-nav="profile"]');
-        await page.waitForSelector('#settingsLicenseCard');
-        """.strip()
-    )
-    lane.ok("License card visible", "Settings exposes the license card in the primary operator path.")
-
-    invalid_path = fixtures.invalid_license.as_posix()
-    session.run_code(
-        f"""
-        await page.setInputFiles('#settingsLicenseFileInput', '{invalid_path}');
-        await page.waitForFunction(() => (document.querySelector('#composerAssist')?.textContent || '').length > 0, {{ timeout: 10000 }});
-        """.strip()
-    )
-    invalid_shot = session.screenshot("license-invalid")
-    status_code, payload = _http_get_json(f"{base_url}/api/license", expected_status=None)
-    invalid_json = lane_dir / "license-after-invalid.json"
-    _save_json(invalid_json, payload)
-    if status_code == 200 and isinstance(payload, dict) and payload.get("state") in {"unlicensed", "invalid"}:
-        lane.ok("Invalid license handling", "Invalid license import stays non-destructive and keeps the operator guidance path available.", _display_path(invalid_shot), _display_path(invalid_json))
-    else:
-        lane.fail("Invalid license handling", f"Unexpected license state after invalid import: {payload!r}", _display_path(invalid_shot), "license-after-invalid.json")
-
-    status_code, import_payload = _http_post_file(base_url, "/api/license/import", "license_file", fixtures.valid_license)
-    _save_json(lane_dir / "license-valid-import.json", import_payload)
-    if status_code != 200:
-        lane.fail("Valid license unlock", f"Valid license import route returned {status_code}: {import_payload!r}", _display_path(lane_dir / "license-valid-import.json"))
-        session.close()
-        return lane
-    session.run_code(
-        """
-        await page.reload();
-        await page.waitForFunction(() => document.querySelector('#connectionState')?.textContent?.includes('Connected'), { timeout: 20000 });
-        await page.click('#openSettings');
-        await page.click('[data-settings-section-nav="profile"]');
-        await page.waitForFunction(() => ['Active', 'Trial', 'Aktiv', 'Testphase'].includes((document.querySelector('#settingsLicensePill')?.textContent || '').trim()), { timeout: 15000 });
-        """.strip()
-    )
-    active_shot = session.screenshot("license-active")
-    status_code, payload = _http_get_json(f"{base_url}/api/license", expected_status=None)
-    valid_json = lane_dir / "license-after-valid.json"
-    _save_json(valid_json, payload)
-    if status_code == 200 and isinstance(payload, dict) and payload.get("summary", {}).get("production_access"):
-        lane.ok("Valid license unlock", "A signed offline license unlocks production drafting without reinstall.", _display_path(active_shot), _display_path(valid_json))
-    else:
-        lane.fail("Valid license unlock", f"Production access did not unlock after valid import: {payload!r}", _display_path(active_shot), "license-after-valid.json")
-
-    status_code, import_payload = _http_post_file(base_url, "/api/license/import", "license_file", fixtures.expired_license)
-    _save_json(lane_dir / "license-expired-import.json", import_payload)
-    if status_code != 200:
-        lane.fail("Expired license state", f"Expired license import route returned {status_code}: {import_payload!r}", _display_path(lane_dir / "license-expired-import.json"))
-        session.close()
-        return lane
-    session.run_code(
-        """
-        await page.reload();
-        await page.waitForFunction(() => document.querySelector('#connectionState')?.textContent?.includes('Connected'), { timeout: 20000 });
-        await page.click('#openSettings');
-        await page.click('[data-settings-section-nav="profile"]');
-        await page.waitForFunction(() => ['Expired', 'Abgelaufen'].includes((document.querySelector('#settingsLicensePill')?.textContent || '').trim()), { timeout: 15000 });
-        """.strip()
-    )
-    expired_shot = session.screenshot("license-expired")
-    status_code, payload = _http_get_json(f"{base_url}/api/license", expected_status=None)
-    expired_json = lane_dir / "license-after-expired.json"
-    _save_json(expired_json, payload)
-    if status_code == 200 and isinstance(payload, dict) and payload.get("state") == "expired":
-        lane.ok("Expired license state", "Expired licenses remain non-destructive and surface a clear operator state.", _display_path(expired_shot), _display_path(expired_json))
-    else:
-        lane.fail("Expired license state", f"Expected expired state after importing the expired license: {payload!r}", _display_path(expired_shot), "license-after-expired.json")
-
-    with httpx.Client(timeout=60.0) as client:
-        headers = _bootstrap_csrf_headers(client, base_url)
-        response = client.post(f"{base_url}/support/export", headers=headers)
-    if response.status_code == 200 and response.headers.get("content-type", "").startswith("application/zip"):
-        bundle_path = lane_dir / "expired-support-bundle.zip"
-        bundle_path.write_bytes(response.content)
-        lane.ok("Support export while expired", "Support export remains available while the production workflow is gated.", _display_path(bundle_path))
-    else:
-        lane.fail("Support export while expired", f"Expected support bundle export to succeed while expired, got {response.status_code}.")
-
-    lane.artifacts.append(_display_path(session.console("license-sample-flow")))
-    lane.artifacts.append(_display_path(session.network("license-sample-flow")))
-    session.close()
-    return lane
-
-
-def _run_sample_to_real_transition(base_url: str, lane_dir: Path, fixtures: LicenseFixtureSet | None) -> LaneResult:
-    lane = LaneResult(lane="sample_to_real_transition")
-    if fixtures is None:
-        lane.fail("License fixtures missing", "No validation license fixtures were available for the sample-to-real transition lane.")
-        return lane
-
-    session = PlaywrightCliSession(session="sample-to-real", workdir=lane_dir)
-    session.open(base_url)
-    session.resize(1440, 1100)
-    session.run_code(
-        """
-        await page.waitForFunction(() => document.querySelector('#connectionState')?.textContent?.includes('Connected'), { timeout: 20000 });
-        if (document.querySelector('#onboardingCard') || document.querySelector('#onboardingModal')) {
-          throw new Error('Onboarding UI should not be present.');
-        }
-        await page.fill('#commandInput', 'Draft a cited German business reply from the local documents.');
-        await page.waitForFunction(() => (document.querySelector('#commandInput')?.value || '').length > 0, { timeout: 8000 });
-        """.strip()
-    )
-    sample_shot = session.screenshot("workspace-without-onboarding")
-    lane.ok("Workspace opens without onboarding", "The dashboard opens directly into the usable workspace without first-run onboarding.", _display_path(sample_shot))
-
-    status_code, payload = _http_post_file(base_url, "/api/license/import", "license_file", fixtures.valid_license)
-    transition_license_json = lane_dir / "sample-transition-license.json"
-    _save_json(transition_license_json, payload)
-    if status_code != 200:
-        lane.fail("License unlock for real workflow", f"Valid license import failed during sample-to-real transition: {payload!r}", _display_path(transition_license_json))
-        session.close()
-        return lane
-
-    fixture = FIXTURE_ROOT / "acme_offer.txt"
-    upload_payload = _http_post_upload(base_url, [fixture])
-    transition_upload_json = lane_dir / "sample-transition-upload.json"
-    _save_json(transition_upload_json, upload_payload)
-    if int(upload_payload.get("status_code", 500)) >= 400:
-        lane.fail("Upload after sample mode", f"Real document upload failed after leaving sample mode: {upload_payload!r}", _display_path(transition_upload_json))
-        session.close()
-        return lane
-
-    session.run_code(
-        """
-        await page.click('#utilityToggle');
-        await page.click('.utility-tab[data-tab="context"]');
-        await page.waitForFunction(() => {
-          const list = document.querySelector('#documentsList');
-          return list && /acme_offer/i.test(list.textContent || '');
-        }, { timeout: 15000 });
-        const text = document.querySelector('#documentsList')?.textContent || '';
-        if (/sample content|beispielinhalt/i.test(text)) {
-          throw new Error('Sample documents still appear as active primary documents after switching to the real workspace.');
-        }
-        """.strip()
-    )
-    real_shot = session.screenshot("sample-to-real")
-    lane.ok("Sample-to-real transition", "Real local documents can be uploaded after sample mode, and sample documents no longer appear as active primary content.", _display_path(real_shot), _display_path(transition_upload_json))
-    lane.artifacts.append(_display_path(session.console("sample-to-real")))
-    lane.artifacts.append(_display_path(session.network("sample-to-real")))
     session.close()
     return lane
 
@@ -1235,7 +957,7 @@ def _run_package_smoke_install_lane(lane_dir: Path) -> LaneResult:
     payload = _run_powershell_json(ROOT_DIR / "scripts" / "smoke-kern-runtime-package.ps1", "-PackagePath", str(package_path))
     _save_json(lane_dir / "package-smoke.json", payload)
     if payload.get("install_result") == "ok":
-        lane.ok("Packaged install smoke", "The packaged runtime installs, reaches readiness, and passes license/sample validation lanes.", "package-smoke.json")
+        lane.ok("Packaged install smoke", "The packaged runtime installs, reaches readiness, and passes workspace validation lanes.", "package-smoke.json")
     else:
         lane.fail("Packaged install smoke", f"Packaged smoke install did not complete successfully: {payload!r}", "package-smoke.json")
     return lane
@@ -1276,7 +998,6 @@ def run_validation_pack(
     output_dir = _make_output_dir(output_dir_arg)
     runtimes: list[RuntimeHandle] = []
     lane_results: list[LaneResult] = []
-    license_fixtures = _load_license_fixtures_from_env()
     metadata: dict[str, Any] = {
         "launch_mode": "external" if base_url and not launch_local else "isolated_local",
         "base_url": base_url or "",
@@ -1285,14 +1006,9 @@ def run_validation_pack(
     }
     try:
         if launch_local or not base_url:
-            license_fixtures = _prepare_license_fixtures(output_dir / "license-fixtures")
-            runtime_extra_env = {
-                "KERN_LICENSE_PUBLIC_KEY": license_fixtures.public_key,
-                "KERN_VALIDATION_LICENSE_DIR": str(license_fixtures.directory),
-            }
-            personal = _launch_local_runtime(output_dir / "personal-runtime", "personal", "production", extra_env=runtime_extra_env)
-            corporate = _launch_local_runtime(output_dir / "corporate-runtime", "corporate", "production", extra_env=runtime_extra_env)
-            personal_posture = _launch_local_runtime(output_dir / "personal-posture-runtime", "personal", "personal", extra_env=runtime_extra_env)
+            personal = _launch_local_runtime(output_dir / "personal-runtime", "personal", "production")
+            corporate = _launch_local_runtime(output_dir / "corporate-runtime", "corporate", "production")
+            personal_posture = _launch_local_runtime(output_dir / "personal-posture-runtime", "personal", "personal")
             runtimes.extend([personal, corporate, personal_posture])
         else:
             personal = RuntimeHandle(
@@ -1308,7 +1024,6 @@ def run_validation_pack(
         metadata["base_url"] = personal.base_url
         metadata["corporate_base_url"] = corporate.base_url
         metadata["personal_posture_base_url"] = personal_posture.base_url if personal_posture else ""
-        metadata["license_fixture_dir"] = str(license_fixtures.directory) if license_fixtures else ""
 
         lane_map = {
             "shell_smoke": lambda: _run_shell_smoke(personal.base_url, output_dir / "shell_smoke"),
@@ -1318,8 +1033,6 @@ def run_validation_pack(
                 personal_posture.base_url if personal_posture else None,
                 output_dir / "trust_governance",
             ),
-            "license_sample_flow": lambda: _run_license_sample_flow(personal.base_url, output_dir / "license_sample_flow", license_fixtures),
-            "sample_to_real_transition": lambda: _run_sample_to_real_transition(personal.base_url, output_dir / "sample_to_real_transition", license_fixtures),
             "busy_day_advisory": lambda: _run_busy_day(personal.base_url, output_dir / "busy_day_advisory"),
             "package_validation": lambda: _run_package_validation_lane(output_dir / "package_validation"),
             "package_smoke_install": lambda: _run_package_smoke_install_lane(output_dir / "package_smoke_install"),
@@ -1354,10 +1067,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--lane",
         choices=[
             "shell_smoke",
-            "trust_governance",
-            "license_sample_flow",
-            "sample_to_real_transition",
-            "busy_day_advisory",
+            "trust_governance",            "busy_day_advisory",
             "package_validation",
             "package_smoke_install",
             "update_restore_smoke",

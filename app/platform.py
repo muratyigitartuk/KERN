@@ -10,7 +10,7 @@ import os
 import secrets
 import sqlite3
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -19,12 +19,10 @@ logger = logging.getLogger(__name__)
 from app.path_safety import validate_workspace_slug
 from app.types import (
     AuditEvent,
-    AuthContext,
     BackgroundJob,
     BackupTarget,
     DataExportRecord,
     EvidenceManifest,
-    BreakGlassAdminRecord,
     ErasureRequestRecord,
     ErasureExecutionStep,
     LegalHoldRecord,
@@ -38,7 +36,6 @@ from app.types import (
     MessageRecord,
     ThreadRecord,
     UserRecord,
-    UserSessionRecord,
     WorkspaceMembershipRecord,
 )
 
@@ -228,8 +225,6 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL,
     display_name TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
-    oidc_subject TEXT,
-    auth_source TEXT NOT NULL DEFAULT 'oidc',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     deleted_at TEXT
@@ -251,24 +246,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_memberships_unique
     ON workspace_memberships(workspace_id, user_id, role);
 CREATE INDEX IF NOT EXISTS idx_workspace_memberships_user
     ON workspace_memberships(user_id, workspace_slug, updated_at DESC);
-
-CREATE TABLE IF NOT EXISTS user_sessions (
-    id TEXT PRIMARY KEY,
-    user_id TEXT,
-    organization_id TEXT NOT NULL,
-    workspace_id TEXT,
-    workspace_slug TEXT,
-    auth_method TEXT NOT NULL,
-    issued_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    last_activity_at TEXT NOT NULL,
-    revoked_at TEXT,
-    metadata_json TEXT NOT NULL DEFAULT '{}'
-);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user
-    ON user_sessions(user_id, expires_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_org
-    ON user_sessions(organization_id, expires_at DESC, id DESC);
 
 CREATE TABLE IF NOT EXISTS threads (
     id TEXT PRIMARY KEY,
@@ -348,17 +325,6 @@ CREATE TABLE IF NOT EXISTS private_memory_items (
 );
 CREATE INDEX IF NOT EXISTS idx_private_memory_scope
     ON private_memory_items(organization_id, workspace_slug, user_id, updated_at DESC, id DESC);
-
-CREATE TABLE IF NOT EXISTS break_glass_admins (
-    id TEXT PRIMARY KEY,
-    username TEXT NOT NULL UNIQUE,
-    password_hash TEXT NOT NULL,
-    password_salt TEXT NOT NULL,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    last_login_at TEXT
-);
 
 CREATE TABLE IF NOT EXISTS retention_policies (
     id TEXT PRIMARY KEY,
@@ -572,8 +538,6 @@ class PlatformStore:
                 email TEXT NOT NULL,
                 display_name TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
-                oidc_subject TEXT,
-                auth_source TEXT NOT NULL DEFAULT 'oidc',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 deleted_at TEXT
@@ -602,25 +566,6 @@ class PlatformStore:
         self.connection.execute(
             "CREATE INDEX IF NOT EXISTS idx_workspace_memberships_user ON workspace_memberships(user_id, workspace_slug, updated_at DESC)"
         )
-        self.connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS user_sessions (
-                id TEXT PRIMARY KEY,
-                user_id TEXT,
-                organization_id TEXT NOT NULL,
-                workspace_id TEXT,
-                workspace_slug TEXT,
-                auth_method TEXT NOT NULL,
-                issued_at TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                last_activity_at TEXT NOT NULL,
-                revoked_at TEXT,
-                metadata_json TEXT NOT NULL DEFAULT '{}'
-            )
-            """
-        )
-        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, expires_at DESC, id DESC)")
-        self.connection.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_org ON user_sessions(organization_id, expires_at DESC, id DESC)")
         self.connection.executescript(
             """
             CREATE TABLE IF NOT EXISTS threads (
@@ -697,20 +642,6 @@ class PlatformStore:
             );
             CREATE INDEX IF NOT EXISTS idx_private_memory_scope
                 ON private_memory_items(organization_id, workspace_slug, user_id, updated_at DESC, id DESC);
-            """
-        )
-        self.connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS break_glass_admins (
-                id TEXT PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL,
-                password_salt TEXT NOT NULL,
-                enabled INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                last_login_at TEXT
-            )
             """
         )
         self._ensure_column("erasure_requests", "approved_by_user_id", "TEXT")
@@ -1221,8 +1152,6 @@ class PlatformStore:
         email: str,
         display_name: str,
         organization_id: str | None = None,
-        oidc_subject: str | None = None,
-        auth_source: str = "oidc",
         status: str = "pending",
     ) -> UserRecord:
         organization = self.ensure_default_organization() if not organization_id else None
@@ -1234,10 +1163,10 @@ class PlatformStore:
         now = datetime.now(timezone.utc).isoformat()
         self.connection.execute(
             """
-            INSERT INTO users (id, organization_id, email, display_name, status, oidc_subject, auth_source, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (id, organization_id, email, display_name, status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, resolved_org_id, email.strip().lower(), display_name.strip(), status, oidc_subject, auth_source, now, now),
+            (user_id, resolved_org_id, email.strip().lower(), display_name.strip(), status, now, now),
         )
         self.connection.commit()
         return self.get_user(user_id)
@@ -1252,8 +1181,6 @@ class PlatformStore:
             email=str(row["email"]),
             display_name=str(row["display_name"]),
             status=str(row["status"]),
-            oidc_subject=str(row["oidc_subject"]) if row["oidc_subject"] else None,
-            auth_source=str(row["auth_source"] or "oidc"),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
             deleted_at=datetime.fromisoformat(row["deleted_at"]) if row["deleted_at"] else None,
@@ -1277,18 +1204,6 @@ class PlatformStore:
     def set_user_status(self, user_id: str, status: str) -> UserRecord:
         now = datetime.now(timezone.utc).isoformat()
         self.connection.execute("UPDATE users SET status = ?, updated_at = ? WHERE id = ?", (status, now, user_id))
-        self.connection.commit()
-        user = self.get_user(user_id)
-        if user is None:
-            raise RuntimeError("Unknown user.")
-        return user
-
-    def bind_user_oidc_identity(self, user_id: str, *, oidc_subject: str | None, display_name: str | None = None) -> UserRecord:
-        now = datetime.now(timezone.utc).isoformat()
-        self.connection.execute(
-            "UPDATE users SET oidc_subject = ?, display_name = COALESCE(?, display_name), updated_at = ? WHERE id = ?",
-            (oidc_subject, display_name, now, user_id),
-        )
         self.connection.commit()
         user = self.get_user(user_id)
         if user is None:
@@ -1586,211 +1501,6 @@ class PlatformStore:
             details={"thread_id": thread.id, "memory_id": memory_id, "actor_user_id": user_id},
         )
         return memory_id
-
-    def create_session(
-        self,
-        *,
-        organization_id: str,
-        auth_method: str,
-        user_id: str | None = None,
-        workspace_slug: str | None = None,
-        ttl_seconds: int = 8 * 60 * 60,
-        metadata: dict[str, object] | None = None,
-    ) -> UserSessionRecord:
-        workspace = self.get_profile(workspace_slug) if workspace_slug else None
-        session_id = str(uuid4())
-        now = datetime.now(timezone.utc)
-        expires_at = now.timestamp() + ttl_seconds
-        self.connection.execute(
-            """
-            INSERT INTO user_sessions (id, user_id, organization_id, workspace_id, workspace_slug, auth_method, issued_at, expires_at, last_activity_at, metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                session_id,
-                user_id,
-                organization_id,
-                workspace.workspace_id if workspace else None,
-                workspace.slug if workspace else workspace_slug,
-                auth_method,
-                now.isoformat(),
-                datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat(),
-                now.isoformat(),
-                json.dumps(metadata or {}, sort_keys=True),
-            ),
-        )
-        self.connection.commit()
-        session = self.get_session(session_id)
-        if session is None:
-            raise RuntimeError("Failed to create session.")
-        return session
-
-    def get_session(self, session_id: str, *, touch: bool = False) -> UserSessionRecord | None:
-        row = self.connection.execute("SELECT * FROM user_sessions WHERE id = ?", (session_id,)).fetchone()
-        if not row:
-            return None
-        revoked_at = datetime.fromisoformat(row["revoked_at"]) if row["revoked_at"] else None
-        expires_at = datetime.fromisoformat(row["expires_at"])
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        last_activity_at = datetime.fromisoformat(row["last_activity_at"])
-        if last_activity_at.tzinfo is None:
-            last_activity_at = last_activity_at.replace(tzinfo=timezone.utc)
-        now_dt = datetime.now(timezone.utc)
-        if revoked_at is not None or expires_at <= now_dt:
-            return None
-        from app.config import settings
-
-        idle_minutes = int(getattr(settings, "session_idle_minutes", 0) or 0)
-        if idle_minutes > 0 and last_activity_at + timedelta(minutes=idle_minutes) <= now_dt:
-            return None
-        if touch:
-            now = now_dt.isoformat()
-            self.connection.execute("UPDATE user_sessions SET last_activity_at = ? WHERE id = ?", (now, session_id))
-            self.connection.commit()
-            row = self.connection.execute("SELECT * FROM user_sessions WHERE id = ?", (session_id,)).fetchone()
-        return UserSessionRecord(
-            id=str(row["id"]),
-            user_id=str(row["user_id"]) if row["user_id"] else None,
-            organization_id=str(row["organization_id"]),
-            workspace_id=str(row["workspace_id"]) if row["workspace_id"] else None,
-            workspace_slug=str(row["workspace_slug"]) if row["workspace_slug"] else None,
-            auth_method=str(row["auth_method"]),
-            issued_at=datetime.fromisoformat(row["issued_at"]),
-            expires_at=datetime.fromisoformat(row["expires_at"]),
-            last_activity_at=datetime.fromisoformat(row["last_activity_at"]),
-            revoked_at=datetime.fromisoformat(row["revoked_at"]) if row["revoked_at"] else None,
-            metadata=json.loads(row["metadata_json"] or "{}"),
-        )
-
-    def revoke_session(self, session_id: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        self.connection.execute("UPDATE user_sessions SET revoked_at = ? WHERE id = ?", (now, session_id))
-        self.connection.commit()
-
-    def revoke_user_sessions(self, user_id: str) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        self.connection.execute("UPDATE user_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL", (now, user_id))
-        self.connection.commit()
-
-    def create_break_glass_admin(self, username: str, password: str) -> BreakGlassAdminRecord:
-        normalized = username.strip().lower()
-        if not normalized or not password:
-            raise RuntimeError("Username and password are required.")
-        existing = self.get_break_glass_admin(normalized)
-        now = datetime.now(timezone.utc).isoformat()
-        password_hash, password_salt = _hash_pin(password)
-        if existing:
-            self.connection.execute(
-                "UPDATE break_glass_admins SET password_hash = ?, password_salt = ?, enabled = 1, updated_at = ? WHERE username = ?",
-                (password_hash, password_salt, now, normalized),
-            )
-            admin_id = existing.id
-        else:
-            admin_id = str(uuid4())
-            self.connection.execute(
-                """
-                INSERT INTO break_glass_admins (id, username, password_hash, password_salt, enabled, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 1, ?, ?)
-                """,
-                (admin_id, normalized, password_hash, password_salt, now, now),
-            )
-        self.connection.commit()
-        admin = self.get_break_glass_admin(normalized)
-        if admin is None:
-            raise RuntimeError("Failed to store break-glass admin.")
-        return admin
-
-    def get_break_glass_admin(self, username: str) -> BreakGlassAdminRecord | None:
-        row = self.connection.execute("SELECT * FROM break_glass_admins WHERE username = ?", (username.strip().lower(),)).fetchone()
-        if not row:
-            return None
-        return BreakGlassAdminRecord(
-            id=str(row["id"]),
-            username=str(row["username"]),
-            created_at=datetime.fromisoformat(row["created_at"]),
-            updated_at=datetime.fromisoformat(row["updated_at"]),
-            last_login_at=datetime.fromisoformat(row["last_login_at"]) if row["last_login_at"] else None,
-            enabled=bool(row["enabled"]),
-        )
-
-    def authenticate_break_glass_admin(self, username: str, password: str) -> BreakGlassAdminRecord | None:
-        row = self.connection.execute(
-            "SELECT * FROM break_glass_admins WHERE username = ? AND enabled = 1",
-            (username.strip().lower(),),
-        ).fetchone()
-        if not row:
-            return None
-        if not _verify_pin(password, str(row["password_hash"]), str(row["password_salt"])):
-            return None
-        now = datetime.now(timezone.utc).isoformat()
-        self.connection.execute(
-            "UPDATE break_glass_admins SET last_login_at = ?, updated_at = ? WHERE id = ?",
-            (now, now, row["id"]),
-        )
-        self.connection.commit()
-        return self.get_break_glass_admin(username)
-
-    def build_auth_context(self, session_id: str) -> AuthContext | None:
-        session = self.get_session(session_id, touch=True)
-        if session is None:
-            return None
-        roles: list[str] = []
-        user_email: str | None = None
-        if session.user_id:
-            user = self.get_user(session.user_id)
-            if user is None or user.status != "active":
-                return None
-            user_email = user.email
-            memberships = self.list_workspace_memberships(session.user_id)
-            if session.workspace_slug:
-                memberships = [membership for membership in memberships if membership.workspace_slug == session.workspace_slug]
-            roles = [membership.role for membership in memberships]
-        return AuthContext(
-            authenticated=True,
-            auth_method=session.auth_method,
-            organization_id=session.organization_id,
-            user_id=session.user_id,
-            user_email=user_email,
-            workspace_id=session.workspace_id,
-            workspace_slug=session.workspace_slug,
-            roles=roles,
-            session_id=session.id,
-            is_break_glass=session.auth_method == "break_glass",
-        )
-
-    def list_sessions(self, organization_id: str, user_id: str | None = None) -> list[UserSessionRecord]:
-        if user_id:
-            rows = self.connection.execute(
-                "SELECT id FROM user_sessions WHERE organization_id = ? AND user_id = ? ORDER BY last_activity_at DESC, id DESC",
-                (organization_id, user_id),
-            ).fetchall()
-        else:
-            rows = self.connection.execute(
-                "SELECT id FROM user_sessions WHERE organization_id = ? ORDER BY last_activity_at DESC, id DESC",
-                (organization_id,),
-            ).fetchall()
-        sessions: list[UserSessionRecord] = []
-        for row in rows:
-            session = self.get_session(str(row["id"]))
-            if session is not None:
-                sessions.append(session)
-        return sessions
-
-    def set_session_workspace(self, session_id: str, workspace_slug: str | None) -> UserSessionRecord | None:
-        session = self.get_session(session_id)
-        if session is None:
-            return None
-        if workspace_slug:
-            workspace_slug = validate_workspace_slug(workspace_slug)
-        workspace = self.get_profile(workspace_slug) if workspace_slug else None
-        now = datetime.now(timezone.utc).isoformat()
-        self.connection.execute(
-            "UPDATE user_sessions SET workspace_id = ?, workspace_slug = ?, last_activity_at = ? WHERE id = ?",
-            (workspace.workspace_id if workspace else None, workspace.slug if workspace else None, now, session_id),
-        )
-        self.connection.commit()
-        return self.get_session(session_id)
 
     def list_workspace_users(self, workspace_slug: str) -> list[UserRecord]:
         profile = self.get_profile(workspace_slug)

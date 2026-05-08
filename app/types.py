@@ -25,9 +25,8 @@ ResourceScope = Literal["private", "workspace", "organization", "system_audit"]
 ReminderSuggestionStatus = Literal["suggested", "accepted", "rejected"]
 ReviewState = Literal["pending", "accepted", "rejected"]
 DocumentClassification = Literal["public", "internal", "confidential", "finance", "legal", "hr"]
-WorkspaceRole = Literal["org_owner", "org_admin", "member", "auditor", "break_glass_admin"]
+WorkspaceRole = Literal["org_owner", "org_admin", "member", "auditor"]
 UserStatus = Literal["pending", "active", "suspended", "deleted"]
-SessionAuthMethod = Literal["oidc", "break_glass", "admin_token"]
 ComplianceRecordStatus = Literal["requested", "approved", "blocked", "completed", "failed"]
 DataClass = Literal["personal", "regulated_business", "operational", "security_audit"]
 RetentionDecision = Literal["allow_delete", "retain", "blocked_by_legal_hold", "pseudonymize"]
@@ -336,8 +335,6 @@ class UserRecord(BaseModel):
     email: str
     display_name: str
     status: UserStatus = "pending"
-    oidc_subject: str | None = None
-    auth_source: Literal["oidc", "break_glass", "bootstrap"] = "oidc"
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None = None
@@ -352,46 +349,6 @@ class WorkspaceMembershipRecord(BaseModel):
     role: WorkspaceRole
     created_at: datetime
     updated_at: datetime
-
-
-class UserSessionRecord(BaseModel):
-    id: str
-    user_id: str | None = None
-    organization_id: str
-    workspace_id: str | None = None
-    workspace_slug: str | None = None
-    auth_method: SessionAuthMethod
-    issued_at: datetime
-    expires_at: datetime
-    last_activity_at: datetime
-    revoked_at: datetime | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class BreakGlassAdminRecord(BaseModel):
-    id: str
-    username: str
-    created_at: datetime
-    updated_at: datetime
-    last_login_at: datetime | None = None
-    enabled: bool = True
-
-
-class AuthContext(BaseModel):
-    authenticated: bool = False
-    auth_method: SessionAuthMethod | None = None
-    organization_id: str | None = None
-    user_id: str | None = None
-    user_email: str | None = None
-    workspace_id: str | None = None
-    workspace_slug: str | None = None
-    roles: list[WorkspaceRole] = Field(default_factory=list)
-    session_id: str | None = None
-    is_break_glass: bool = False
-    is_bootstrap_token: bool = False
-
-    def has_role(self, *allowed: WorkspaceRole) -> bool:
-        return any(role in self.roles for role in allowed)
 
 
 class ThreadRecord(BaseModel):
@@ -425,12 +382,6 @@ class WorkspaceAccessContext(BaseModel):
     workspace_slug: str
     user_id: str
     roles: list[WorkspaceRole] = Field(default_factory=list)
-
-
-class AuthorizedRuntimeContext(BaseModel):
-    auth: AuthContext
-    workspace: WorkspaceAccessContext
-    thread: ThreadRecord | None = None
 
 
 class RetentionPolicyRecord(BaseModel):
@@ -1452,7 +1403,6 @@ class OnboardingSnapshot(BaseModel):
     local_data_note: str = ""
     model_note: str = ""
     workflow_note: str = ""
-    activation_note: str = ""
     storage_path: str | None = None
     model_path: str | None = None
 
@@ -1494,20 +1444,6 @@ class FailureStateSnapshot(BaseModel):
     next_action: str = ""
     technical_detail: str = ""
     source: str = "runtime"
-
-
-class LicenseSummarySnapshot(BaseModel):
-    status: Literal["unlicensed", "trial", "active", "expired", "invalid"] = "unlicensed"
-    plan: str = "No license"
-    activation_mode: str = "offline_license_file"
-    expires_at: str = ""
-    grace_state: str = ""
-    message: str = ""
-    renewal_hint: str = ""
-    production_access: bool = False
-    sample_access: bool = True
-    install_id: str = ""
-    source_path: str = ""
 
 
 class UpdateStateSnapshot(BaseModel):
@@ -1567,8 +1503,6 @@ class RuntimeSnapshot(BaseModel):
     trust_summary: TrustSummarySnapshot = Field(default_factory=TrustSummarySnapshot)
     readiness_summary: ReadinessSummarySnapshot = Field(default_factory=ReadinessSummarySnapshot)
     readiness_checks: list[ReadinessCheckSnapshot] = Field(default_factory=list)
-    license_state: Literal["unlicensed", "trial", "active", "expired", "invalid"] = "unlicensed"
-    license_summary: LicenseSummarySnapshot = Field(default_factory=LicenseSummarySnapshot)
     update_state: UpdateStateSnapshot = Field(default_factory=UpdateStateSnapshot)
     active_failures: list[FailureStateSnapshot] = Field(default_factory=list)
     last_recoverable_failure: FailureStateSnapshot | None = None
@@ -1638,11 +1572,8 @@ class UICommand(BaseModel):
         "dismiss_alert",
         "dismiss_all_alerts",
         "execute_suggested_action",
-        "get_knowledge_graph",
-        "search_knowledge_graph",
         "rerun_readiness",
         "retry_failure_action",
-        "rerun_license_check",
         "start_sample_workspace",
         "start_real_workspace",
     ]

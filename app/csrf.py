@@ -7,7 +7,6 @@ import hmac
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from app.auth import is_allowed_origin
 from app.config import settings
 
 CSRF_COOKIE_NAME = "kern_csrf_token"
@@ -15,7 +14,6 @@ CSRF_HEADER_NAME = "x-csrf-token"
 CSRF_TOKEN_LENGTH = 32
 STATE_CHANGING_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 EXEMPT_PATHS = frozenset({"/health", "/health/live", "/health/ready", "/api/version"})
-_PUBLIC_STATE_CHANGING_PATHS = frozenset({"/auth/break-glass/login", "/auth/break-glass/bootstrap"})
 
 
 def _is_enabled() -> bool:
@@ -32,23 +30,13 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME)
 
         if request.method in STATE_CHANGING_METHODS and request.url.path not in EXEMPT_PATHS:
-            if request.url.path in _PUBLIC_STATE_CHANGING_PATHS:
-                origin_ok = is_allowed_origin(request.headers.get("origin", ""))
-                referer_ok = is_allowed_origin(request.headers.get("referer", ""))
-                if not origin_ok and not referer_ok:
-                    return Response(
-                        content='{"detail":"Origin check failed for public endpoint"}',
-                        status_code=403,
-                        media_type="application/json",
-                    )
-            else:
-                csrf_header = request.headers.get(CSRF_HEADER_NAME, "")
-                if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
-                    return Response(
-                        content='{"detail":"CSRF token missing or invalid"}',
-                        status_code=403,
-                        media_type="application/json",
-                    )
+            csrf_header = request.headers.get(CSRF_HEADER_NAME, "")
+            if not csrf_cookie or not csrf_header or not hmac.compare_digest(csrf_cookie, csrf_header):
+                return Response(
+                    content='{"detail":"CSRF token missing or invalid"}',
+                    status_code=403,
+                    media_type="application/json",
+                )
 
         response = await call_next(request)
 

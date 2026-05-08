@@ -10,7 +10,6 @@ KERN is a controlled local/on-prem pilot for document-grounded enterprise workfl
 - Applies policy gates for sensitive reads, exports, backups, and high-risk actions.
 - Maintains local audit, retention, backup, update, and support-bundle evidence.
 - Runs as a Windows-first controlled local/on-prem pilot with a browser dashboard and optional Tauri desktop shell.
-- Includes a restricted server path for one-organization thread/auth workflows backed by PostgreSQL, Redis, and OIDC. Server mode is not yet the full document/evidence/compliance product path.
 
 ## Product Truth
 
@@ -20,7 +19,7 @@ Do not describe this release as fully enterprise-scale. The reserved final enter
 
 > KERN Enterprise Workspace: a single-tenant, company-controlled document AI workspace for governed internal knowledge work.
 
-Use that name only when the server deployment path supports shared company document workflows, authorized evidence storage, group-based access control, durable audit, migrations, backups, rollback, and operator observability end to end.
+Use that name only when the deployment path supports shared company document workflows, group-based access control, durable audit, migrations, backups, rollback, and operator observability end to end.
 
 ## Get Started
 
@@ -87,12 +86,6 @@ Use the release gate before shipping a package or demoing to external reviewers:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-release-gate.ps1
-```
-
-Use the enterprise acceptance harness when the local model runtime is installed:
-
-```powershell
-.\.venv\Scripts\python.exe .\scripts\enterprise_acceptance.py
 ```
 
 The corporate demo script is in [docs/corporate-demo-script.md](docs/corporate-demo-script.md).

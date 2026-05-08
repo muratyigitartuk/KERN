@@ -10,7 +10,6 @@ const CORE_ASSETS = [
   "/static/js/dashboard-dom.js",
   "/static/js/dashboard-events.js",
   "/static/js/dashboard-renderer.js",
-  "/static/js/knowledge-graph.js",
   "/static/js/i18n.js",
   "/static/js/modal-controller.js",
   "/static/js/socket-client.js",
@@ -60,8 +59,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
 
-  // H-15: Only cache public, non-authenticated API responses (/health).
-  // Authenticated /api/* responses must NOT be cached to prevent post-logout data leaks.
+  // H-15: Only cache public API responses (/health).
   if (url.pathname === "/health") {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) =>
@@ -87,7 +85,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Skip caching for authenticated API endpoints.
+  // Skip caching for API endpoints.
   if (url.pathname.startsWith("/api/")) {
     return;
   }

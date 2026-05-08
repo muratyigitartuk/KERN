@@ -105,7 +105,6 @@ class ModelRouter:
             "contract",
             "audit",
             "backup",
-            "knowledge graph",
             "meeting",
             "transcript",
             "document",

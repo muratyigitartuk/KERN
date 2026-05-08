@@ -214,7 +214,6 @@ def test_platform_bootstraps_default_organization_workspace_and_membership_conte
         email="owner@example.com",
         display_name="Owner",
         organization_id=organization.id,
-        auth_source="bootstrap",
         status="active",
     )
     membership = platform.upsert_workspace_membership(
@@ -222,41 +221,7 @@ def test_platform_bootstraps_default_organization_workspace_and_membership_conte
         workspace_slug=profile.slug,
         role="org_owner",
     )
-    session = platform.create_session(
-        organization_id=organization.id,
-        user_id=user.id,
-        workspace_slug=profile.slug,
-        auth_method="oidc",
-    )
-    context = platform.build_auth_context(session.id)
 
     assert profile.workspace_id is not None
     assert profile.organization_id == organization.id
     assert membership.workspace_slug == profile.slug
-    assert context is not None
-    assert context.user_id == user.id
-    assert context.workspace_slug == profile.slug
-    assert "org_owner" in context.roles
-
-
-def test_platform_break_glass_admin_can_authenticate_and_create_session(tmp_path: Path):
-    platform = PlatformStore(connect_platform_db(tmp_path / "kern-system.db"))
-    profile = platform.ensure_default_profile(
-        profile_root=tmp_path / "profiles",
-        backup_root=tmp_path / "backups",
-        legacy_db_path=tmp_path / "legacy.db",
-    )
-    admin = platform.create_break_glass_admin("operator", "secret-pass")
-    authed = platform.authenticate_break_glass_admin("operator", "secret-pass")
-    session = platform.create_session(
-        organization_id=platform.ensure_default_organization().id,
-        auth_method="break_glass",
-        workspace_slug=profile.slug,
-        metadata={"username": admin.username},
-    )
-    context = platform.build_auth_context(session.id)
-
-    assert authed is not None
-    assert context is not None
-    assert context.is_break_glass is True
-    assert context.workspace_slug == profile.slug

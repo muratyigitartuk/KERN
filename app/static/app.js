@@ -6,14 +6,13 @@ import { createSocketClient } from "/static/js/socket-client.js?v=20260422m";
 import { createThemeController } from "/static/js/theme-controller.js?v=20260422m";
 import { createWorkbenchController } from "/static/js/workbench.js?v=20260422m";
 import { applyText, loadLocale, t } from "/static/js/i18n.js?v=20260430a";
-import { bootstrapAdminAuthToken, secureFetch } from "/static/js/utils.js?v=20260422m";
+import { secureFetch } from "/static/js/utils.js?v=20260422m";
 
 // L-17: Allowlist language values to prevent path traversal in loadLocale.
 const _ALLOWED_LANGS = new Set(["en", "de"]);
 const rawLang = localStorage.getItem("kern.ui.language") || "en";
 const savedLang = _ALLOWED_LANGS.has(rawLang) ? rawLang : "en";
 await loadLocale(savedLang);
-bootstrapAdminAuthToken();
 
 async function loadUiFeatures() {
   try {
@@ -207,13 +206,6 @@ function applyStaticUiTranslations() {
   setParentLeadText("planList", "plan.current");
   setParentLeadText("receiptList", "plan.recently_done");
   setParentLeadText("capabilityList", "plan.available_tools");
-  setPreviousGroupLabel("kgSearchInput", "kg.group");
-  setParentLeadText("kgSearchInput", "kg.title");
-  setAttr("#kgSearchInput", "placeholder", "kg.search_placeholder");
-  setText("#kgSearchButton", "kg.search");
-  setText("#kgBuildButton", "kg.build");
-  setText("#kgStatus", "kg.empty");
-  setParentLeadText("kgResultsList", "kg.entities");
   setPreviousGroupLabel("memorySearchInput", "memory.group");
   setParentLeadText("memorySearchInput", "memory.title");
   setAttr("#memorySearchInput", "placeholder", "memory.search_placeholder");
@@ -289,9 +281,6 @@ function applyStaticUiTranslations() {
   setRowLabel("settingsArchiveRoot", "settings.archive_root");
   setRowLabel("settingsBackupRoot", "settings.backup_root");
   setRowLabel("settingsReadinessStatus", "settings.readiness");
-  setText("#settingsLicenseCard .eyebrow", "settings.license");
-  setText("#settingsImportLicense", "settings.import_license");
-  setText("#settingsRefreshLicense", "settings.recheck_license");
   setRowLabel("settingsRerunReadiness", "settings.readiness_action");
   setRowLabel("settingsAuditState", "settings.audit_label");
   setRowLabel("settingsAuditChain", "settings.security_log");
@@ -400,10 +389,6 @@ const socketClient = createSocketClient({
       renderer.finalizeLlmStream(message.payload?.rag || false);
     } else if (message.type === "rag_sources") {
       renderer.renderRagSources(message.payload);
-    } else if (message.type === "knowledge_graph_data") {
-      renderer.renderKnowledgeGraph(message.graph || {});
-    } else if (message.type === "knowledge_graph_search") {
-      renderer.renderKnowledgeGraphSearch(message.entities || []);
     } else if (message.type === "memory_search_result") {
       renderer.renderMemorySearchResults(message.hits || []);
     } else if (message.type === "audit_export") {

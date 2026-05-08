@@ -29,7 +29,6 @@ elseif (Test-Path (Join-Path $repoRoot ".venv\Scripts\python.exe")) {
 
 $env:KERN_DESKTOP_MODE = "true"
 $env:KERN_PRODUCT_POSTURE = "production"
-$env:KERN_DISABLE_AUTH_FOR_LOOPBACK = "true"
 
 Push-Location $tauriRoot
 try {

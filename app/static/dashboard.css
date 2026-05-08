@@ -3355,19 +3355,6 @@ input::placeholder {
   }
 }
 
-/* Knowledge graph canvas */
-.kg-canvas {
-  display: block;
-  width: 100%;
-  height: 380px;
-  border-radius: 8px;
-  background: var(--surface-2);
-  cursor: grab;
-}
-.kg-canvas:active {
-  cursor: grabbing;
-}
-
 /* Memory timeline */
 .memory-timeline {
   display: flex;
@@ -3859,27 +3846,6 @@ input::placeholder {
   gap: 10px;
 }
 
-.workspace-access-shell {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-right: 10px;
-}
-
-.workspace-access-shell__select select {
-  min-width: 180px;
-  border: 1px solid var(--line-subtle);
-  background: var(--surface-elevated);
-  color: var(--text-primary);
-  border-radius: 999px;
-  padding: 10px 14px;
-  font: inherit;
-}
-
-.workspace-access-shell__logout {
-  white-space: nowrap;
-}
-
 @media (max-width: 640px) {
   .upload-notice-modal__dialog {
     width: calc(100vw - 24px);
@@ -3906,19 +3872,6 @@ input::placeholder {
     justify-content: center;
   }
 
-  .workspace-access-shell {
-    width: 100%;
-    margin: 0 0 10px;
-  }
-
-  .workspace-access-shell__select {
-    flex: 1;
-  }
-
-  .workspace-access-shell__select select,
-  .workspace-access-shell__logout {
-    width: 100%;
-  }
 }
 
 /* Nothing design dashboard shell */
@@ -4066,8 +4019,7 @@ input::placeholder {
 .solid-button,
 .ghost-button,
 .connection-pill,
-.trust-badge,
-.workspace-access-shell__select select {
+.trust-badge {
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -4231,12 +4183,6 @@ input::placeholder {
   justify-content: flex-end;
 }
 
-.workspace-access-shell {
-  gap: 10px;
-  margin-right: 0;
-}
-
-.workspace-access-shell__select select,
 .ghost-button,
 .connection-pill,
 .trust-badge {
@@ -4247,10 +4193,6 @@ input::placeholder {
   background: var(--bg-elevated);
   color: var(--text-soft);
   font-size: 12px;
-}
-
-.workspace-access-shell__select select {
-  min-width: 210px;
 }
 
 .ghost-button {
@@ -4612,7 +4554,6 @@ input::placeholder {
     padding: 16px;
   }
 
-  .workspace-access-shell__select select,
   .ghost-button,
   .connection-pill,
   .trust-badge {
@@ -4836,7 +4777,6 @@ input::placeholder {
   color: var(--text-soft);
 }
 
-.workspace-shell.sidebar-collapsed #workspaceLogout,
 .workspace-shell.sidebar-collapsed .sidebar-account {
   display: none;
 }
@@ -6087,10 +6027,6 @@ body {
   left: 10px;
   right: 10px;
   bottom: calc(100% + 8px);
-}
-
-#workspaceLogout {
-  display: none !important;
 }
 
 .sidebar-bottom-link {
@@ -7474,10 +7410,6 @@ html[data-theme="dark"] .audit-entry__icon {
 
 .sidebar-settings > #utilityToggle {
   order: 1;
-}
-
-.sidebar-settings > #workspaceLogout {
-  order: 2;
 }
 
 .sidebar-settings > #openSettings {

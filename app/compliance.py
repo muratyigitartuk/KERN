@@ -30,12 +30,10 @@ class ComplianceService:
         return {
             "users": {"exportable": True, "erasable": False, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": True, "organization_owned": True},
             "workspace_memberships": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": True},
-            "sessions": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": True},
             "documents": {"exportable": True, "erasable": True, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": True},
             "deprecated_legacy_email_data": {"exportable": True, "erasable": True, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": True, "deprecated": True, "active_product_surface": False},
             "deprecated_legacy_meeting_data": {"exportable": True, "erasable": True, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": True, "deprecated": True, "active_product_surface": False},
             "schedules": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": True},
-            "knowledge_graph": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": True},
             "structured_memory": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": False, "pseudonymize_only": False, "organization_owned": False},
             "audit_events": {"exportable": True, "erasable": False, "retention_bound": True, "legal_hold_blocked": True, "pseudonymize_only": True, "organization_owned": True},
             "training_examples": {"exportable": True, "erasable": True, "retention_bound": False, "legal_hold_blocked": True, "pseudonymize_only": False, "organization_owned": False},
@@ -54,7 +52,6 @@ class ComplianceService:
         if user is None:
             raise RuntimeError("User not found.")
         memberships = self.platform.list_workspace_memberships(target_user_id)
-        sessions = self.platform.list_sessions(user.organization_id, target_user_id)
         holds = [item for item in self.platform.list_legal_holds(user.organization_id) if item.target_user_id in {None, target_user_id}]
         erasures = [item for item in self.platform.list_erasure_requests(user.organization_id) if item.target_user_id == target_user_id]
         exports = [item for item in self.platform.list_data_exports(user.organization_id) if item.target_user_id == target_user_id]
@@ -77,7 +74,6 @@ class ComplianceService:
         payload = {
             "user": user.model_dump(mode="json"),
             "memberships": [membership.model_dump(mode="json") for membership in memberships],
-            "sessions": [session.model_dump(mode="json") for session in sessions],
             "legal_holds": [hold.model_dump(mode="json") for hold in holds],
             "erasure_requests": [item.model_dump(mode="json") for item in erasures],
             "data_exports": [item.model_dump(mode="json") for item in exports],
@@ -231,20 +227,19 @@ class ComplianceService:
             )
 
         _mark_step("legal_hold_check", "completed", "No active legal holds.")
-        self.platform.revoke_user_sessions(request.target_user_id)
         self.platform.connection.execute("DELETE FROM workspace_memberships WHERE user_id = ?", (request.target_user_id,))
         self.memory.connection.execute("DELETE FROM memory_feedback_signals WHERE profile_slug = ? AND user_id = ?", (self.profile.slug, request.target_user_id))
         self.memory.connection.execute("DELETE FROM training_examples WHERE profile_slug = ? AND user_id = ?", (self.profile.slug, request.target_user_id))
         self.memory.connection.execute("DELETE FROM structured_memory_items WHERE profile_slug = ? AND user_id = ?", (self.profile.slug, request.target_user_id))
         self.memory.connection.commit()
-        _mark_step("delete_user_private_state", "completed", "Removed memberships, sessions, user-private memory, and training records.")
+        _mark_step("delete_user_private_state", "completed", "Removed memberships, user-private memory, and training records.")
 
         pseudonym = f"deleted-{request.target_user_id[:8]}@redacted.local"
         deleted_at = datetime.now(timezone.utc).isoformat()
         self.platform.connection.execute(
             """
             UPDATE users
-            SET email = ?, display_name = 'Deleted User', status = 'deleted', oidc_subject = NULL, deleted_at = ?, updated_at = ?
+            SET email = ?, display_name = 'Deleted User', status = 'deleted', deleted_at = ?, updated_at = ?
             WHERE id = ?
             """,
             (pseudonym, deleted_at, deleted_at, request.target_user_id),

@@ -1,4 +1,4 @@
-﻿# KERN Windows Deployment
+# KERN Windows Deployment
 
 KERN currently targets `local Windows deployment` with a strong single-user posture, a growing corporate mode, and a `production` product posture that defaults to the workspace-first shell.
 
@@ -6,7 +6,7 @@ Supported topology matrix:
 
 - `Supported`: Windows internal-machine runtime, per-user managed installs, scheduled-task startup
 - `Limited`: Docker/dev container use for development and API smoke testing
-- `Separate topology`: server-mode multi-user deployment with PostgreSQL, Redis, OIDC, HTTPS/proxy, and durable object storage
+- `Separate topology`: server-mode deployment with PostgreSQL, Redis, HTTPS/proxy, and durable object storage
 
 For this Windows guide, the release-blocking target is one controlled internal Windows machine, not a broad desktop rollout.
 
@@ -158,4 +158,3 @@ Keep profile and backup roots on local trusted storage. For shared corporate rol
 - For corporate local installs, prefer `KERN_POLICY_MODE=corporate`.
 - OCR is implemented in KERN but PaddleOCR is not yet a validated Windows production path; treat OCR as deferred on Windows unless you validate the exact target machine.
 - HF adapter serving exists as the highest-fidelity tuned-model path, but Windows-native GPU/runtime compatibility is still a host-specific validation concern.
-

@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 from app.compliance import ComplianceService
 from app.database import connect
-from app.identity import IdentityService
 from app.intelligence import IntelligenceService
 from app.memory import MemoryRepository
 from app.platform import PlatformStore, connect_platform_db
@@ -31,11 +30,9 @@ def _build_runtime(tmp_path: Path):
         slug="default",
     )
     memory = MemoryRepository(connect(Path(profile.db_path)), profile_slug=profile.slug)
-    identity = IdentityService(platform)
     runtime = SimpleNamespace(
         platform=platform,
         active_profile=profile,
-        identity_service=identity,
         memory=memory,
         retrieval_service=RetrievalService(memory, platform=platform, profile_slug=profile.slug),
     )
@@ -45,7 +42,6 @@ def _build_runtime(tmp_path: Path):
 def _client_for_runtime(runtime) -> TestClient:
     app = FastAPI()
     app.state.platform = runtime.platform
-    app.state.identity_service = runtime.identity_service
     register_routes(app, lambda: runtime)
     return TestClient(app)
 
@@ -56,23 +52,20 @@ def _create_active_user(runtime, *, email: str = "owner@example.com", role: str 
         email=email,
         display_name="Owner",
         organization_id=org.id,
-        auth_source="bootstrap",
         status="active",
     )
     runtime.platform.upsert_workspace_membership(user_id=user.id, workspace_slug=runtime.active_profile.slug, role=role)
-    session = runtime.platform.create_session(
+    return SimpleNamespace(
         organization_id=org.id,
         user_id=user.id,
         workspace_slug=runtime.active_profile.slug,
-        auth_method="oidc",
+        roles=[role],
     )
-    return session.id
 
 
 def test_compliance_service_generates_evidence_manifest_for_user_export(tmp_path: Path) -> None:
     runtime = _build_runtime(tmp_path)
-    session_id = _create_active_user(runtime)
-    context = runtime.platform.build_auth_context(session_id)
+    context = _create_active_user(runtime)
     service = ComplianceService(runtime.platform, runtime.memory, runtime.active_profile)
     runtime.memory.connection.execute(
         """
@@ -97,13 +90,11 @@ def test_compliance_service_generates_evidence_manifest_for_user_export(tmp_path
 
 def test_compliance_service_blocks_erasure_when_legal_hold_active(tmp_path: Path) -> None:
     runtime = _build_runtime(tmp_path)
-    session_id = _create_active_user(runtime)
-    context = runtime.platform.build_auth_context(session_id)
+    context = _create_active_user(runtime)
     target = runtime.platform.create_user(
         email="subject@example.com",
         display_name="Subject",
         organization_id=context.organization_id,
-        auth_source="oidc",
         status="active",
     )
     runtime.platform.create_legal_hold(
@@ -131,22 +122,14 @@ def test_compliance_service_blocks_erasure_when_legal_hold_active(tmp_path: Path
 
 def test_compliance_service_executes_erasure_and_records_tombstones(tmp_path: Path) -> None:
     runtime = _build_runtime(tmp_path)
-    session_id = _create_active_user(runtime)
-    context = runtime.platform.build_auth_context(session_id)
+    context = _create_active_user(runtime)
     target = runtime.platform.create_user(
         email="subject@example.com",
         display_name="Subject",
         organization_id=context.organization_id,
-        auth_source="oidc",
         status="active",
     )
     runtime.platform.upsert_workspace_membership(user_id=target.id, workspace_slug=runtime.active_profile.slug, role="member")
-    runtime.platform.create_session(
-        organization_id=context.organization_id,
-        user_id=target.id,
-        workspace_slug=runtime.active_profile.slug,
-        auth_method="oidc",
-    )
     intelligence = IntelligenceService(runtime.platform, runtime.memory, runtime.active_profile)
     intelligence.record_training_example(
         actor_user_id=target.id,
@@ -191,8 +174,7 @@ def test_compliance_service_executes_erasure_and_records_tombstones(tmp_path: Pa
 
 def test_intelligence_feedback_updates_memory_ranking(tmp_path: Path) -> None:
     runtime = _build_runtime(tmp_path)
-    session_id = _create_active_user(runtime)
-    context = runtime.platform.build_auth_context(session_id)
+    context = _create_active_user(runtime)
     memory_item_id = str(uuid4())
     runtime.memory.connection.execute(
         """
@@ -231,10 +213,8 @@ def test_intelligence_feedback_updates_memory_ranking(tmp_path: Path) -> None:
 
 def test_routes_expose_data_inventory_and_generate_exports(tmp_path: Path) -> None:
     runtime = _build_runtime(tmp_path)
-    session_id = _create_active_user(runtime)
+    context = _create_active_user(runtime)
     client = _client_for_runtime(runtime)
-    client.cookies.set("kern_session", session_id)
-    context = runtime.platform.build_auth_context(session_id)
     intelligence = IntelligenceService(runtime.platform, runtime.memory, runtime.active_profile)
     intelligence.record_training_example(
         actor_user_id=context.user_id,
@@ -262,10 +242,8 @@ def test_routes_expose_data_inventory_and_generate_exports(tmp_path: Path) -> No
 
 def test_routes_finalize_regulated_document_and_list_versions(tmp_path: Path) -> None:
     runtime = _build_runtime(tmp_path)
-    session_id = _create_active_user(runtime)
+    context = _create_active_user(runtime)
     client = _client_for_runtime(runtime)
-    client.cookies.set("kern_session", session_id)
-    context = runtime.platform.build_auth_context(session_id)
     record = DocumentRecord(
         id="doc-1",
         profile_slug=runtime.active_profile.slug,

@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 from fastapi import HTTPException, WebSocket, WebSocketDisconnect
 
-from app.auth import ensure_websocket_allowed, redact_error_detail
 from app.config import settings
 from app.path_safety import validate_user_import_path
 from app.tracing import generate_request_id, request_id_var
@@ -33,25 +32,6 @@ if TYPE_CHECKING:
 _WS_MAX_TEXT_BYTES = 32 * 1024
 _WS_BUCKETS: dict[str, list[float]] = {}
 _SCHEDULE_ACTION_TYPES = frozenset({"custom_prompt", "generate_report"})
-_COMMAND_ROLE_REQUIREMENTS = {
-    "submit_text": {"org_owner", "org_admin", "member", "auditor", "break_glass_admin"},
-    "confirm_action": {"org_owner", "org_admin", "member", "break_glass_admin"},
-    "cancel_action": {"org_owner", "org_admin", "member", "auditor", "break_glass_admin"},
-    "reset_conversation": {"org_owner", "org_admin", "member", "break_glass_admin"},
-    "search_knowledge": {"org_owner", "org_admin", "member", "auditor", "break_glass_admin"},
-    "update_settings": {"org_owner", "org_admin", "member", "break_glass_admin"},
-    "create_backup": {"org_owner", "org_admin", "break_glass_admin"},
-    "restore_backup": {"org_owner", "org_admin", "break_glass_admin"},
-    "export_audit": {"org_owner", "org_admin", "auditor", "break_glass_admin"},
-    "create_schedule": {"org_owner", "org_admin", "break_glass_admin"},
-    "delete_schedule": {"org_owner", "org_admin", "break_glass_admin"},
-    "toggle_schedule": {"org_owner", "org_admin", "break_glass_admin"},
-    "retry_failed_task": {"org_owner", "org_admin", "break_glass_admin"},
-    "lock_profile": {"org_owner", "org_admin", "member", "break_glass_admin"},
-    "unlock_profile": {"org_owner", "org_admin", "member", "break_glass_admin"},
-    "set_profile_pin": {"org_owner", "org_admin", "member", "break_glass_admin"},
-}
-_UNLISTED_COMMAND_ROLES: frozenset[str] = frozenset({"org_owner", "org_admin", "break_glass_admin"})
 _EXPENSIVE_COMMANDS = frozenset({
     "submit_text",
     "search_knowledge",
@@ -60,6 +40,10 @@ _EXPENSIVE_COMMANDS = frozenset({
     "restore_backup",
     "export_audit",
 })
+
+
+def redact_error_detail() -> dict[str, str]:
+    return {"detail": "Internal runtime error."}
 
 
 def _consume_ws_budget(key: str, *, limit: int, window_seconds: int) -> tuple[bool, int]:
@@ -80,9 +64,9 @@ def _ws_client_key(websocket: WebSocket, suffix: str) -> str:
     return f"{client_host}:{suffix}"
 
 
-def _ws_principal_key(websocket: WebSocket, auth_context: object | None, suffix: str) -> str:
+def _ws_principal_key(websocket: WebSocket, workspace_context: object | None, suffix: str) -> str:
     for attr in ("session_id", "user_id", "workspace_slug"):
-        value = str(getattr(auth_context, attr, "") or "").strip()
+        value = str(getattr(workspace_context, attr, "") or "").strip()
         if value:
             return f"{attr}:{value}:{suffix}"
     return _ws_client_key(websocket, suffix)
@@ -107,7 +91,7 @@ def _set_redacted_error(runtime: "KernRuntime", message: str) -> None:
     runtime.orchestrator.snapshot.response_text = redact_error_detail()["detail"]
 
 
-def _record_scheduler_domain_event(runtime: "KernRuntime", auth_context, *, event_type: str, detail: str, metadata: dict[str, object] | None = None) -> None:
+def _record_scheduler_domain_event(runtime: "KernRuntime", workspace_context, *, event_type: str, detail: str, metadata: dict[str, object] | None = None) -> None:
     if not getattr(runtime, "memory", None):
         return
     payload = {
@@ -122,9 +106,9 @@ def _record_scheduler_domain_event(runtime: "KernRuntime", auth_context, *, even
         WorkflowDomainEvent(
             id=f"wde-{workflow_id}-{fingerprint[:16]}",
             profile_slug=runtime.active_profile.slug,
-            organization_id=getattr(auth_context, "organization_id", None),
+            organization_id=getattr(workspace_context, "organization_id", None),
             workspace_slug=runtime.active_profile.slug,
-            actor_user_id=getattr(auth_context, "user_id", None),
+            actor_user_id=getattr(workspace_context, "user_id", None),
             workflow_id=workflow_id,
             workflow_type="scheduling_follow_through",
             event_type=event_type,
@@ -216,10 +200,8 @@ async def _policy_gate_dashboard_action(
     return False
 
 
-async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth_checked: bool = False) -> None:
-    if not auth_checked:
-        ensure_websocket_allowed(websocket)
-    auth_context = getattr(websocket.state, "auth_context", None)
+async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, workspace_checked: bool = False) -> None:
+    workspace_context = getattr(websocket.state, "workspace_context", None)
     allowed, retry_after = _consume_ws_budget(_ws_client_key(websocket, "connect"), limit=10, window_seconds=60)
     if not allowed:
         raise HTTPException(status_code=429, detail=f"Too many connection attempts. Retry in {retry_after}s.")
@@ -251,7 +233,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 await _reject_ws_command(runtime, "WebSocket command was not valid JSON.", "ws_json_rejected")
                 continue
             ok, retry_after = _consume_ws_budget(
-                _ws_principal_key(websocket, auth_context, "commands"),
+                _ws_principal_key(websocket, workspace_context, "commands"),
                 limit=120,
                 window_seconds=60,
             )
@@ -274,7 +256,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 continue
             if command.type in _EXPENSIVE_COMMANDS:
                 ok, retry_after = _consume_ws_budget(
-                    _ws_principal_key(websocket, auth_context, f"expensive:{command.type}"),
+                    _ws_principal_key(websocket, workspace_context, f"expensive:{command.type}"),
                     limit=8,
                     window_seconds=60,
                 )
@@ -294,16 +276,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                         return
                     await runtime._refresh_platform_snapshot()
                     await runtime.broadcast_if_changed(force=True, reason="ws_expensive_rate_limited")
-                    continue
-            required_roles = _COMMAND_ROLE_REQUIREMENTS.get(command.type, _UNLISTED_COMMAND_ROLES)
-            if required_roles:
-                current_roles = set(getattr(auth_context, "roles", []) or [])
-                if not getattr(auth_context, "is_break_glass", False) and required_roles.isdisjoint(current_roles):
-                    runtime.orchestrator.snapshot.last_action = "You are not allowed to run that workspace action."
-                    runtime.orchestrator.snapshot.response_text = "Permission denied."
-                    runtime.orchestrator.mark_dirty("runtime")
-                    await runtime._refresh_platform_snapshot()
-                    await runtime.broadcast_if_changed(force=True, reason="workspace_role_denied")
                     continue
             locked_commands = {
                 "submit_text",
@@ -331,23 +303,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 await runtime._refresh_platform_snapshot()
                 await runtime.broadcast_if_changed(force=True, reason="profile_locked")
                 continue
-            production_commands = {
-                "create_backup",
-                "restore_backup",
-                "ingest_files",
-                "export_audit",
-                "create_schedule",
-                "delete_schedule",
-                "toggle_schedule",
-                "retry_failed_task",
-            }
-            if command.type in production_commands and not runtime.ensure_production_access(blocked_scope=command.type):
-                runtime.orchestrator.snapshot.last_action = "Production access is blocked by license state."
-                runtime.orchestrator.snapshot.response_text = "Import a valid offline license before continuing."
-                runtime.orchestrator.mark_dirty("runtime")
-                await runtime._refresh_platform_snapshot()
-                await runtime.broadcast_if_changed(force=True, reason="license_block")
-                continue
             if command.type == "submit_text" and command.text:
                 if len(command.text.encode("utf-8")) > _WS_MAX_TEXT_BYTES:
                     _set_redacted_error(runtime, "Submitted text exceeded the dashboard size limit.")
@@ -359,7 +314,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                         await runtime.orchestrator.process_transcript(
                             command.text,
                             trigger="manual_ui",
-                            auth_context=auth_context,
+                            workspace_context=workspace_context,
                         )
                     except Exception as exc:
                         logger.exception("Dashboard transcript processing failed.")
@@ -392,12 +347,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 await runtime._refresh_platform_snapshot()
                 runtime.orchestrator.mark_dirty("runtime")
                 await runtime.broadcast_if_changed(force=True, reason="readiness_rerun")
-            elif command.type == "rerun_license_check":
-                runtime.orchestrator.snapshot.last_action = "Offline license state refreshed."
-                runtime.clear_failure("license_required", "license_expired", "license_invalid")
-                await runtime._refresh_platform_snapshot()
-                runtime.orchestrator.mark_dirty("runtime")
-                await runtime.broadcast_if_changed(force=True, reason="license_rerun")
             elif command.type == "start_sample_workspace":
                 await asyncio.to_thread(runtime.start_sample_workspace)
                 await runtime._refresh_platform_snapshot()
@@ -413,13 +362,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                     if failure_id:
                         runtime.clear_failure(failure_id)
                     runtime.orchestrator.snapshot.last_action = "Retrying after a fresh readiness check."
-                    await runtime._refresh_platform_snapshot()
-                    runtime.orchestrator.mark_dirty("runtime")
-                    await runtime.broadcast_if_changed(force=True, reason="failure_retry")
-                elif retry_action == "rerun_license_check":
-                    if failure_id:
-                        runtime.clear_failure(failure_id)
-                    runtime.orchestrator.snapshot.last_action = "Retrying after a fresh license check."
                     await runtime._refresh_platform_snapshot()
                     runtime.orchestrator.mark_dirty("runtime")
                     await runtime.broadcast_if_changed(force=True, reason="failure_retry")
@@ -874,7 +816,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                         runtime.orchestrator.snapshot.last_action = f"Schedule created: {title}"
                         _record_scheduler_domain_event(
                             runtime,
-                            auth_context,
+                            workspace_context,
                             event_type="task_created",
                             detail=f"Created schedule {title}.",
                             metadata={"title": title, "cron_expression": cron_expr, "action_type": action_type},
@@ -915,7 +857,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                     runtime.orchestrator.snapshot.last_action = f"Schedule {'enabled' if enabled else 'disabled'}."
                     _record_scheduler_domain_event(
                         runtime,
-                        auth_context,
+                        workspace_context,
                         event_type="task_toggled",
                         detail=f"Schedule {schedule_id} was {'enabled' if enabled else 'disabled'}.",
                         metadata={"schedule_id": schedule_id, "enabled": enabled},
@@ -930,7 +872,7 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                     runtime.orchestrator.snapshot.last_action = "Failed task retried."
                     _record_scheduler_domain_event(
                         runtime,
-                        auth_context,
+                        workspace_context,
                         event_type="task_retried",
                         detail=f"Retried failed schedule {schedule_id}.",
                         metadata={"schedule_id": schedule_id},
@@ -1018,20 +960,6 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
                 await runtime._refresh_platform_snapshot()
                 runtime.orchestrator.mark_dirty("runtime")
                 await runtime.broadcast_if_changed(force=True, reason="suggested_action")
-            elif command.type == "get_knowledge_graph":
-                if hasattr(runtime, "knowledge_graph_service") and runtime.knowledge_graph_service:
-                    graph = runtime.knowledge_graph_service.graph_snapshot()
-                    if not await _safe_send_json(websocket, {"type": "knowledge_graph_data", "graph": graph}):
-                        return
-                else:
-                    if not await _safe_send_json(websocket, {"type": "knowledge_graph_data", "graph": {"nodes": [], "links": []}}):
-                        return
-            elif command.type == "search_knowledge_graph":
-                query = str(command.settings.get("query", "")).strip()
-                if hasattr(runtime, "knowledge_graph_service") and runtime.knowledge_graph_service:
-                    entities = runtime.knowledge_graph_service.search_entities(query, limit=20)
-                    if not await _safe_send_json(websocket, {"type": "knowledge_graph_search", "entities": entities, "query": query}):
-                        return
     except WebSocketDisconnect:
         pass
     except Exception as exc:
@@ -1054,9 +982,9 @@ async def websocket_endpoint(websocket: WebSocket, runtime: KernRuntime, *, auth
         runtime.orchestrator.snapshot.response_text = redact_error_detail()["detail"]
         runtime.orchestrator.mark_dirty("runtime")
         await runtime._refresh_platform_snapshot()
-        with contextlib.suppress(Exception):  # cleanup â€” best-effort
+        with contextlib.suppress(Exception):  # cleanup Ã¢â‚¬â€ best-effort
             await runtime.broadcast_if_changed(force=True, reason="websocket_error")
-        with contextlib.suppress(Exception):  # cleanup â€” best-effort
+        with contextlib.suppress(Exception):  # cleanup Ã¢â‚¬â€ best-effort
             await websocket.close(code=1011)
     finally:
         runtime._ws_connection_count = max(0, getattr(runtime, '_ws_connection_count', 1) - 1)

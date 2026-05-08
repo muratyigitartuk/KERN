@@ -49,14 +49,16 @@ jobs:
 
       - name: Check browser JavaScript syntax
         shell: pwsh
-        run: node --check app\static\js\workbench.js
+        run: |
+          node --check app\static\app.js
+          node --check app\static\js\workbench.js
+          node --check app\static\js\dashboard-renderer.js
+          node --check app\static\js\dashboard-events.js
 
       - name: Run pytest
         shell: pwsh
         env:
           KERN_PRODUCT_POSTURE: personal
-          KERN_ADMIN_AUTH_TOKEN: test-token
-          KERN_SESSION_SECRET: test-session-secret
         run: python -m pytest -q
 
   package:

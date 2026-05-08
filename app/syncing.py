@@ -302,9 +302,9 @@ class SyncService:
         if not any(source_path.name.endswith(suffix) for suffix in allowed_suffixes):
             raise RuntimeError("Remote export requires an encrypted payload (.kernbak, .kernexp, or .kenc).")
         request = urllib.request.Request(destination_url, data=source_path.read_bytes(), method="PUT")
-        auth = urllib.request.HTTPBasicAuthHandler()
-        auth.add_password(None, destination_url, username, password)
-        opener = urllib.request.build_opener(auth)
+        credential_handler = urllib.request.HTTPBasicAuthHandler()
+        credential_handler.add_password(None, destination_url, username, password)
+        opener = urllib.request.build_opener(credential_handler)
         job = self.platform.create_job(
             "webdav_upload",
             f"Upload {source_path.name}",

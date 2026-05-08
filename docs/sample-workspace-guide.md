@@ -58,5 +58,4 @@ Then switch to the real local-document path for actual pilot work.
 
 Related:
 
-- [activation-renewal-guide.md](activation-renewal-guide.md)
 - [operator-runbook.md](operator-runbook.md)

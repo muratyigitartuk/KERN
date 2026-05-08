@@ -20,7 +20,6 @@ from app.config_validation import validate_env_types, validate_settings
 class FakeSettings:
     product_posture: str = "production"
     policy_mode: str = "personal"
-    admin_auth_token: str = "test-token"
     cognition_backend: str = "hybrid"
     db_encryption_mode: str = "fernet"
     sync_mode: str = "off"

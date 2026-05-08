@@ -17,7 +17,6 @@ _PATH_LIMITS: dict[str, tuple[int, int]] = {
     "/governance/export": (3, 60),
     "/support/export": (2, 60),
     "/metrics": (30, 60),
-    "/api/license/import": (5, 300),
 }
 
 _DEFAULT_LIMIT = (60, 60)  # 60 requests per minute for other endpoints
@@ -25,7 +24,6 @@ _SENSITIVE_GET_PATHS = frozenset({
     "/health",
     "/metrics",
     "/api/readiness",
-    "/api/license",
     "/logs/export",
     "/governance/export",
     "/support/export",
@@ -69,7 +67,7 @@ _redis_client = None
 
 def _redis_rate_check(key: str, max_requests: int, window: int) -> tuple[bool, int] | None:
     global _redis_client
-    if not settings.server_mode or not settings.redis_url:
+    if not settings.redis_url:
         return None
     try:
         if _redis_client is None:
@@ -121,12 +119,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     headers={"Retry-After": str(retry_after)},
                 )
             return await call_next(request)
-        if settings.server_mode and settings.redis_url:
-            return Response(
-                content='{"detail":"Rate limiting backend is unavailable."}',
-                status_code=503,
-                media_type="application/json",
-            )
         bucket = _buckets[bucket_key]
         allowed, retry_after = bucket.check(max_requests, window)
 

@@ -103,57 +103,6 @@ def validate_settings(settings) -> list[str]:
             f"got '{value('policy_mode', 'personal')}'"
         )
 
-    desktop_loopback_mode = bool(value("desktop_mode", False)) and bool(value("disable_auth_for_loopback", False))
-
-    if not value("server_mode", False) and (
-        value("product_posture", "production") == "production" or value("policy_mode", "personal") == "corporate"
-    ):
-        if not desktop_loopback_mode and not str(value("admin_auth_token", "") or "").strip():
-            errors.append(
-                "KERN_ADMIN_AUTH_TOKEN must be set when production posture or corporate policy mode is enabled"
-            )
-        if (value("oidc_enabled", False) or value("admin_dashboard_enabled", False)) and not str(value("session_secret", "") or "").strip():
-            errors.append(
-                "KERN_SESSION_SECRET must be set when production posture or corporate policy mode is enabled"
-            )
-        if value("oidc_enabled", False):
-            if not str(value("oidc_issuer_url", "") or "").strip():
-                errors.append("KERN_OIDC_ISSUER_URL must be set when KERN_OIDC_ENABLED=true")
-            if not str(value("oidc_client_id", "") or "").strip():
-                errors.append("KERN_OIDC_CLIENT_ID must be set when KERN_OIDC_ENABLED=true")
-            if not str(value("oidc_redirect_uri", "") or "").strip():
-                errors.append("KERN_OIDC_REDIRECT_URI must be set when KERN_OIDC_ENABLED=true")
-
-    if value("server_mode", False):
-        required = {
-            "KERN_POSTGRES_DSN": "postgres_dsn",
-            "KERN_REDIS_URL": "redis_url",
-            "KERN_OIDC_ISSUER_URL": "oidc_issuer_url",
-            "KERN_OIDC_CLIENT_ID": "oidc_client_id",
-            "KERN_OIDC_CLIENT_SECRET": "oidc_client_secret",
-            "KERN_OIDC_REDIRECT_URI": "oidc_redirect_uri",
-            "KERN_SESSION_SECRET": "session_secret",
-            "KERN_ENCRYPTION_KEY_PROVIDER": "encryption_key_provider",
-            "KERN_OBJECT_STORAGE_ROOT": "object_storage_root",
-            "KERN_NETWORK_ALLOWED_HOSTS": "network_allowed_hosts",
-            "KERN_PUBLIC_BASE_URL": "public_base_url",
-        }
-        for env_name, attr in required.items():
-            if not str(value(attr, "") or "").strip():
-                errors.append(f"{env_name} must be set when KERN_SERVER_MODE=true")
-        if not value("oidc_enabled", False):
-            errors.append("KERN_OIDC_ENABLED=true is required when KERN_SERVER_MODE=true")
-        if not value("proxy_headers_enabled", False):
-            errors.append("KERN_PROXY_HEADERS_ENABLED=true is required when KERN_SERVER_MODE=true")
-        if value("disable_auth_for_loopback", False):
-            errors.append("KERN_DISABLE_AUTH_FOR_LOOPBACK=false is required when KERN_SERVER_MODE=true")
-        if str(value("admin_auth_token", "") or "").strip():
-            errors.append("KERN_ADMIN_AUTH_TOKEN must not be used for normal server-mode authentication")
-        if value("server_break_glass_enabled", False) and not str(value("break_glass_ip_allowlist", "") or "").strip():
-            errors.append("KERN_BREAK_GLASS_IP_ALLOWLIST must be set when server break-glass is enabled")
-        if value("server_break_glass_enabled", False) and not str(value("break_glass_password", "") or "").strip():
-            errors.append("KERN_BREAK_GLASS_PASSWORD must be set when server break-glass is enabled")
-
     if value("cognition_backend", "hybrid") not in ("hybrid", "llama_cpp", "openai"):
         errors.append(
             f"KERN_COGNITION_BACKEND must be 'hybrid', 'llama_cpp', or 'openai', "
@@ -210,11 +159,6 @@ def validate_settings(settings) -> list[str]:
     elif value("llm_enabled", False) and external_llm_endpoint:
         pass
 
-    if value("license_public_key_path") and not Path(value("license_public_key_path")).expanduser().exists():
-        errors.append(
-            f"KERN_LICENSE_PUBLIC_KEY_PATH does not exist: '{value('license_public_key_path')}'"
-        )
-
     # --- Timezone validation ---
     if not _timezone_is_acceptable(str(value("timezone", "") or "")):
         errors.append(
@@ -233,8 +177,6 @@ def validate_settings(settings) -> list[str]:
         "KERN_SCHEDULER_RETRY_DELAY_MINUTES": value("scheduler_retry_delay_minutes", 10),
         "KERN_SCHEDULER_MAX_RETRIES": value("scheduler_max_retries", 2),
         "KERN_SCHEDULER_STALE_RUN_MINUTES": value("scheduler_stale_run_minutes", 45),
-        "KERN_SESSION_TTL_HOURS": value("session_ttl_hours", 8),
-        "KERN_SESSION_IDLE_MINUTES": value("session_idle_minutes", 60),
         "KERN_RETENTION_DOCUMENTS_DAYS": value("retention_documents_days", 3650),
         "KERN_RETENTION_TRANSCRIPTS_DAYS": value("retention_transcripts_days", 365),
         "KERN_RETENTION_AUDIT_DAYS": value("retention_audit_days", 2555),
@@ -296,7 +238,6 @@ def validate_env_types() -> list[str]:
         "KERN_CONTEXT_CLIPBOARD_MAX_CHARS", "KERN_NETWORK_MONITOR_INTERVAL",
         "KERN_SCHEDULER_RETRY_DELAY_MINUTES", "KERN_SCHEDULER_MAX_RETRIES",
         "KERN_SCHEDULER_STALE_RUN_MINUTES", "KERN_RETENTION_DOCUMENTS_DAYS",
-        "KERN_SESSION_TTL_HOURS", "KERN_SESSION_IDLE_MINUTES",
         "KERN_RETENTION_TRANSCRIPTS_DAYS",
         "KERN_RETENTION_AUDIT_DAYS", "KERN_RETENTION_BACKUPS_DAYS",
         "KERN_RETENTION_RUN_INTERVAL_HOURS", "KERN_RAG_TOP_K",

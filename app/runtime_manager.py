@@ -4,7 +4,6 @@ import asyncio
 from collections.abc import Iterable
 
 from app.config import settings
-from app.identity import IdentityService
 from app.path_safety import validate_workspace_slug
 from app.platform import PlatformStore, connect_platform_db
 from app.runtime import KernRuntime
@@ -14,7 +13,6 @@ from app.types import ProfileSummary
 class RuntimeManager:
     def __init__(self) -> None:
         self.platform = PlatformStore(connect_platform_db(settings.system_db_path), audit_enabled=settings.audit_enabled)
-        self.identity_service = IdentityService(self.platform)
         default_profile = self.platform.ensure_default_profile(
             profile_root=settings.profile_root,
             backup_root=settings.backup_root,

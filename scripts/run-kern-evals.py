@@ -17,7 +17,6 @@ from app.config import settings
 from app.database import connect
 from app.documents import DocumentService
 from app.intent import RuleBasedIntentEngine
-from app.knowledge_graph import KnowledgeGraphService
 from app.local_data import LocalDataService
 from app.memory import MemoryRepository
 from app.model_router import ModelRouter
@@ -407,49 +406,6 @@ def run_policy_truth_eval() -> dict[str, object]:
     }
 
 
-def run_knowledge_graph_eval() -> dict[str, object]:
-    cases = _load_cases("knowledge_graph.json")
-    with tempfile.TemporaryDirectory(prefix="kern_kg_eval_") as tmp:
-        tmp_path = Path(tmp)
-        memory = MemoryRepository(connect(tmp_path / "kg.db"))
-        graph = KnowledgeGraphService(memory.connection, "default")
-        passed = 0
-        results: list[dict[str, object]] = []
-        for case in cases:
-            graph.extract_from_document(str(case["document_id"]), str(case["text"]))
-            entities = graph.search_entities(str(case["query"]), limit=5)
-            relationships: set[str] = set()
-            if entities:
-                neighborhood = graph.get_neighborhood(str(entities[0]["id"]), depth=int(case.get("depth", 2) or 2))
-                relationships = {str(edge["relationship"]) for edge in neighborhood.get("edges", [])}
-                provenance_ok = any(
-                    str(case["document_id"]) in item["metadata"].get("source_document_ids", [])
-                    for item in entities
-                )
-            else:
-                provenance_ok = False
-            expected_rel = set(str(item) for item in case.get("expected_relationships", []))
-            ok = bool(entities) and provenance_ok and expected_rel.issubset(relationships)
-            passed += int(ok)
-            results.append(
-                {
-                    "query": case["query"],
-                    "entity_count": len(entities),
-                    "relationships": sorted(relationships),
-                    "provenance_ok": provenance_ok,
-                    "ok": ok,
-                }
-            )
-        memory.connection.close()
-    return {
-        "suite": "knowledge_graph",
-        "passed": passed,
-        "total": len(cases),
-        "score": round(passed / max(len(cases), 1), 3),
-        "cases": results,
-    }
-
-
 def run_proactive_alerts_eval() -> dict[str, object]:
     cases = _load_cases("proactive_alerts.json")
     with tempfile.TemporaryDirectory(prefix="kern_alert_eval_") as tmp:
@@ -596,7 +552,6 @@ def main() -> int:
         run_model_routing_eval(),
         run_prompt_cache_eval(),
         run_policy_truth_eval(),
-        run_knowledge_graph_eval(),
         run_proactive_alerts_eval(),
         run_cross_document_reasoning_eval(),
     ]

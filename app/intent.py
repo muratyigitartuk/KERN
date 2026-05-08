@@ -191,14 +191,14 @@ class RuleBasedIntentEngine:
 
         if (
             "watch folder" in lowered or "monitor folder" in lowered
-            or "ordner beobachten" in lowered or "ordner Ã¼berwachen" in lowered or "verzeichnis Ã¼berwachen" in lowered
+            or "ordner beobachten" in lowered or "ordner ÃƒÂ¼berwachen" in lowered or "verzeichnis ÃƒÂ¼berwachen" in lowered
         ):
             if "folder" in lowered:
                 folder = text.split("folder", 1)[-1].strip(" :.")
             elif "ordner" in lowered:
-                folder = text.split("ordner", 1)[-1].replace("beobachten", "").replace("Ã¼berwachen", "").strip(" :.")
+                folder = text.split("ordner", 1)[-1].replace("beobachten", "").replace("ÃƒÂ¼berwachen", "").strip(" :.")
             elif "verzeichnis" in lowered:
-                folder = text.split("verzeichnis", 1)[-1].replace("Ã¼berwachen", "").strip(" :.")
+                folder = text.split("verzeichnis", 1)[-1].replace("ÃƒÂ¼berwachen", "").strip(" :.")
             else:
                 folder = ""
             return self._parsed(
@@ -327,44 +327,13 @@ class RuleBasedIntentEngine:
                 ),
             )
 
-        if (
-            "knowledge graph" in lowered or "entity graph" in lowered
-            or "wissensgraph" in lowered or "entitÃ¤ten suchen" in lowered or "wissenssuche" in lowered
-        ):
-            if "build" in lowered or "create" in lowered or "generate" in lowered:
-                return self._parsed(
-                    "action",
-                    "build_knowledge_graph",
-                    "Build the knowledge graph from documents.",
-                    0.85,
-                    ToolRequest(
-                        tool_name="build_knowledge_graph",
-                        arguments={},
-                        user_utterance=text,
-                        reason="The user asked to build the knowledge graph.",
-                    ),
-                )
-            query = text.split("about", 1)[-1].strip() if "about" in lowered else text
-            return self._parsed(
-                "query",
-                "query_knowledge_graph",
-                "Search the knowledge graph.",
-                0.84,
-                ToolRequest(
-                    tool_name="query_knowledge_graph",
-                    arguments={"query": query},
-                    user_utterance=text,
-                    reason="The user asked to search the knowledge graph.",
-                ),
-            )
-
         context_tokens = [
             "current context", "foreground window", "active window", "current app", "clipboard",
             "aktueller kontext", "aktives fenster", "was mache ich gerade",
         ]
         generation_tokens = [
             "draft", "write", "create", "compose", "policy", "summarize", "analyze", "review",
-            "entwirf", "schreib", "erstelle", "richtlinie", "zusammenfassen", "analysiere", "prÃ¼fe",
+            "entwirf", "schreib", "erstelle", "richtlinie", "zusammenfassen", "analysiere", "prÃƒÂ¼fe",
         ]
         if any(token in normalized for token in context_tokens) and not any(token in normalized for token in generation_tokens):
             return self._parsed(
@@ -411,20 +380,20 @@ class RuleBasedIntentEngine:
             )
 
         if (
-            lowered.startswith("draft behorde letter") or lowered.startswith("draft behÃ¶rde letter")
-            or "behÃ¶rdenbrief erstellen" in lowered or "brief an behÃ¶rde" in lowered
+            lowered.startswith("draft behorde letter") or lowered.startswith("draft behÃƒÂ¶rde letter")
+            or "behÃƒÂ¶rdenbrief erstellen" in lowered or "brief an behÃƒÂ¶rde" in lowered
         ):
             subject = text.split("letter", 1)[-1].strip(" :.") or "Anliegen"
             return self._parsed(
                 "action",
                 "draft_behoerde_letter",
-                "Create a formal BehÃ¶rde draft.",
+                "Create a formal BehÃƒÂ¶rde draft.",
                 0.8,
                 ToolRequest(
                     tool_name="draft_behoerde_letter",
                     arguments={"subject": subject, "body_points": [subject]},
                     user_utterance=text,
-                    reason="The user asked for a BehÃ¶rde correspondence draft.",
+                    reason="The user asked for a BehÃƒÂ¶rde correspondence draft.",
                 ),
             )
 
@@ -1067,8 +1036,8 @@ class RuleBasedIntentEngine:
             cleaned = lowered
             for marker in [
                 "remind me to", "remind me", "set a timer for", "set timer for",
-                "erstelle eine erinnerung fÃ¼r", "erstelle erinnerung fÃ¼r",
-                "erinnere mich an", "erinnere mich", "neue erinnerung fÃ¼r",
+                "erstelle eine erinnerung fÃƒÂ¼r", "erstelle erinnerung fÃƒÂ¼r",
+                "erinnere mich an", "erinnere mich", "neue erinnerung fÃƒÂ¼r",
                 "erstelle eine erinnerung", "erstelle erinnerung", "neue erinnerung",
             ]:
                 cleaned = cleaned.replace(marker, "")
@@ -1096,7 +1065,7 @@ class RuleBasedIntentEngine:
         patterns = [
             r"(?:remind me to|remind me about|remind me)\s+(?P<title>[^;,.]+)",
             r"(?:erinnere mich an|erinnere mich)\s+(?P<title>[^;,.]+)",
-            r"(?:erstelle eine erinnerung fÃ¼r|erstelle erinnerung fÃ¼r|neue erinnerung fÃ¼r)\s+(?P<title>[^;,.]+)",
+            r"(?:erstelle eine erinnerung fÃƒÂ¼r|erstelle erinnerung fÃƒÂ¼r|neue erinnerung fÃƒÂ¼r)\s+(?P<title>[^;,.]+)",
         ]
         for pattern in patterns:
             match = re.search(pattern, text, flags=re.IGNORECASE)
@@ -1227,8 +1196,8 @@ class RuleBasedIntentEngine:
             r"^suche in meinen dokumenten(?: nach)? (?P<query>.+)$",
             r"^dokumente durchsuchen(?: nach)? (?P<query>.+)$",
             r"^finde in dokumenten(?: nach)? (?P<query>.+)$",
-            r"^zeig mir dokumente(?: zu| Ã¼ber| fÃ¼r)? (?P<query>.+)$",
-            r"^zeig mir meine dokumente(?: zu| Ã¼ber| fÃ¼r)? (?P<query>.+)$",
+            r"^zeig mir dokumente(?: zu| ÃƒÂ¼ber| fÃƒÂ¼r)? (?P<query>.+)$",
+            r"^zeig mir meine dokumente(?: zu| ÃƒÂ¼ber| fÃƒÂ¼r)? (?P<query>.+)$",
         ]
         for pattern in patterns:
             match = re.match(pattern, normalized)
@@ -1285,7 +1254,7 @@ class RuleBasedIntentEngine:
             customer_name = ""
         if customer_name.lower().startswith("for "):
             customer_name = customer_name[4:].strip(" :.?!")
-        if customer_name.lower().startswith("für "):
+        if customer_name.lower().startswith("fÃ¼r "):
             customer_name = customer_name[4:].strip(" :.?!")
         return customer_name or "Kunde"
 

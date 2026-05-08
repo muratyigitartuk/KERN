@@ -46,7 +46,6 @@ class DocumentService:
             self.archives_root = Path(profile_or_archives_root)
             self.memory = memory_or_connection if isinstance(memory_or_connection, MemoryRepository) else MemoryRepository(memory_or_connection)
         self.artifacts = ArtifactStore(self.platform, self.profile)
-        self.knowledge_graph = None  # optional KnowledgeGraphService, set by runtime
         self.retrieval = retrieval or RetrievalService(
             self.memory,
             platform=self.platform,
@@ -138,11 +137,6 @@ class DocumentService:
                 self.platform.update_job(job_id, status="completed", detail=f"Indexed {record.title}.", progress=1.0, result={"document_id": record.id})
                 self.platform.record_audit("documents", "ingest_document", "success", f"Indexed document {record.title}.", profile_slug=self.profile.slug, details={"path": str(path)})
             metrics.inc("kern_documents_ingested_total")
-            if self.knowledge_graph and text:
-                try:
-                    self.knowledge_graph.extract_from_document(record.id, text[:8000])
-                except Exception as exc:
-                    logger.debug("knowledge graph extraction failed for %s: %s", record.id, exc)
             return record
         except Exception as exc:
             if owned_path is not None and owned_path.exists() and owned_path != path:

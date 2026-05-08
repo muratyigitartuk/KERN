@@ -4,7 +4,6 @@ KERN ships with an advisory Playwright validation pack for browser-visible produ
 
 The pack does not use `@playwright/test`. It uses a repo-owned CLI harness that drives `@playwright/cli`, captures artifacts, and writes a human-review summary.
 
-For this hardening pass, treat the validation pack as the primary staging gate. The lightweight Playwright pytest scaffold remains useful for browser wiring smoke, but it is not the authoritative release signal.
 
 ## Prerequisites
 
@@ -44,7 +43,6 @@ python .\scripts\validate-kern-ui.py --base-url http://127.0.0.1:8000
 ```powershell
 python .\scripts\validate-kern-ui.py --launch-local --lane shell_smoke
 python .\scripts\validate-kern-ui.py --launch-local --lane trust_governance
-python .\scripts\validate-kern-ui.py --launch-local --lane license_sample_flow
 python .\scripts\validate-kern-ui.py --launch-local --lane sample_to_real_transition
 python .\scripts\validate-kern-ui.py --launch-local --lane busy_day_advisory
 python .\scripts\validate-kern-ui.py --launch-local --lane package_validation
@@ -93,24 +91,18 @@ The validation summary includes a `release_gate` section:
   - profile/security rendering
   - corporate-mode confirmation behavior for protected actions
   - personal-posture compatibility for optional assistant controls
-- `license_sample_flow`
-  - unlicensed start state
-  - invalid offline license handling
-  - valid offline license activation
-  - expired offline license behavior
   - support bundle availability while expired
 - `sample_to_real_transition`
   - sample workspace entry
   - staged sample drafting prompt
   - transition back to real local documents
-  - upload after activation
+  - document upload
   - sample documents no longer appearing as active primary content
 - `busy_day_advisory`
   - fixture upload
   - document totals
   - knowledge search
   - memory search
-  - KG build/search
   - schedule creation
   - audit surface presence
 - `package_validation`
@@ -121,7 +113,6 @@ The validation summary includes a `release_gate` section:
   - packaged install
   - readiness
   - first-run UI
-  - license/sample validation against the extracted handoff
 - `update_restore_smoke`
   - rollback bundle creation
   - restore validation
@@ -138,7 +129,6 @@ Required release lanes:
 
 - `shell_smoke`
 - `trust_governance`
-- `license_sample_flow`
 - `sample_to_real_transition`
 - `package_validation`
 - `package_smoke_install`

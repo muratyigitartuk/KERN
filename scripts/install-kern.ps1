@@ -62,11 +62,7 @@ if (-not (Test-Path .env) -and (Test-Path .env.example)) {
 }
 
 if ($Managed -or $InternalDeploy) {
-    New-Item -ItemType Directory -Force -Path ".kern", ".kern\\profiles", ".kern\\backups", ".kern\\documents", ".kern\\attachments", ".kern\\archives", ".kern\\logs", ".kern\\licenses" | Out-Null
-    $validationKeyPath = ".kern\\licenses\\validation-public-key.pem"
-    if (-not (Test-Path $validationKeyPath)) {
-        Set-Content -Path $validationKeyPath -Value "# Replace with the pilot license verification public key." -Encoding ASCII
-    }
+    New-Item -ItemType Directory -Force -Path ".kern", ".kern\\profiles", ".kern\\backups", ".kern\\documents", ".kern\\attachments", ".kern\\archives", ".kern\\logs" | Out-Null
 }
 
 Set-KernEnvValue -Key "KERN_PRODUCT_POSTURE" -Value "production"
@@ -74,10 +70,6 @@ Set-KernEnvValue -Key "KERN_DOCUMENT_ROOT" -Value ".kern/documents"
 Set-KernEnvValue -Key "KERN_ATTACHMENT_ROOT" -Value ".kern/attachments"
 Set-KernEnvValue -Key "KERN_ARCHIVE_ROOT" -Value ".kern/archives"
 Set-KernEnvValue -Key "KERN_LLM_LOCAL_ONLY" -Value "true"
-if (-not $env:KERN_ADMIN_AUTH_TOKEN) {
-    Set-KernEnvValue -Key "KERN_ADMIN_AUTH_TOKEN" -Value "local-admin-$([guid]::NewGuid().ToString('N'))"
-}
-
 if ($Corporate -or $InternalDeploy) {
     Set-KernEnvValue -Key "KERN_POLICY_MODE" -Value "corporate"
     Set-KernEnvValue -Key "KERN_AUDIT_ENABLED" -Value "true"

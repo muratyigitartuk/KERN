@@ -25,7 +25,6 @@ $env:KERN_DESKTOP_RUNTIME_ROOT = $repoRoot
 $env:KERN_DESKTOP_PYTHON = (Resolve-Path $pythonPath).Path
 $env:KERN_DESKTOP_MODE = "true"
 $env:KERN_PRODUCT_POSTURE = "production"
-$env:KERN_DISABLE_AUTH_FOR_LOOPBACK = "true"
 
 if ($CheckOnly) {
     Write-Host "KERN start check passed." -ForegroundColor Green
