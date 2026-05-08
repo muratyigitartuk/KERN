@@ -4,7 +4,7 @@ KERN's recommended local-mode shape is **one controlled internal machine** focus
 
 **private German business drafting grounded in local company documents**
 
-This guide is for local Windows deployment. Use the server-mode checklist for shared multi-user deployments.
+This guide is for local Windows deployment. Shared multi-user deployment is future architecture, not the current release path.
 
 ## Deployment shape
 
@@ -197,11 +197,6 @@ Use [operator-runbook.md](operator-runbook.md) as the single operational sequenc
 - update
 - restore
 - uninstall
-
-Use these companion operator docs for acceptance and symptom-based triage:
-
-- [pilot-acceptance-checklist.md](pilot-acceptance-checklist.md)
-- [pilot-troubleshooting-matrix.md](pilot-troubleshooting-matrix.md)
 
 ## Current boundaries
 

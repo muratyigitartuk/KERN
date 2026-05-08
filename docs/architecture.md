@@ -1,6 +1,6 @@
 # KERN Architecture
 
-KERN has two release shapes.
+KERN currently ships as a local desktop product. Shared company deployment is a target architecture, not a released runtime.
 
 ## Local Desktop Product
 
@@ -22,20 +22,14 @@ The launcher starts llama.cpp separately when `-EnableLlm` is used:
 - default GPU backend: Vulkan
 - CPU fallback: explicit diagnostics only
 
-## Server / Multi-User Deployment
+## Shared Deployment Direction
 
-The server architecture is a separate release gate:
+The shared deployment direction is:
 
 - PostgreSQL is the durable source of truth.
 - Redis is ephemeral coordination only.
-- private user threads are scoped by user and workspace.
+- object storage holds documents, generated artifacts, and backups.
+- background workers handle ingestion, OCR, embeddings, exports, and maintenance jobs.
+- identity, group-based permissions, migrations, observability, backups, and rollback must be explicit before calling it enterprise-scale.
 
-Desktop release validation and corporate server validation must be run separately.
-
-Run the server release gate only in an environment configured for server mode:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-server-release-gate.ps1
-```
-
-See [server-deployment.md](server-deployment.md) for the required infrastructure and current server-mode boundary.
+Do not describe the current release as shared enterprise infrastructure.

@@ -246,6 +246,4 @@ Related guides:
 - [troubleshooting-guide.md](troubleshooting-guide.md)
 - [update-rollback-guide.md](update-rollback-guide.md)
 - [sample-workspace-guide.md](sample-workspace-guide.md)
-- [pilot-acceptance-checklist.md](pilot-acceptance-checklist.md)
-- [pilot-troubleshooting-matrix.md](pilot-troubleshooting-matrix.md)
 - [release-checklist.md](release-checklist.md)

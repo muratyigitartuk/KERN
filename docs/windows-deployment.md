@@ -6,7 +6,7 @@ Supported topology matrix:
 
 - `Supported`: Windows internal-machine runtime, per-user managed installs, scheduled-task startup
 - `Limited`: Docker/dev container use for development and API smoke testing
-- `Separate topology`: server-mode deployment with PostgreSQL, Redis, HTTPS/proxy, and durable object storage
+- `Future topology`: shared deployment with PostgreSQL, Redis, HTTPS/proxy, durable object storage, background workers, identity, and migrations
 
 For this Windows guide, the release-blocking target is one controlled internal Windows machine, not a broad desktop rollout.
 
@@ -135,7 +135,7 @@ Recommended release-blocking checks on the target machine:
 - terminate uvicorn once and confirm restart/backoff behavior
 - run from a path with spaces
 - ingest files with German/Umlaut names such as `Prüfbericht.pdf`
-- confirm locked-profile startup stays on the scaffold until successful unlock
+- confirm locked-profile startup fails clearly until the local profile can be opened
 
 Runbook:
 

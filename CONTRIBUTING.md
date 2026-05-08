@@ -1,6 +1,6 @@
 # Contributing
 
-Keep changes small, tested, and explicit about whether they affect local desktop mode, server mode, or both.
+Keep changes small, tested, and explicit about whether they affect the local desktop runtime, document intelligence, retrieval/evidence behavior, governance, or packaging.
 
 ## Setup
 
@@ -37,16 +37,10 @@ For the production desktop installer:
 powershell -ExecutionPolicy Bypass -File .\scripts\build-kern-desktop-release.ps1
 ```
 
-For server-mode changes:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-server-release-gate.ps1
-```
-
 ## Rules
 
 - Do not commit `.env`, keys, databases, logs, local profile data, model files, virtual environments, build outputs, or generated runtime folders.
 - Do not add cloud LLM behavior without explicit policy controls, audit events, and tests.
 - Do not let private thread content appear in shared memory, shared retrieval, logs, exports, or prompt caches.
 - Keep desktop mode usable without PostgreSQL or Redis.
-- Keep server mode explicit; it must not silently fall back to local desktop assumptions.
+- Do not add shared deployment claims before the repo contains the required runtime, tests, and operator validation.

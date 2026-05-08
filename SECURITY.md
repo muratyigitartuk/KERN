@@ -1,6 +1,6 @@
 # Security Policy
 
-KERN is a local-first AI workspace with optional server-mode components. Treat reports involving private messages, local files, credentials, model prompts, retrieval leakage, authentication bypass, or workspace isolation as security issues.
+KERN is a local-first document AI workspace. Treat reports involving local files, credentials, model prompts, retrieval leakage, unsafe exports, path traversal, audit tampering, or workspace isolation as security issues.
 
 ## Supported Versions
 
@@ -21,12 +21,12 @@ Include:
 
 ## Security Boundaries
 
-Local desktop mode is designed for one local user on one machine. Corporate multi-user deployment requires server mode with PostgreSQL, Redis, OIDC, secure cookies, explicit allowed origins, and the server release gate.
+The current product is designed for one local user on one controlled machine. Do not treat this release as a shared company deployment until the server runtime, identity model, access controls, audit storage, migrations, backup, rollback, and operator validation exist in the repo.
 
 ## Validation Commands
 
 ```powershell
 python -m pytest
 python .\scripts\validate-publish-hygiene.py
-powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-server-release-gate.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\run-kern-release-gate.ps1
 ```
